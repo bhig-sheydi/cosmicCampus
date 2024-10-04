@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+  
+
+/* Example of CSS for dark and light modes */
+html.light {
+    --background-color: white;
+    --text-color: black;
+  }
+  
+  html.dark {
+    --background-color: black;
+    --text-color: white;
+  }
+  
+  /* Apply these variables in your global styles */
+  body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    overflow-x: hidden;
+  }
+  :root {
+    --chart-1: 210, 100%, 50%; /* Light Mode */
+    --chart-2: 160, 100%, 40%;
+    --chart-3: 60, 100%, 50%;
+    --chart-4: 10, 100%, 60%;
+    --color-steps: hsl(var(--chart-1));
+    --color-weight: hsl(var(--chart-2));
+    --color-completion: hsl(var(--chart-3));
+    --color-calories: hsl(var(--chart-4));
+  }
+  
+  body.dark-mode {
+    --chart-1: 210, 100%, 70%; /* Dark Mode */
+    --chart-2: 160, 100%, 60%;
+    --chart-3: 60, 100%, 70%;
+    --chart-4: 10, 100%, 80%;
+  }
+
+/* Add this to your CSS file or Tailwind CSS configuration */
+.shadow-carousel {
+  position: relative;
+}
+
+.shadow-carousel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  box-shadow: 
+    0 0 10px 4px rgba(59, 130, 246, 0.5), /* Blue glow */
+    0 0 10px 4px rgba(139, 92, 246, 0.5), /* Purple glow */
+    0 0 10px 4px rgba(236, 72, 153, 0.5); /* Pink glow */
+  border-radius: inherit; /* Ensure the shadow fits the rounded corners */
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+  .shadow-carousel::before {
+    box-shadow: 
+      0 0 10px 4px rgba(29, 78, 216, 0.5), /* Dark Blue glow */
+      0 0 10px 4px rgba(89, 34, 195, 0.5), /* Dark Purple glow */
+      0 0 10px 4px rgba(198, 73, 137, 0.5); /* Dark Pink glow */
+  }
+}
+
+
+@keyframes rotateGlow {
+  0% {
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.7), 0 0 30px rgba(0, 0, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 0, 255, 0.9), 0 0 50px rgba(0, 0, 255, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.7), 0 0 30px rgba(0, 0, 255, 0.7);
+  }
+}
+
+.king {
+  position: relative;
+  padding: 8px;
+  border: 6px solid transparent;
+  border-radius: 12px; /* Rounded corners for a smoother look */
+  animation: rotateGlow 2s linear infinite;
+}
+
+.king::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  border: 6px solid transparent;
+  border-image: linear-gradient(45deg, rgba(255, 0, 255, 0.5), rgba(0, 0, 255, 0.5));
+  border-image-slice: 1;
+  z-index: -1;
+  animation: rotateGlow 2s linear infinite;
+}
+
+
+
+  
+  .orbit img {
+    animation: orbit 8s linear infinite;
+  }
+  
+
+
+  @keyframes gradientMove {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  .animate-gradient-move {
+    background-size: 200% 200%;
+    animation: gradientMove 5s ease infinite;
+  }
+  
