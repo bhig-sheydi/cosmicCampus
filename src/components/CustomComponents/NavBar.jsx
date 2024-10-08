@@ -1,9 +1,9 @@
-import { NavbarSheet } from "./customComponents/NavSheet"; // Adjust the import path as needed
-import { ModeToggle } from "./customComponents/mode-toggle";
+import { NavbarSheet } from "./NavSheet"; // Adjust the import path as needed
+import { ModeToggle } from "./mode-toggle";
 import Logo from "../../assets/cosmic.png";
-import H4 from "./Typography/H4";
-import { useUser } from "./Contexts/userContext";
-import { Button } from "./ui/button";
+import H4 from "../Typography/H4";
+import { useUser } from "../Contexts/userContext";
+import { Button } from "../ui/button";
 
 export function Navbar({ links = [], brandName = "BrandName", scrollToSection }) {
 
