@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Hero from './Hero'
 import HeroSkeleton from './Hero.Skeleton'
 import { NavbarSkeleton } from './NavbarSkeleton'
-import { Navbar } from './NavBar'
+import { Navbar } from '../NavBar'
 
 const NavContainer = () => {
   const [isLoading, setIsLoading] = useState(true)

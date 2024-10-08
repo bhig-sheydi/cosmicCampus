@@ -3,7 +3,7 @@ import HeroContainer from '@/components/customComponents/HeroContainer';
 import AboutContainer from '@/components/customComponents/AboutContainer';
 import WhyChooseUsContainer from '@/components/customComponents/WhyChoseUsContainer';
 import FAQsContainer from '@/components/customComponents/FAQsContainer';
-import { Navbar } from '@/components/customComponents/NavBar';
+import { Navbar } from '@/components/NavBar';
 
 const Home = () => {
   const scrollToSection = (id) => {
