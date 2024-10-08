@@ -17,8 +17,8 @@ import NavContainer from './components/CustomComponents/NavContainer';
 import { SignUp } from './components/CustomComponents/SignupForm';
 import Auth from './components/Auth';
 import { Toaster } from "@/components/ui/toaster";
-import { LogIn } from 'lucide-react';
 import { Login } from './components/CustomComponents/LogIn';
+import { Dashboard } from './components/CustomComponents/Dashboard';
 
 
 
@@ -43,6 +43,7 @@ function App() {
              <Route path="/login" element={<Login/>} />
              <Route path="/otp" element={<Auth/>} />
             <Route path="/db" element={<DashboardTest />} />
+            <Route path="/dashboard" element={<Dashboard />} />
 
           </Routes>
           <Footer />

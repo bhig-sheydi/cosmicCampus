@@ -15,18 +15,19 @@ import { toast } from "@/components/ui/use-toast";
 import { Link } from "react-router-dom";
 import Logo from "../../assets/cosmic.png";
 import { supabase } from "../../supabaseClient";
+import { useEffect, useState } from 'react';
 
-
-
-// Define schema for form validation
+// Define schema for form validation, including the role field
 const SignUpSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   name: z.string().min(1, { message: "Name is required" }),
   dob: z.date({ required_error: "Date of birth is required" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters long" }),
+  role: z.string().min(1, { message: "Role is required" }) // Role validation
 });
 
 export function SignUp() {
+  const [roles, setRoles] = useState([]);
   const form = useForm({
     resolver: zodResolver(SignUpSchema),
     mode: 'onChange',
@@ -34,9 +35,30 @@ export function SignUp() {
 
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
   // Function to handle sign-up with email and password
-  async function signUpWithEmail(email, password, name, dob) {
-    try {
+
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      const { data, error } = await supabase
+        .from('roles')
+        .select('*');
+
+        console.log(data)
+      
+      if (error) {
+        console.error("Error fetching roles", error);
+      } else {
+        setRoles(data);
+      }
+    };
+    
+    fetchRoles();
+  }, []);
+
+  async function signUpWithEmail(email, password, name, dob, role) {
+   try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -54,6 +76,7 @@ export function SignUp() {
             name,
             email,
             dob: format(dob, 'yyyy-MM-dd'), // Format date for storage
+            role_id: role,  // Insert the role_id into the profiles table
           });
 
         if (profileError) {
@@ -64,7 +87,7 @@ export function SignUp() {
       toast({
         title: "Sign Up Successful",
         description: "Please check your email to verify your account.",
-         className: "bg-green-500 text-white"
+        className: "bg-green-500 text-white"
       });
 
     } catch (error) {
@@ -76,58 +99,13 @@ export function SignUp() {
     }
   }
 
-  // Function to handle sign-up with Google OAuth
-// Function to handle sign-up with Google OAuth
-// const signUpWithGoogle = async () => {
-//   try {
-//     const { data, error } = await supabase.auth.signInWithOAuth({
-//       provider: 'google',
-//     });
-
-//     if (error) {
-//       throw new Error(error.message);
-//     }
-
-//     // Check if a user was successfully created
-//     if (data.user) {
-//       // Extract user information from the response
-//       const { id, email, user_metadata } = data.user;
-//       const name = user_metadata.full_name; // Google provides full name in user_metadata
-
-//       // Insert the user into the profiles table
-//       const { error: profileError } = await supabase
-//         .from('profiles')
-//         .insert({
-//           user_id: id,
-//           name,
-//           email,
-//           dob: null, // Set dob to null as it may not be provided by Google
-//         });
-
-//       if (profileError) {
-//         throw new Error(profileError.message);
-//       }
-
-//       toast({
-//         title: "Sign Up Successful",
-//         description: "Google sign-up successful. Welcome!",
-//       });
-//     }
-//   } catch (error) {
-//     toast({
-//       title: "Google Sign Up Error",
-//       description: error.message,
-//       variant: "destructive",
-//     });
-//   }
-// };
 
 
   const onSubmit = async (data) => {
     if (isSubmitting) return;  // Prevent multiple submissions
     setIsSubmitting(true);
-    const { email, password, name, dob } = data;
-    await signUpWithEmail(email, password, name, dob);
+    const { email, password, name, dob, role } = data;
+    await signUpWithEmail(email, password, name, dob, role);
 
     setIsSubmitting(false); 
   };
@@ -148,106 +126,118 @@ export function SignUp() {
               </div>
               <div className="grid gap-4">
                 {/* Email Field */}
-                <div className="grid gap-2">
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input id="email" type="email" placeholder="m@example.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input id="email" type="email" placeholder="m@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 {/* Name Field */}
-                <div className="grid gap-2">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Name</FormLabel>
-                        <FormControl>
-                          <Input id="name" type="text" placeholder="John Doe" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input id="name" type="text" placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 {/* Date of Birth Field */}
-                <div className="grid gap-2">
-                  <FormField
-                    control={form.control}
-                    name="dob"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Date of Birth</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-[240px] pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormDescription>
-                          Your date of birth is used to calculate your age.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="dob"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date of Birth</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormDescription>
+                        Your date of birth is used to calculate your age.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 {/* Password Field */}
-                <div className="grid gap-2">
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input id="password" type="password" placeholder="******" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input id="password" type="password" placeholder="******" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Role Dropdown */}
+                <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Select Role</FormLabel>
+                  <FormControl>
+                    <select {...field} className="border rounded p-2">
+                      <option value="">Select your role</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.role_name}
+                        </option>
+                      ))}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+                  )}
+                />
 
                 {/* Sign Up Button */}
                 <Button type="submit" disabled={isSubmitting} className="w-full bg-gradient-to-l text-center from-blue-500 via-purple-500 to-pink-500 animate-gradient-move">
                   {isSubmitting ? 'Signing Up...' : 'Sign Up'}
                 </Button>
-
-            
               </div>
 
               {/* Log In Link */}

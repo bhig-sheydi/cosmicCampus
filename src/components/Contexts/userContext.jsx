@@ -10,7 +10,27 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null); // State to store user profile data
   const [session, setSession] = useState(null);
+  const [showNav, setShowNav] = useState(0);
+  const [roles, setRoles] = useState([]);
 
+
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      console.log('Fetching roles...'); // Log to ensure fetchRoles is being called
+      const { data, error } = await supabase.from('roles').select('*');
+  
+      if (error) {
+        console.error("Error fetching roles", error);
+      } else {
+        console.log('Roles fetched:', data); // Log the fetched roles
+        setRoles(data);
+      }
+    };
+  
+    fetchRoles();
+  }, []);
+  
   // Function to fetch authenticated user and profile data
   const fetchAuthenticatedUser = async () => {
     try {
@@ -86,7 +106,7 @@ export const UserProvider = ({ children }) => {
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, userData, session, logout }}>
+    <UserContext.Provider value={{ user, userData, session, logout, showNav , setShowNav, roles , setRoles }}>
       {children}
     </UserContext.Provider>
   );
