@@ -1,9 +1,9 @@
 import React from 'react';
-import HeroContainer from '@/components/CustomComponents/HeroContainer';
-import AboutContainer from '@/components/CustomComponents/AboutContainer';
-import WhyChooseUsContainer from '@/components/CustomComponents/WhyChoseUsContainer';
-import FAQsContainer from '@/components/CustomComponents/FAQsContainer';
-import { Navbar } from '@/components/CustomComponents/Navbar';
+import HeroContainer from '@/components/customComponents/HeroContainer';
+import AboutContainer from '@/components/customComponents/AboutContainer';
+import WhyChooseUsContainer from '@/components/customComponents/WhyChoseUsContainer';
+import FAQsContainer from '@/components/customComponents/FAQsContainer';
+import { Navbar } from '@/components/customComponents/NavBar';
 
 const Home = () => {
   const scrollToSection = (id) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import WhyChooseUs from '../CustomComponents/WhyChoseUs';
+import WhyChooseUs from './WhyChoseUs';
 import WhyChooseUsSkeleton from './WhyChooseUsSkeleton';
 
 const WhyChooseUsContainer = () => {
