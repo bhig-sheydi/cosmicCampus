@@ -11,12 +11,12 @@ import Lead from '@/components/Typography/Lead'
 import Mute from '@/components/Typography/Mute'
 import Q from '@/components/Typography/Q'
 import Small from '@/components/Typography/Small'
-import { ModeToggle } from '@/components/customComponents/mode-toggle'
+import { ModeToggle } from '@/components/CustomComponents/mode-toggle'
 import { useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 
 import React from 'react'
-import ClickDialogue from '@/components/customComponents/ClickDialogue'
+import ClickDialogue from '@/components/CustomComponents/ClickDialogue'
 
 
 

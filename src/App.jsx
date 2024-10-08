@@ -12,13 +12,13 @@ import BusinessStrategies from './Pages/BusinessStrategies';
 import GraphicDesign from './Pages/GraphicDesign';
 import GrowthTools from './Pages/GrowthTools';
 import DashboardTest from './Pages/DashboardTest';
-import Footer from './components/customComponents/Footer';
-import NavContainer from './components/customComponents/NavContainer';
-import { SignUp } from './components/customComponents/SignupForm';
+import Footer from './components/CustomComponents/Footer';
+import NavContainer from './components/CustomComponents/NavContainer';
+import { SignUp } from './components/CustomComponents/SignupForm';
 import Auth from './components/Auth';
 import { Toaster } from "@/components/ui/toaster";
-import { Login } from './components/customComponents/LogIn';
-import { Dashboard } from './components/customComponents/Dashboard';
+import { Login } from './components/CustomComponents/LogIn';
+import { Dashboard } from './components/CustomComponents/Dashboard';
 
 
 
