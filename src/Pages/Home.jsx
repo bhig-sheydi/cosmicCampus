@@ -3,7 +3,6 @@ import HeroContainer from '@/components/CustomComponents/HeroContainer';
 import AboutContainer from '@/components/CustomComponents/AboutContainer';
 import WhyChooseUsContainer from '@/components/CustomComponents/WhyChoseUsContainer';
 import FAQsContainer from '@/components/CustomComponents/FAQsContainer';
-import { Navbar } from '../components/CustomComponents/Navbar';
 import { Navbar } from '@/components/CustomComponents/Navbar';
 
 const Home = () => {
