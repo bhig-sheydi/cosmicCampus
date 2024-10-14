@@ -25,18 +25,17 @@ const SignUpSchema = z.object({
 export function CreateSchool() {
   const { userData } = useUser(); // Get user data from context
 
-  useEffect(() => {
-    console.log("Testing User ID:", userData?.user_id); // Confirm ID is available
-  }, [userData]);
-
   const [formData, setFormData] = useState({
     schoolName: "",
     schoolAddress: "",
     logo: null,
   });
-
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    console.log("Testing User ID:", userData?.user_id); // Confirm ID is available
+  }, [userData]);
 
   // Handle input changes
   const handleChange = (e) => {
@@ -46,7 +45,7 @@ export function CreateSchool() {
 
   // Handle file change for logo upload
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0] || null;
     setFormData((prev) => ({ ...prev, logo: file }));
   };
 
@@ -60,52 +59,53 @@ export function CreateSchool() {
       console.log("Validating form data...");
       SignUpSchema.parse(formData); // Validate form with Zod
 
+      // Ensure user ID is available
+      if (!userData?.user_id) {
+        throw new Error("User ID is missing. Please log in again.");
+      }
+
       let logoUrl = null;
 
       // Upload logo if provided
       if (formData.logo) {
-        console.log("Uploading logo...");
-        const { data, error: uploadError } = await supabase.storage
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
           .from("school-logos")
-          .upload(`logos/${Date.now()}-${formData.logo.name}`, formData.logo, {
-            cacheControl: "3600",
-            upsert: false,
-          });
+          .upload(`logos/${Date.now()}-${formData.logo.name}`, formData.logo);
 
         if (uploadError) {
           console.error("Upload Error:", uploadError);
-          throw new Error("Failed to upload the logo. Please try again.");
+          throw new Error("Failed to upload the logo.");
         }
 
-        const { data: urlData, error: urlError } = supabase.storage
-          .from("school-logos")
-          .getPublicUrl(data.path);
+        console.log("Upload successful. Path:", uploadData.path);
 
-        if (urlError) {
-          console.error("Public URL Error:", urlError);
+        // Get the public URL of the uploaded logo
+        const { data: publicUrlData, error: publicUrlError } = supabase
+          .storage
+          .from("school-logos")
+          .getPublicUrl(uploadData.path);
+
+        if (publicUrlError) {
+          console.error("Public URL Error:", publicUrlError);
           throw new Error("Failed to retrieve the public URL.");
         }
 
-        logoUrl = urlData.publicUrl;
-        console.log("Logo URL:", logoUrl);
+        logoUrl = publicUrlData.publicUrl;
+        console.log("Logo Public URL:", logoUrl);
       }
 
-      // Ensure user ID is available before inserting
-      if (!userData?.user_id) {
-        throw new Error("User ID is missing. Please try logging in again.");
-      }
-
-      console.log("Inserting school data into the database...");
+      // Insert school data into the database
       const { error: insertError } = await supabase.from("schools").insert({
         name: formData.schoolName,
         address: formData.schoolAddress,
         logo_url: logoUrl,
-        school_owner: userData.user_id, // Use correct user ID
+        school_owner: userData.user_id,
       });
 
       if (insertError) {
         console.error("Insert Error:", insertError);
-        throw new Error("Failed to create the school. Please try again.");
+        throw new Error("Failed to create the school.");
       }
 
       console.log("School successfully created!");
@@ -119,7 +119,7 @@ export function CreateSchool() {
   };
 
   return (
-    <div className="bg-black absolute w-[70%] h-full bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-black absolute w-[90%] h-full sm:w-full bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-[350px]">
         <CardHeader>
           <CardTitle>Create School</CardTitle>
@@ -158,13 +158,13 @@ export function CreateSchool() {
             </div>
             {error && <p className="text-red-500 mt-2">{error}</p>}
             {loading && <p className="text-blue-500 mt-2">Submitting...</p>}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create"}
+            </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-between">
           <Button variant="outline">Cancel</Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Creating..." : "Create"}
-          </Button>
         </CardFooter>
       </Card>
     </div>
