@@ -12,29 +12,46 @@ export const UserProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [showNav, setShowNav] = useState(0);
   const [roles, setRoles] = useState([]);
+  const [schools, setSchools] = useState([]); // State to store school data
 
-
-
+  // Fetch roles from the 'roles' table
   useEffect(() => {
     const fetchRoles = async () => {
       console.log('Fetching roles...'); // Log to ensure fetchRoles is being called
       const { data, error } = await supabase.from('roles').select('*');
-  
+
       if (error) {
-        console.error("Error fetching roles", error);
+        console.error('Error fetching roles', error);
       } else {
         console.log('Roles fetched:', data); // Log the fetched roles
         setRoles(data);
       }
     };
-  
+
     fetchRoles();
   }, []);
-  
+
+  // Fetch schools from the 'schools' table
+  useEffect(() => {
+    const fetchSchools = async () => {
+      console.log('Fetching schools...'); // Log to ensure fetchSchools is being called
+      const { data, error } = await supabase.from('schools').select('*');
+      
+
+      if (error) {
+        console.error('Error fetching schools', error);
+      } else {
+        console.log('Schools fetched:', data); // Log the fetched schools
+        setSchools(data);
+      }
+    };
+
+    fetchSchools();
+  }, []);
+
   // Function to fetch authenticated user and profile data
   const fetchAuthenticatedUser = async () => {
     try {
-      // Get the user session from Supabase
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
 
@@ -42,7 +59,6 @@ export const UserProvider = ({ children }) => {
       setUser(session?.user || null);
 
       if (session) {
-        // Fetch user profile data from the 'profiles' table
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -67,16 +83,14 @@ export const UserProvider = ({ children }) => {
       console.error('Error logging out:', error);
     } else {
       setUser(null);
-      setUserData(null);  // Clear user profile data on logout
-      setSession(null);   // Clear session data
+      setUserData(null); // Clear user profile data on logout
+      setSession(null); // Clear session data
     }
   };
 
   useEffect(() => {
-    // Fetch the authenticated user and profile data when the component mounts
     fetchAuthenticatedUser();
 
-    // Handle auth state changes and re-fetch user/profile data when the state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setSession(session);
       setUser(session?.user || null);
@@ -99,20 +113,30 @@ export const UserProvider = ({ children }) => {
       }
     });
 
-    // Clean up the subscription
     return () => {
       subscription?.unsubscribe();
     };
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, userData, session, logout, showNav , setShowNav, roles , setRoles }}>
+    <UserContext.Provider
+      value={{
+        user,
+        userData,
+        session,
+        logout,
+        showNav,
+        setShowNav,
+        roles,
+        setRoles,
+        schools, // Expose schools through context
+        setSchools,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );
 };
 
 // Custom hook to use the UserContext
-export const useUser = () => {
-  return useContext(UserContext);
-};
+export const useUser = () => useContext(UserContext);

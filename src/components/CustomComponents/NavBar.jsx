@@ -10,7 +10,7 @@ export function Navbar({ links = [], brandName = "BrandName", scrollToSection })
   const {userData ,logout , showNav} = useUser()
 
 
-  console.log(userData)
+  console.log("name",userData?.user_id)
   return (
      <div>
       {
