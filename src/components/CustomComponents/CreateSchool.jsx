@@ -22,7 +22,7 @@ const SignUpSchema = z.object({
   logo: z.instanceof(File).optional(),
 });
 
-export function CreateSchool() {
+export function CreateSchool({ onCancel }) {
   const { userData } = useUser(); // Get user data from context
 
   const [formData, setFormData] = useState({
@@ -34,7 +34,7 @@ export function CreateSchool() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log("Testing User ID:", userData?.user_id); // Confirm ID is available
+    console.log("Testing User ID:", userData?.role_id); // Confirm ID is available
   }, [userData]);
 
   // Handle input changes
@@ -164,7 +164,9 @@ export function CreateSchool() {
           </form>
         </CardContent>
         <CardFooter className="flex justify-between">
-          <Button variant="outline">Cancel</Button>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
         </CardFooter>
       </Card>
     </div>

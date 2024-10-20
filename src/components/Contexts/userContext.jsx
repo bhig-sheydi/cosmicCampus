@@ -12,7 +12,7 @@ export const UserProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [showNav, setShowNav] = useState(0);
   const [roles, setRoles] = useState([]);
-  const [schools, setSchools] = useState([]); // State to store school data
+  const [schools, setSchools] = useState([]); // State to store school da
 
   // Fetch roles from the 'roles' table
   useEffect(() => {
@@ -76,6 +76,17 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+
+  const updateSchoolData = async (id, updatedData) => {
+    const { data, error } = await supabase
+      .from('schools')
+      .update(updatedData)
+      .eq('id', id);
+  
+    if (error) throw error;
+    return data;
+  };
+  
   // Function to log out the user
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -131,6 +142,8 @@ export const UserProvider = ({ children }) => {
         setRoles,
         schools, // Expose schools through context
         setSchools,
+        updateSchoolData
+        
       }}
     >
       {children}

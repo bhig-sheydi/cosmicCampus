@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 
 const Hero = () => {
   return (
-    <div className='w-full flex items-center justify-center shadow-md h-[87vh] relative mt-24 dark:bg-black'>
+    <div className='w-full flex items-center justify-center shadow-md h-[87vh] relative mt-24 dark:bg-black '>
       <div className='flex flex-col items-center justify-center gap-7'>
         <div className="relative">
           {/* Rotating Logo */}

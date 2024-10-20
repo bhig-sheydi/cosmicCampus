@@ -49,7 +49,8 @@ export function Dashboard() {
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] ">
       {/* Sidebar */}
       <div className="hidden border-r bg-white dark:bg-black md:block ">
-        <div className="flex h-full max-h-screen flex-col gap-2 ">
+        
+        <div className="flex h-full max-h-screen flex-col gap-2 fixed lg:w-[16.5%] sm:w-[25.5%] ">
           {/* Logo & Notifications */}
           <div
             className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 bg-gradient-to-r
@@ -59,7 +60,7 @@ export function Dashboard() {
             <Link to="/" className="flex items-center gap-2 font-semibold ">
               <img src={Logo} className="rounded-full w-10" />
               <span>Cosmic Campus</span>
-            </Link>
+            </Link> 
             <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
               <Bell className="h-4 w-4" />
               <span className="sr-only">Toggle notifications</span>
@@ -68,7 +69,7 @@ export function Dashboard() {
 
           {/* Navigation */}
           <div className="flex-1">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+            <nav className="grid items-start px-2 text-sm font-medium lg:px-4 ">
               <Link
                 to="#"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
