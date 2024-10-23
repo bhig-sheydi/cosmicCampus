@@ -6,9 +6,11 @@ import { useUser } from "../Contexts/userContext";
 import { Button } from "../ui/button";
 import { useState } from "react";
 
+
 export function Navbar({ links = [], brandName = "BrandName", scrollToSection }) {
   const { userData, logout, showNav } = useUser();
   const [isNavOpen, setNavOpen] = useState(false);
+
 
   // Function to close the mobile navbar
   const handleLinkClick = () => {

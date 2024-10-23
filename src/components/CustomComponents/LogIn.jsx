@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useNavigate} from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -23,6 +23,7 @@ export function Login() {
   });
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const navigate = useNavigate();
 
   // Function to handle login with email and password
   const loginWithEmail = async (email, password) => {
@@ -48,6 +49,8 @@ export function Login() {
         variant: "destructive",
       });
     }
+
+    navigate('/dashboard/profile')
   };
 
   const onSubmit = async (data) => {
