@@ -21,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+ import { Outlet } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +39,7 @@ export const description =
   "A products dashboard with a sidebar navigation and a main content area. The dashboard has a header with a search input and a user menu. The sidebar has a logo, navigation links, and a card with a call to action. The main content area shows an empty state with a call to action.";
 
 export function Dashboard() {
-  const { setShowNav, roles, userData, } = useUser();
+  const { setShowNav, roles, userData, requests } = useUser();
 
   useEffect(() => {
     setShowNav(1)
@@ -69,33 +70,25 @@ export function Dashboard() {
 
           {/* Navigation */}
           <div className="flex-1">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4 ">
-              <Link
-                to="#"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
-              >
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Link>
-              <Link
-                to="#"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                Orders
-                <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-                  6
-                </Badge>
-              </Link>
-              <Link
-                to="#"
-                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500"
-              >
-                <Package className="h-4 w-4" />
-                Products
-              </Link>
-              {/* Additional Links */}
-            </nav>
+          <Link
+  to="/profile"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <CircleUser className="h-4 w-4" />
+  Profile
+</Link>
+
+<Link
+  to="/accept-requests"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <Users className="h-4 w-4" />
+  Accept Requests
+  <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500">
+    {requests}
+  </Badge>
+</Link>
+
           </div>
 
           {/* Upgrade Card */}
@@ -140,16 +133,25 @@ export function Dashboard() {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
-              <nav className="grid gap-2 text-lg font-medium">
-                <Link
-                  to="#"
-                  className="flex items-center gap-2 text-lg font-semibold"
-                >
-                  <img src={Logo} className="rounded-full w-10" />
-                  <span className="sr-only">Cosmic Campus</span>
-                </Link>
-                {/* Sidebar links */}
-              </nav>
+            <Link
+  to="/profile"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <CircleUser className="h-4 w-4" />
+  Profile
+</Link>
+
+<Link
+  to="/accept-requests"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <Users className="h-4 w-4" />
+  Accept Requests
+  <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500">
+    {requests}
+  </Badge>
+</Link>
+
               <div className="mt-auto">
                 <Card>
                   <CardHeader>
@@ -207,7 +209,7 @@ export function Dashboard() {
                   
 
           {/* User Profile Section */}
-          <Profile/>
+          <Outlet/>
         </main>
       </div>
     </div>

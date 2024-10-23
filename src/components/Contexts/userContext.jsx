@@ -13,6 +13,7 @@ export const UserProvider = ({ children }) => {
   const [showNav, setShowNav] = useState(0);
   const [roles, setRoles] = useState([]);
   const [schools, setSchools] = useState([]); // State to store school da
+  const [requests, setRequests] = useState(0); // Track the number of requests
 
   // Fetch roles from the 'roles' table
   useEffect(() => {
@@ -30,6 +31,29 @@ export const UserProvider = ({ children }) => {
 
     fetchRoles();
   }, []);
+
+// Fetch request numbers when userData is available
+useEffect(() => {
+  const fetchRequests = async () => {
+    if (!userData) return; // Ensure userData is available
+
+    console.log('Fetching requests...'); // Debugging log
+    const { data, error } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('owner_id', userData.user_id);
+
+    if (error) {
+      console.error('Error fetching requests:', error);
+    } else {
+      console.log('Requests fetched:', data);
+      setRequests(data ? data.length : 0); // Handle null or empty response safely
+    }
+  };
+
+  fetchRequests();
+}, [userData]); // Add userData as a dependency
+
 
   // Fetch schools from the 'schools' table
   useEffect(() => {
@@ -142,7 +166,9 @@ export const UserProvider = ({ children }) => {
         setRoles,
         schools, // Expose schools through context
         setSchools,
-        updateSchoolData
+        updateSchoolData,
+        requests, 
+        setRequests 
         
       }}
     >

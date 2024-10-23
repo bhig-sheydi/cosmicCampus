@@ -1,10 +1,13 @@
-import { CircleUser, PlusCircle, Edit3, Trash } from "lucide-react"; 
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { useUser } from "../Contexts/userContext";
 import Logo from "../../assets/cosmic.png";
 import { CreateSchool } from "./CreateSchool";
 import { UpdateSchool } from "./UpdateSchool";
+import { PlusCircle } from "lucide-react";
+import { Edit3 } from "lucide-react";
+import { Trash } from "lucide-react";
+import { CircleUser } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -22,16 +25,19 @@ const Profile = () => {
   const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [schoolToDelete, setSchoolToDelete] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true); // Track loading state
   const { roles, userData, schools, setSchools } = useUser();
 
   const hideCreate = () => setShowCreate((prev) => !prev);
 
   useEffect(() => {
     const fetchSchools = async () => {
+      if (!userData?.user_id) return; // Ensure user_id is defined
+
       const { data, error } = await supabase
         .from("schools")
         .select("*")
-        .eq("school_owner", userData?.user_id)
+        .eq("school_owner", userData.user_id)
         .eq("is_deleted", false);
 
       if (error) {
@@ -39,10 +45,10 @@ const Profile = () => {
       } else {
         setSchools(data);
       }
+      setLoading(false); // End loading
     };
 
     fetchSchools();
-    console.log("role id",userData)
   }, [userData, setSchools]);
 
   const handleEditClick = (school) => {
@@ -77,19 +83,7 @@ const Profile = () => {
 
   return (
     <div>
-      {showCreate && <CreateSchool onClose={() => setShowCreate(false)} />}
-      {schoolToEdit && (
-        <UpdateSchool
-          school={schoolToEdit}
-          onClose={() => setSchoolToEdit(null)}
-        />
-      )}
-
-      {/* Check if the user is a student */}
-      {userData?.role_id === 2 ? (
-        <JoinSchool /> // Render the JoinSchool component if the user is a student
-      ) : (
-        <div className="flex-1 rounded-lg p-3 text-center bg-white dark:bg-black">
+       <div className="flex-1 rounded-lg p-3 text-center bg-white dark:bg-black">
           <div className="w-full h-[300px] overflow-hidden bg-black">
             <img src={Logo} className="w-full h-[600px] opacity-80" />
           </div>
@@ -111,7 +105,20 @@ const Profile = () => {
             </Button>
           </div>
         </div>
+      {showCreate && <CreateSchool onClose={() => setShowCreate(false)} />}
+      {schoolToEdit && (
+        <UpdateSchool
+          school={schoolToEdit}
+          onClose={() => setSchoolToEdit(null)}
+        />
       )}
+
+      {/* Render loading state if schools are still being fetched */}
+      {loading ? (
+        <p>Loading...</p>
+      ) : userData?.role_id === 2 && (
+        <JoinSchool /> // Render the JoinSchool component if the user is a student
+      ) }
 
       {/* Only show schools if the user is not a student */}
       {userData?.role_id == 1 && (

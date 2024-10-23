@@ -19,6 +19,8 @@ import Auth from './components/Auth';
 import { Toaster } from "@/components/ui/toaster";
 import { Login } from './components/CustomComponents/LogIn';
 import { Dashboard } from './components/CustomComponents/Dashboard';
+import AcceptRequests from './components/CustomComponents/AcceptRequest';
+import Profile from './components/CustomComponents/Profile';
 
 
 
@@ -43,7 +45,11 @@ function App() {
              <Route path="/login" element={<Login/>} />
              <Route path="/otp" element={<Auth/>} />
             <Route path="/db" element={<DashboardTest />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            
+            <Route path="/dashboard" element={<Dashboard />}>
+            <Route path="accept-requests" element={<AcceptRequests />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
 
           </Routes>
           <Footer />
