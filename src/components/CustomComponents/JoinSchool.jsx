@@ -91,28 +91,31 @@ const JoinSchool = () => {
           status: 'pending',
         }]);
         if (error) throw error;
-
+  
         toast({
           title: "Request sent successfully",
           description: "Awaiting acceptance",
           className: "bg-green-500 text-white",
         });
-
+  
         setTimeout(() => window.location.reload(), 1000);
       } else if (actionType === 'leave') {
+        const schoolIdToDelete = currentSchool?.school_id || currentSchool?.schools?.id || userRequest?.school_id;
+        if (!schoolIdToDelete) throw new Error("Invalid school ID");
+  
         const { error } = await supabase
           .from('requests')
           .delete()
           .eq('student_id', userData.user_id)
-          .eq('school_id', currentSchool?.school_id || currentSchool?.school?.id);
-
+          .eq('school_id', schoolIdToDelete);
+  
         if (error) throw error;
-
+  
         toast({
           title: "You have left the school.",
           className: "bg-green-500 text-white",
         });
-
+  
         setCurrentSchool(null);
         setTimeout(() => window.location.reload(), 1000);
       }
@@ -127,6 +130,7 @@ const JoinSchool = () => {
       setActionLoading(false);
     }
   };
+  
 
   const SchoolInfo = ({ school }) => (
     <div className="mb-4 p-4 border rounded-md shadow-sm">
