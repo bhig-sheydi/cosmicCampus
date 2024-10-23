@@ -23,7 +23,7 @@ export function Navbar({ links = [], brandName = "BrandName", scrollToSection })
         <nav
           className="fixed top-0 left-0 z-50 w-full bg-gradient-to-r 
                      from-blue-500 via-purple-500 to-pink-500 dark:from-gray-800 
-                     dark:to-gray-900 shadow-lg transition-all"
+                     dark:to-gray-900 shadow-lg transition-all animate-gradient-move"
         >
           <div className="flex justify-between items-center p-5">
             {/* Brand Section */}
