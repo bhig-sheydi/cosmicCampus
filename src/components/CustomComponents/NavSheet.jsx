@@ -1,12 +1,30 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { MenuIcon } from "lucide-react";
 
-export function NavbarSheet({ brandName, links, scrollToSection }) {
+export function NavbarSheet({ brandName, links, scrollToSection, onLinkClick }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleLinkClick = (id) => {
+    scrollToSection(id); // Scroll to the section
+    setIsOpen(false); // Close the sheet
+    onLinkClick(); // Close the navbar
+  };
+
   return (
-    <Sheet>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => setIsOpen(true)}>
           <MenuIcon />
         </Button>
       </SheetTrigger>
@@ -23,7 +41,7 @@ export function NavbarSheet({ brandName, links, scrollToSection }) {
               <Button
                 variant="link"
                 className="text-lg font-medium text-white dark:text-gray-300 hover:underline"
-                onClick={() => scrollToSection(link.id)}
+                onClick={() => handleLinkClick(link.id)}
               >
                 {link.name}
               </Button>
@@ -32,7 +50,11 @@ export function NavbarSheet({ brandName, links, scrollToSection }) {
         </div>
         <SheetFooter>
           <SheetClose asChild>
-            <Button variant="outline" className="text-white dark:text-gray-300 border-white dark:border-gray-300">
+            <Button
+              variant="outline"
+              className="text-white dark:text-gray-300 border-white dark:border-gray-300"
+              onClick={() => setIsOpen(false)}
+            >
               Close
             </Button>
           </SheetClose>

@@ -11,6 +11,9 @@ const Home = () => {
     const section = document.getElementById(id);
     if (section) {
       section.scrollIntoView({ behavior: 'smooth' });
+      console.log(`Scrolling to ${id}`); // Log to confirm scrolling
+    } else {
+      console.error(`Section with id ${id} not found`); // Log an error if not found
     }
   };
 
@@ -41,3 +44,6 @@ const Home = () => {
 };
 
 export default Home;
+
+
+
