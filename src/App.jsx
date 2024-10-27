@@ -21,6 +21,7 @@ import { Login } from './components/CustomComponents/LogIn';
 import { Dashboard } from './components/CustomComponents/Dashboard';
 import AcceptRequests from './components/CustomComponents/AcceptRequest';
 import Profile from './components/CustomComponents/Profile';
+import StudentsList from './components/CustomComponents/StudentList';
 
 
 
@@ -49,10 +50,12 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />}>
             <Route path="accept-requests" element={<AcceptRequests />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="students" element={<StudentsList/>} />
+
           </Route>
 
           </Routes>
-          <Footer />
+          <Footer  />
         </Router>
       </AuthProvider>
     </ThemeProvider>

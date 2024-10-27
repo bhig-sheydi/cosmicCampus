@@ -119,7 +119,7 @@ export function CreateSchool({ onCancel }) {
   };
 
   return (
-    <div className="bg-black absolute w-[90%] h-full sm:w-full bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-black absolute w-[90%]  h-full sm:w-full bg-opacity-50 flex items-center justify-center zindex">
       <Card className="w-[350px]">
         <CardHeader>
           <CardTitle>Create School</CardTitle>

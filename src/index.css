@@ -4,6 +4,10 @@
   
 
 /* Example of CSS for dark and light modes */
+
+.zindex{
+  z-index: 100000000000000;
+}
 html.light {
     --background-color: white;
     --text-color: black;

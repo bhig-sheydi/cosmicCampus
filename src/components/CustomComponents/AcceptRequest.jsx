@@ -25,6 +25,7 @@ const AcceptRequests = () => {
           .select(`
             request_id,
             student_id,
+            school_id,
             owner_id,
             status,
             schools (name, logo_url),
@@ -48,25 +49,45 @@ const AcceptRequests = () => {
 
   const handleAcceptRequest = async (requestId) => {
     try {
-      const { error } = await supabase
+      // Find the specific request being accepted
+      const request = requests.find((req) => req.request_id === requestId);
+  
+      // Ensure the request exists before proceeding
+      if (!request) throw new Error('Request not found');
+  
+      // Update the request status to 'accepted'
+      const { error: requestError } = await supabase
         .from('requests')
         .update({ status: 'accepted' })
         .eq('request_id', requestId);
-
-      if (error) throw error;
-
+  
+      // Update the student's school_id using the request data
+      const { error: studentError } = await supabase
+        .from('students')
+        .update({ school_id: request.school_id , proprietor: userData.user_id }) // Use the correct school_id
+        .eq('id', request.student_id); // Use the correct student_id
+  
+      // Handle errors from either update operation
+      if (requestError || studentError) {
+        throw requestError || studentError;
+      }
+  
+      // Show success toast
       toast({
         title: 'Request Accepted',
         description: 'The request has been accepted successfully.',
         className: 'bg-green-500 text-white',
       });
-
+  
+      // Remove the accepted request from the state
       setRequests((prev) => prev.filter((req) => req.request_id !== requestId));
       setFilteredRequests((prev) =>
         prev.filter((req) => req.request_id !== requestId)
       );
     } catch (error) {
       console.error('Error accepting request:', error);
+  
+      // Show error toast
       toast({
         title: 'Error',
         description: 'An error occurred while accepting the request.',
@@ -74,6 +95,7 @@ const AcceptRequests = () => {
       });
     }
   };
+  
 
   const handleRejectRequest = async (requestId) => {
     try {

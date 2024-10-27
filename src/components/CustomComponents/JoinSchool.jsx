@@ -73,6 +73,7 @@ const JoinSchool = () => {
       .eq('student_id', userData.user_id)
       .limit(1)
       .single();
+      
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error fetching user request:', error);
@@ -108,8 +109,16 @@ const JoinSchool = () => {
           .delete()
           .eq('student_id', userData.user_id)
           .eq('school_id', schoolIdToDelete);
+
+          const { error2 } = await supabase
+          .from('students')
+          .update({ school_id: null, proprietor: null }) // Set school_id to null
+          .eq('id', userData.user_id);
+
+
+
   
-        if (error) throw error;
+        if (error|| error2) throw error|| error2;
   
         toast({
           title: "You have left the school.",
