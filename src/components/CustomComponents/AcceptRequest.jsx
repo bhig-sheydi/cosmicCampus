@@ -9,9 +9,11 @@ const AcceptRequests = () => {
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const { userData } = useUser();
+  const { userData , classes} = useUser();
 
   useEffect(() => {
+
+    console.log("messup", classes)
     const fetchRequests = async () => {
       if (!userData) {
         console.error('User data not available');
@@ -137,51 +139,55 @@ const AcceptRequests = () => {
   };
 
   return (
-    <div className="accept-requests-container p-12">
-      <h2 className="text-2xl font-semibold mb-6">All School Requests</h2>
-
+    <div className="accept-requests-container p-6 sm:p-12 bg-gray-50 h-full dark:bg-gray-900 rounded-lg shadow-lg">
+      <h2 className="text-2xl font-semibold mb-6 text-center text-gradient bg-gradient-to-r from-purple-500 to-blue-500 text-transparent bg-clip-text">
+        All School Requests
+      </h2>
+  
       <input
         type="text"
         value={searchQuery}
         onChange={handleSearch}
         placeholder="Search by student name"
-        className="mb-4 p-2 border rounded w-full"
+        className="mb-6 p-3 w-full rounded-lg border-2 border-purple-400 focus:border-purple-600 focus:ring-2 focus:ring-purple-300 dark:border-purple-700 dark:bg-gray-800 dark:text-white"
       />
-
+  
       {loading ? (
-        <p>Loading...</p>
+        <p className="text-center text-purple-600 dark:text-purple-400">Loading...</p>
       ) : filteredRequests.length === 0 ? (
-        <p>No requests available.</p>
+        <p className="text-center text-purple-600 dark:text-purple-400">No requests available.</p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredRequests.map((request) => (
             <div
               key={request.request_id}
-              className="flex items-center justify-between p-4 border rounded-md shadow-sm"
+              className="flex flex-col sm:flex-row items-center justify-between p-4 border border-gray-200 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 dark:border-gray-700"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 w-full sm:w-auto mb-4 sm:mb-0">
                 <img
                   src={request.schools.logo_url}
                   alt={`${request.schools.name} Logo`}
-                  className="h-16 w-16 object-cover border-2 border-gray-300"
+                  className="h-20 w-20 rounded-full border-2 border-purple-400 object-cover shadow-md"
                 />
                 <div>
-                  <h4 className="text-lg font-bold">{request.schools.name}</h4>
-                  <p className="text-gray-500">
+                  <h4 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+                    {request.schools.name}
+                  </h4>
+                  <p className="text-purple-600 dark:text-purple-400">
                     Student: {request.students?.student_name || 'N/A'}
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 <Button
                   onClick={() => handleAcceptRequest(request.request_id)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
+                  className="px-5 py-2 rounded-md bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold shadow-md hover:from-blue-600 hover:to-blue-800 transition-colors"
                 >
                   Accept
                 </Button>
                 <Button
                   onClick={() => handleRejectRequest(request.request_id)}
-                  className="bg-red-500 hover:bg-red-600 text-white"
+                  className="px-5 py-2 rounded-md bg-gradient-to-r from-red-500 to-red-700 text-white font-semibold shadow-md hover:from-red-600 hover:to-red-800 transition-colors"
                 >
                   Reject
                 </Button>
@@ -192,6 +198,7 @@ const AcceptRequests = () => {
       )}
     </div>
   );
+  
 };
 
 export default AcceptRequests;

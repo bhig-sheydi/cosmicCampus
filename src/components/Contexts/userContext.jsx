@@ -15,6 +15,8 @@ export const UserProvider = ({ children }) => {
   const [schools, setSchools] = useState([]); // School data
   const [students, setStudents] = useState([]); // Student data
   const [requests, setRequests] = useState(0); // Request count
+  const [classes, setClasses] = useState(0); // Request count
+  const [userSchools, setUserSchools] = useState([])
 
   // Fetch roles from the 'roles' table
   useEffect(() => {
@@ -46,27 +48,50 @@ export const UserProvider = ({ children }) => {
     fetchSchools();
   }, []);
 
-  // Fetch students from the 'students' table
   useEffect(() => {
-    const fetchStudents = async () => {
-      console.log('Fetching students...');
-
-      const { data, error } = await supabase
-        .from('students')
-        .select(`
-          id, student_name, is_paid, class_id,
-          schools (name)  -- Join with schools to get the name
-        `)
-        .eq('proprietor', userData?.user_id)
+    const fetchUserSchools = async () => {
+      console.log('Fetching user schools...');
+      const { data, error } = await supabase.from('schools')
+      .select('*')
+      .eq("school_owner" , userData?.user_id )
       if (error) {
-        console.error('Error fetching students:', error);
+        console.error('Error fetching schools:', error);
       } else {
-        console.log('Students fetched:', data);
-        setStudents(data);
+        console.log('User Schools fetched:', data);
+        setUserSchools(data);
       }
     };
-    fetchStudents();
+    fetchUserSchools();
   }, [userData]);
+
+  // Fetch students from the 'students' table
+ // Fetch students with a join on the 'schools' table to get school names
+useEffect(() => {
+  const fetchStudents = async () => {
+    console.log('Fetching students with school names...');
+
+    const { data, error } = await supabase
+      .from('students')
+      .select(`
+        *,
+        schools (
+          name
+        )
+      `)
+      .eq('proprietor', userData?.user_id); // Adjusted based on the proprietor reference
+
+    if (error) {
+      console.error('Error fetching students:', error);
+    } else {
+      // Log the fetched data for debugging
+      console.log('Students fetched:', data);
+      setStudents(data);
+    }
+  };
+
+  fetchStudents();
+}, [userData]);
+
 
   // Fetch requests based on userData availability
   useEffect(() => {
@@ -86,6 +111,25 @@ export const UserProvider = ({ children }) => {
     };
     fetchRequests();
   }, [userData]);
+
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      console.log('Fetching requests...');
+      const { data, error } = await supabase
+        .from('class')
+        .select('*')
+        
+      if (error) {
+        console.error('Error fetching classes:', error);
+      } else {
+        console.log('classes fetched:', data);
+        setClasses(data);
+      
+      }
+    };
+    fetchClasses();
+  }, []);
 
   // Function to fetch authenticated user and profile data
   const fetchAuthenticatedUser = async () => {
@@ -167,6 +211,9 @@ export const UserProvider = ({ children }) => {
         setStudents,
         requests,
         setRequests,
+        classes,
+        setClasses,
+        userSchools
       }}
     >
       {children}
