@@ -22,6 +22,8 @@ import { Dashboard } from './components/CustomComponents/Dashboard';
 import AcceptRequests from './components/CustomComponents/AcceptRequest';
 import Profile from './components/CustomComponents/Profile';
 import StudentsList from './components/CustomComponents/StudentList';
+import TeacherList from './components/CustomComponents/TeacherList';
+import Aray from './components/CustomComponents/Aray';
 
 
 
@@ -46,12 +48,14 @@ function App() {
              <Route path="/login" element={<Login/>} />
              <Route path="/otp" element={<Auth/>} />
             <Route path="/db" element={<DashboardTest />} />
+            <Route path="/dbs" element={<Aray/>} />
+            
             
             <Route path="/dashboard" element={<Dashboard />}>
             <Route path="accept-requests" element={<AcceptRequests />} />
             <Route path="profile" element={<Profile />} />
             <Route path="students" element={<StudentsList/>} />
-
+            <Route path="teachers" element={<TeacherList/>} />
           </Route>
 
           </Routes>

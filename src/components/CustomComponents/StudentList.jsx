@@ -11,8 +11,88 @@ const StudentsList = () => {
   const [ageFilter, setAgeFilter] = useState({ operator: '', value: '' });
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
+  const [currentStudentId, setCurrentStudentId] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
+  const [showAssignClassModal, setShowAssignClassModal] = useState(false);
 
   const schools = userSchools;
+  
+  const handleStudentClick = (student) => {
+    setSelectedStudent(student);
+  };
+
+  const closeInfoCard = () => {
+    setSelectedStudent(null);
+  };
+
+  const promoteStudent = (student) => {
+    if (student.class_id == null) {
+      alert('Cannot promote a student with no class!');
+      return;
+    }
+    const nextClassId = student.class_id + 1;
+    updateStudentClass(student.id, nextClassId);
+  };
+
+  const demoteStudent = (student) => {
+    if (student?.class_id == null || student?.class_id <= 1) {
+      alert('Cannot demote a student further!');
+      return;
+    }
+    const previousClassId = student.class_id - 1;
+    updateStudentClass(student.id, previousClassId);
+  };
+
+
+  
+  const updateStudentClass = async (studentId, newClassId) => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .update({ class_id: newClassId })
+        .eq('id', studentId);
+
+      if (error) throw error;
+
+      const updatedStudents = students.map((student) =>
+        student.id === studentId ? { ...student, class_id: newClassId } : student
+      );
+
+      setStudents(updatedStudents);
+      alert('Student class updated successfully!');
+    } catch (error) {
+      console.error('Error updating student class:', error);
+      alert('Failed to update student class. Please try again.');
+    }
+  };
+
+  const assignClassToStudent = async (studentId, newClassId) => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .update({ class_id: newClassId })
+        .eq('id', studentId);
+
+      if (error) throw error;
+
+      const updatedStudents = students.map((student) =>
+        student.id === studentId ? { ...student, class_id: newClassId } : student
+      );
+
+      setStudents(updatedStudents);
+      alert('Class assigned successfully!');
+      setShowAssignClassModal(false);
+    } catch (error) {
+      console.error('Error assigning class:', error);
+      alert('Failed to assign class. Please try again.');
+    }
+  };
+
+  const handleAssignClass = (studentId) => {
+    setCurrentStudentId(studentId);
+    setShowAssignClassModal(true);
+  };
+
 
   useEffect(() => {
     const timer = setTimeout(() => setLoadingClasses(false), 10000);
@@ -40,10 +120,11 @@ const StudentsList = () => {
   const filteredStudents = students.filter(
     (student) =>
       student.student_name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      (selectedClass === '' || String(student.class_id) === selectedClass) &&
+      (selectedClass === '' || String(student.class?.class_name) === selectedClass) &&
       (selectedSchool === '' || student.schools?.name === selectedSchool) &&
       applyAgeFilter(student.age)
   );
+  
 
   const deleteStudent = async (studentId) => {
     try {
@@ -207,14 +288,18 @@ const StudentsList = () => {
             {filteredStudents.length > 0 ? (
               filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 dark:hover:bg-gray-700">
-                  <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
-                    {student.student_name}
-                  </td>
+                <td
+                  className="border px-4 py-2 cursor-pointer"
+                  onClick={() => handleStudentClick(student)}
+                >
+                  {student.student_name}
+                </td>
+                
                   <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
                     {student.schools?.name || 'N/A'}
                   </td>
                   <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
-                    {student.class_id || 'N/A'}
+                    {student?.class?.class_name || 'N/A'}
                   </td>
                   <td
                     className={`border px-4 py-2 font-semibold dark:border-gray-700 ${
@@ -229,12 +314,36 @@ const StudentsList = () => {
                     {student.age}
                   </td>
                   <td className="border px-4 py-2 dark:border-gray-700">
+                  <button
+                    onClick={() => promoteStudent(student)}
+                    className="bg-green-500 text-white px-2 py-1 rounded-md shadow hover:bg-green-600"
+                  >
+                    Promote
+                  </button>
+                  <button
+                    onClick={() => demoteStudent(student)}
+                    className="bg-yellow-500 text-white px-2 py-1 rounded-md shadow hover:bg-yellow-600 mx-2"
+                  >
+                    Demote
+                  </button>
+                  <button
+                    onClick={() => handleAssignClass(student?.id)}
+                    className="bg-blue-500 text-white px-2 py-1 rounded-md shadow hover:bg-blue-600"
+                  >
+                    Assign Class
+                  </button>
                     <button
                       onClick={() => deleteStudent(student.id)}
-                      className="bg-red-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                      className="bg-red-500 ml-2 text-white px-2 py-1 rounded-md shadow-lg hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
                     >
-                      Delete
+                      Delete Student
                     </button>
+
+
+
+
+                    
+                    
                   </td>
                 </tr>
               ))
@@ -247,7 +356,76 @@ const StudentsList = () => {
             )}
           </tbody>
         </table>
+
+              {/* Assign Class Modal */}
+      {showAssignClassModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-lg dark:bg-gray-800">
+            <h2 className="text-lg font-semibold mb-4 dark:text-white">
+              Assign Class to Student
+            </h2>
+            <select
+              onChange={(e) => assignClassToStudent(currentStudentId, e.target.value)}
+              className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
+            >
+              <option value="">Select a Class</option>
+              {classes.map((classItem) => (
+                <option key={classItem.class_id} value={classItem.class_id}>
+                  {classItem.class_name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowAssignClassModal(false)}
+              className="mt-4 bg-red-500 text-white px-4 py-2 rounded-md shadow hover:bg-red-600"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+
+       
+        {/* Student Info Card */}
+        {selectedStudent && (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
+            <button
+              onClick={() => setSelectedStudent(null)}
+              className="text-red-500 absolute top-4 right-4 text-xl font-bold"
+            >
+              &times;
+            </button>
+            <div className="text-center">
+              {/* Profile Picture */}
+              <img
+                src={selectedStudent.student_picture || '/default-profile.png'}
+                alt={`${selectedStudent.student_name}'s profile`}
+                className="w-32 h-32 rounded-full mx-auto mb-4"
+              />
+              {/* Student Information */}
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                {selectedStudent.student_name}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-300">{selectedStudent.schools?.name || 'N/A'}</p>
+              <p className="text-gray-600 dark:text-gray-300">Class: {selectedStudent.class?.class_name || 'N/A'}</p>
+              <p className="text-gray-600 dark:text-gray-300">Age: {selectedStudent.age}</p>
+              <p
+                className={`font-semibold ${
+                  selectedStudent.is_paid ? 'text-green-500' : 'text-red-500'
+                }`}
+              >
+                {selectedStudent.is_paid ? 'Paid' : 'Not Paid'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
+
+     
     </div>
   );
   

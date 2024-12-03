@@ -19,6 +19,7 @@ import {
 } from "../ui/alert-dialog";
 import { supabase } from "../../supabaseClient";
 import JoinSchool from './JoinSchool'; // Import JoinSchool component
+import TeachersJoin from "./TeachersJoin";
 
 const Profile = () => {
   const [showCreate, setShowCreate] = useState(false);
@@ -26,11 +27,16 @@ const Profile = () => {
   const [schoolToDelete, setSchoolToDelete] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true); // Track loading state
-  const { roles, userData, schools, setSchools } = useUser();
+  const { roles, userData, schools, setSchools , teacher, oneStudent} = useUser();
+  const [previewPic, setPreviewPic] = useState(null); //, For image preview
+  const [selectedPic, setSelectedPic] = useState(null); // For storing the selected file
+   
 
   const hideCreate = () => setShowCreate((prev) => !prev);
 
   useEffect(() => {
+
+  
     const fetchSchools = async () => {
       if (!userData?.user_id) return; // Ensure user_id is defined
 
@@ -81,30 +87,153 @@ const Profile = () => {
     setIsDialogOpen(false);
   };
 
+
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPreviewPic(URL.createObjectURL(file));
+      setSelectedPic(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedPic) {
+      alert("Please select a picture to upload!");
+      return;
+    }
+  
+    setLoading(true);
+  
+    try {
+      const fileName = `profile-${userData.user_id}-${Date.now()}-${selectedPic.name}`;
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from("profile_picture")
+        .upload(fileName, selectedPic);
+  
+      if (uploadError) {
+        console.error("Error uploading file:", uploadError);
+        alert("Failed to upload the picture.");
+        return;
+      }
+  
+      const { data: publicUrlData, error: publicUrlError } = supabase
+        .storage
+        .from("profile_picture")
+        .getPublicUrl(uploadData.path);
+  
+      if (publicUrlError) {
+        console.error("Error getting public URL:", publicUrlError);
+        alert("Failed to retrieve the public URL.");
+        return;
+      }
+  
+       if(userData.role_id == 3){
+
+
+        const { error: updateError } = await supabase
+        .from("teachers")
+        .update({ teacher_pic: publicUrlData.publicUrl })
+        .eq("teacher_id", userData.user_id);
+
+
+        if (updateError) {
+          console.error("Error updating user data:", updateError);
+          alert("Failed to update the user profile.");
+          return;
+        }
+
+
+       }
+
+
+       if(userData.role_id == 2){
+
+
+        const { error: updateError } = await supabase
+        .from("students")
+        .update({ student_picture: publicUrlData.publicUrl })
+        .eq("id", userData.user_id);
+
+
+        if (updateError) {
+          console.error("Error updating user data:", updateError);
+          alert("Failed to update the user profile.");
+          return;
+        }
+
+
+       }
+  
+
+
+      alert("Profile picture updated successfully!");
+    } catch (err) {
+      console.error("Error during upload:", err);
+      alert("An error occurred while uploading the picture.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  
+
   return (
     <div>
-       <div className="flex-1 rounded-lg p-3 text-center bg-white dark:bg-black">
-          <div className="w-full h-[300px] overflow-hidden bg-black">
-            <img src={Logo} className="w-full h-[600px] opacity-80" />
-          </div>
-          <div className="absolute top-80 rounded-full text-muted-foreground w-80% md:w-full sm:w-full">
-            <CircleUser className="sm:h-48 sm:w-48 w-28 h-28" />
-          </div>
-          <div className="flex max-w-[58rem] flex-col mt-6">
-            <h2 className="mt-6 text-xl font-semibold text-gray-800 dark:text-white">
-              {userData?.name || "User Name"}
-            </h2>
-            <p className="mt-2 mb-6 text-muted-foreground">
-              {userData?.email || "user@example.com"}
-            </p>
+      <div>
+      <div className="flex-1 rounded-lg p-3 text-center bg-white dark:bg-black">
+        <div className="w-full h-[300px] overflow-hidden bg-black">
+          <img
+            src={ userData?.role_id == 3 ?  teacher[0]?.teacher_pic : oneStudent[0]?.student_picture||  Logo || Logo}
+            alt="Profile Background"
+            className="w-full h-[600px] opacity-80"
+          />
+        </div>
+        <div className="absolute top-80 rounded-full text-muted-foreground w-80% md:w-full sm:w-full">
+          <img
+            src={previewPic || userData?.role_id == 3 ?  teacher[0]?.teacher_pic : oneStudent[0]?.student_picture||  Logo}
+            alt="Profile"
+            className="sm:h-48 sm:w-48 w-28 h-28 rounded-full border-4 border-gray-300"
+          />
+        </div>
+        <div className="flex max-w-[58rem] flex-col mt-6">
+          <h2 className="mt-6 text-xl font-semibold text-gray-800 dark:text-white">
+            {userData?.name || "User Name"}
+          </h2>
+          <p className="mt-2 mb-6 text-muted-foreground">
+            {userData?.email || "user@example.com"}
+          </p>
+          <div className="flex items-center gap-4">
             <Button
               size="sm"
               className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"
+              onClick={() => document.getElementById("fileInput").click()}
             >
               Edit Profile
             </Button>
+            {selectedPic && (
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-green-500 to-teal-500"
+                onClick={handleUpload}
+                disabled={loading}
+              >
+                {loading ? "Uploading..." : "Confirm Upload"}
+              </Button>
+            )}
           </div>
         </div>
+        {/* Hidden file input */}
+        <input
+          id="fileInput"
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
+      </div>
+    </div>
       {showCreate && <CreateSchool onClose={() => setShowCreate(false)} />}
       {schoolToEdit && (
         <UpdateSchool
@@ -112,13 +241,13 @@ const Profile = () => {
           onClose={() => setSchoolToEdit(null)}
         />
       )}
-
-      {/* Render loading state if schools are still being fetched */}
-      {loading ? (
-        <p>Loading...</p>
-      ) : userData?.role_id === 2 && (
-        <JoinSchool /> // Render the JoinSchool component if the user is a student
-      ) }
+{loading ? (
+  <p>Loading...</p>
+) : userData?.role_id === 2 ? (
+  <JoinSchool /> // Render the JoinSchool component if the user is a student
+) : userData?.role_id === 3 ? (
+  <TeachersJoin /> // Render the TeachersJoin component if the user is a teacher
+) : null}
 
       {/* Only show schools if the user is not a student */}
       {userData?.role_id == 1 && (

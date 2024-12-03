@@ -99,6 +99,14 @@ export function Dashboard() {
   <BookUserIcon/>
   Students
 </Link>
+
+<Link
+  to="/dashboard/teachers"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <BookUserIcon/>
+  Trachers
+</Link>
           </div>
 
           {/* Upgrade Card */}
@@ -171,6 +179,15 @@ export function Dashboard() {
   <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500">
     {requests}
   </Badge>
+</Link>
+
+
+<Link
+  to="/dashboard/teachers"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <BookUserIcon/>
+  Teachers
 </Link>
 
               <div className="mt-auto">
