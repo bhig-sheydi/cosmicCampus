@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useUser } from '../contexts/UserContext';
+import { useUser } from '@/components/Contexts/userContext';
 import { supabase } from '@/supabaseClient';
 import { ListFilterIcon } from 'lucide-react';
 import TeacherInfoModal from "./TeacherInfoModal"
