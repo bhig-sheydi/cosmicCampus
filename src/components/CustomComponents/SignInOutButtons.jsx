@@ -1,8 +1,27 @@
 import React from "react";
 
 const SignInOutButtons = () => {
-  const workLatitude = 6.5896448;
-  const workLongitude = 3.3390592;
+  const roomLatitude = 6.5896448;
+  const roomLongitude = 3.3390592;
+  const roomRadius = 0.1; // Radius in meters for the "room"
+
+  const toRadians = (degrees) => degrees * (Math.PI / 180);
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000; // Earth's radius in meters
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  };
 
   const handleAction = (action) => {
     if (!navigator.geolocation) {
@@ -13,14 +32,21 @@ const SignInOutButtons = () => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        const distance = calculateDistance(
+          latitude,
+          longitude,
+          roomLatitude,
+          roomLongitude
+        );
 
-        if (
-          Math.abs(latitude - workLatitude) < 0.001 &&
-          Math.abs(longitude - workLongitude) < 0.001
-        ) {
+        if (distance <= roomRadius) {
           alert(`You have successfully ${action}. Welcome!`);
         } else {
-          alert("You are not yet at work. Please proceed to your location.");
+          alert(
+            `You are not in the room. Your current distance from the room is approximately ${Math.round(
+              distance
+            )} meters. Please go to the designated area.`
+          );
         }
       },
       () => {
@@ -49,8 +75,8 @@ const SignInOutButtons = () => {
         </button>
       </div>
       <p className="mt-6 text-gray-600 text-center">
-        Click the buttons to sign in or sign out. Ensure you are at your work
-        location.
+        Sign-in and sign-out is restricted to a specific room. Ensure you are in
+        the correct location.
       </p>
     </div>
   );

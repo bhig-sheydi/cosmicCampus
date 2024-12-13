@@ -1,4 +1,5 @@
-import { useUser } from '../contexts/UserContext';
+import { useUser } from '@/components/Contexts/userContext';
+
 import { useEffect } from 'react';
 const TeacherInfoModal = ({ teacher, onClose,  }) => {
 
