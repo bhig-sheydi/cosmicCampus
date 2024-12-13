@@ -24,6 +24,10 @@ import Profile from './components/CustomComponents/Profile';
 import StudentsList from './components/CustomComponents/StudentList';
 import TeacherList from './components/CustomComponents/TeacherList';
 import Aray from './components/CustomComponents/Aray';
+import TeacherAssign from './components/CustomComponents/TeacherAsign';
+import TeacherAttendance from './components/CustomComponents/TeacherAttendance';
+
+
 
 
 
@@ -56,6 +60,8 @@ function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="students" element={<StudentsList/>} />
             <Route path="teachers" element={<TeacherList/>} />
+            <Route path="classsubject" element={<TeacherAssign/>} />
+            <Route path="attendance" element={<TeacherAttendance/>} />
           </Route>
 
           </Routes>

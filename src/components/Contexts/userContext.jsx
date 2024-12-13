@@ -18,13 +18,16 @@ export const UserProvider = ({ children }) => {
   const [requests, setRequests] = useState(0); // Request count
   const [classes, setClasses] = useState(0); // Request count
   const [userSchools, setUserSchools] = useState([]);
+  const [attendace, setattenndance] = useState([]);
   const [teachers, setTeachers] = useState([]); // Teachers data
   const [subjects, setSubjects] = useState([]); // Subjects data
   const [teacherSubjects, setTeacherSubjects] = useState([]);
   const [teacherSubjectsFull, setTeacherSubjectsFull] = useState([]);
   const [teacher, setTeacher] = useState([]);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
- 
+  const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
+  
+  const [classSubject, setClassSubject] = useState(null); // New state for selected student
 
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -98,6 +101,35 @@ export const UserProvider = ({ children }) => {
   }, [userData]); // Ensure userData is a dependency
 
 
+  useEffect(() => {
+    const fetchAttendace = async () => {
+      if (!userData?.user_id ) {
+        console.warn('User data not available. Skipping fetchTeacherSubjects.');
+        return;
+      }
+  
+      console.log('Fetching teacher-attendance...');
+      const { data, error } = await supabase
+        .from('teacher_attendance')
+        .select(`
+          *,
+          teachers (teacher_name),
+          class (class_name),
+          schools (name)
+        `)
+        .match({'owner_id' : userData?.user_id});
+  
+      if (error) {
+        console.error('Error fetching teacher-subject assignments:', error);
+      } else {
+        console.log('Teacher-subject assignments fetched:', data);
+        setattenndance(data);
+      }
+    };
+  
+    fetchAttendace();
+  }, [userData]); // Ensure userData is a dependency
+
   // Fetch roles from the 'roles' table
   useEffect(() => {
     const fetchRoles = async () => {
@@ -154,6 +186,33 @@ export const UserProvider = ({ children }) => {
     };
     fetchTeachers();
   }, [userData]);
+  
+
+  useEffect(() => {
+    const fetchClsssSubs = async () => {
+      console.log('Fetching class subjects ...');
+      const { data, error } = await supabase
+        .from('class_subjects')
+        .select(`
+          *,
+          subjects (
+            subject_name
+          ),
+          profiles (
+            user_id
+          )
+        `)
+        .eq('proprietor_id', userData?.user_id , "class_id", selectedStudent?.class_id);
+  
+      if (error) {
+        console.error('Error fetching , class subjects:', error );
+      } else {
+        console.log('class subjects for students :', data, selectedStudent?.class_id); // Log the data here
+        setClassSubject(data);
+      }
+    };
+    fetchClsssSubs();
+  }, [userData, selectedStudent]);
   
 
 
@@ -376,7 +435,13 @@ export const UserProvider = ({ children }) => {
         teacherSubjectsFull,
         setTeacherSubjectsFull,
         oneStudent,
-        set1Student
+        set1Student,
+        selectedStudent,
+        setSelectedStudent, 
+        classSubject,
+        setClassSubject
+        
+
       }}
     >
       {children}

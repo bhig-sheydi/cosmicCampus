@@ -4,16 +4,16 @@ import { supabase } from '@/supabaseClient';
 import { ListFilterIcon } from 'lucide-react';
 
 const StudentsList = () => {
-  const { students, setStudents, classes, userSchools } = useUser();
+  const { students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClass, setSelectedClass] = useState(''); 
   const [selectedSchool, setSelectedSchool] = useState('');
   const [ageFilter, setAgeFilter] = useState({ operator: '', value: '' });
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const [currentStudentId, setCurrentStudentId] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
   const [showAssignClassModal, setShowAssignClassModal] = useState(false);
+  
 
   const schools = userSchools;
   
@@ -358,33 +358,53 @@ const StudentsList = () => {
         </table>
 
               {/* Assign Class Modal */}
-      {showAssignClassModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg dark:bg-gray-800">
-            <h2 className="text-lg font-semibold mb-4 dark:text-white">
-              Assign Class to Student
-            </h2>
-            <select
-              onChange={(e) => assignClassToStudent(currentStudentId, e.target.value)}
-              className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-            >
-              <option value="">Select a Class</option>
-              {classes.map((classItem) => (
-                <option key={classItem.class_id} value={classItem.class_id}>
-                  {classItem.class_name}
-                </option>
-              ))}
-            </select>
+       {/* Info Card */}
+    {selectedStudent && (
+      <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-[90%] max-w-md">
+          {/* Profile Picture */}
+          <div className="flex justify-center mb-4">
+            <img
+              src={selectedStudent.student_picture|| '/default-avatar.png'}
+              alt={`${selectedStudent.student_name}'s profile`}
+              className="w-24 h-24 rounded-full object-cover border-2 border-purple-500"
+            />
+          </div>
+          {/* Student Details */}
+          <h2 className="text-lg font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+            {selectedStudent.student_name}
+          </h2>
+          <p className="mb-2">
+            <strong>School:</strong> {selectedStudent.schools?.name || 'N/A'}
+          </p>
+          <p className="mb-2">
+            <strong>Class:</strong> {selectedStudent.class?.class_name || 'N/A'}
+          </p>
+          <p className="mb-2">
+            <strong>Age:</strong> {selectedStudent.age}
+          </p>
+          <p className="mb-4">
+            <strong>Subjects:</strong>
+            <ul className="list-disc list-inside mt-2">
+              {classSubject
+                .filter((subject) => subject.class_id === selectedStudent.class_id)
+                .map((subject, index) => (
+                  <li key={index}>{subject?.subjects?.subject_name}</li>
+                ))}
+            </ul>
+          </p>
+          {/* Close Button */}
+          <div className="flex justify-end gap-4">
             <button
-              onClick={() => setShowAssignClassModal(false)}
-              className="mt-4 bg-red-500 text-white px-4 py-2 rounded-md shadow hover:bg-red-600"
+              onClick={closeInfoCard}
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 rounded-lg"
             >
-              Cancel
+              Close
             </button>
           </div>
         </div>
-      )}
-
+      </div>
+    )}
 
        
         {/* Student Info Card */}
