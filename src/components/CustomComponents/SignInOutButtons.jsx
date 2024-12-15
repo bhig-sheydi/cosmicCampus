@@ -1,80 +1,90 @@
-import React from "react";
+import React, { useState } from "react";
 
-const SignInOutButtons = () => {
-  const roomLatitude = 4.869231;
-  const roomLongitude = 6.9479208333333334;
-  const roomRadius = 10; // Radius in meters for the "room"
+const AttendanceSystem = () => {
+  const [message, setMessage] = useState("");
 
-  const toRadians = (degrees) => degrees * (Math.PI / 180);
+  // Allowed location coordinates (latitude and longitude)
+  const allowedLocation = {
+    lat: 4.846387, // Replace with your allowed latitude
+    lng: 7.018906, // Replace with your allowed longitude
+  };
 
+  // Function to calculate distance using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Earth's radius in meters
-    const dLat = toRadians(lat2 - lat1);
-    const dLon = toRadians(lon2 - lon1);
+    const toRadians = (degrees) => degrees * (Math.PI / 180);
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = toRadians(lat1);
+    const φ2 = toRadians(lat2);
+    const Δφ = toRadians(lat2 - lat1);
+    const Δλ = toRadians(lon2 - lon1);
 
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRadians(lat1)) *
-        Math.cos(toRadians(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-
+      Math.sin(Δφ / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
     return R * c; // Distance in meters
   };
 
-  const handleAction = (action) => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          roomLatitude,
-          roomLongitude
-        );
-
-        if (distance <= roomRadius) {
-          alert(`You have successfully ${action}. Welcome!`);
-        } else {
-          alert(
-            `You are not in the room. Your current distance from the room is approximately ${Math.round(
-              distance
-            )} meters. Please go to the designated area.`
+  // Handle attendance action
+  const handleAction = async (action) => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const distance = calculateDistance(
+            allowedLocation.lat,
+            allowedLocation.lng,
+            latitude,
+            longitude
           );
+
+          if (distance <= 0.5) {
+            setMessage(`You have ${action}.`);
+          } else {
+            setMessage(
+              `You are not in the correct location. Distance: ${distance.toFixed(
+                2
+              )} meters away.`
+            );
+          }
+        },
+        (error) => {
+          setMessage("Unable to fetch your location. Please try again.");
         }
-      },
-      () => {
-        alert("Unable to fetch your location. Please try again.");
-      }
-    );
+      );
+    } else {
+      setMessage("Geolocation is not supported by your browser.");
+    }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-white to-purple-100">
-      <h1 className="text-4xl font-bold text-purple-600 mb-8">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-white to-purple-100 dark:from-gray-800 dark:to-purple-900">
+      <h1 className="text-4xl font-bold text-purple-600 dark:text-gray-100 mb-8">
         Smart Attendance System
       </h1>
-      <div className="space-x-4">
+      <div className="flex flex-wrap gap-4 justify-center">
         <button
           className="px-8 py-3 font-bold text-white bg-gradient-to-r from-purple-500 to-purple-700 rounded-full shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
           onClick={() => handleAction("signed in")}
+          aria-label="Sign In"
         >
           Sign In
         </button>
         <button
           className="px-8 py-3 font-bold text-purple-700 bg-white border-2 border-purple-500 rounded-full shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
           onClick={() => handleAction("signed out")}
+          aria-label="Sign Out"
         >
           Sign Out
         </button>
       </div>
-      <p className="mt-6 text-gray-600 text-center">
+      {message && (
+        <p className="mt-6 text-center text-gray-600 dark:text-gray-300">
+          {message}
+        </p>
+      )}
+      <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
         the correct location.
       </p>
@@ -82,4 +92,4 @@ const SignInOutButtons = () => {
   );
 };
 
-export default SignInOutButtons;
+export default AttendanceSystem;
