@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
@@ -6,17 +7,24 @@ const AttendanceSystem = () => {
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
     lat: 4.882297, // Replace with your allowed latitude
-    lng:  7.009441,  // Replace with your allowed longitude
+    lng: 7.009441, // Replace with your allowed longitude
   };
 
   // Tolerance for comparison (degrees)
   const tolerance = 0.0001; // Adjust based on acceptable proximity
 
+  // Capture device fingerprint
+  const captureDeviceFingerprint = async () => {
+    const fp = await FingerprintJS.load();
+    const result = await fp.get();
+    return result.visitorId;
+  };
+
   // Handle attendance action
   const handleAction = async (action) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const { latitude, longitude } = position.coords;
 
           const isWithinLatitude =
@@ -25,7 +33,8 @@ const AttendanceSystem = () => {
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
           if (isWithinLatitude && isWithinLongitude) {
-            setMessage(`You have ${action}.`);
+            const fingerprint = await captureDeviceFingerprint();
+            setMessage(`You have ${action}. Device ID: ${fingerprint}`);
           } else {
             setMessage(
               `You are not in the correct location. Latitude: ${latitude.toFixed(
