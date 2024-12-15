@@ -1,8 +1,26 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
+  const [deviceFingerprint, setDeviceFingerprint] = useState("");
+  const acceptedFingerPrint = "6aea513ff86ed2afbd01a1d280cf7787"; // Replace with your accepted fingerprint
+
+  useEffect(() => {
+    const loadFingerprint = async () => {
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      const fingerprint = result.visitorId;
+
+      // Log the fingerprint
+      console.log("Device Fingerprint:", fingerprint);
+
+      // Set fingerprint in the state
+      setDeviceFingerprint(fingerprint);
+    };
+
+    loadFingerprint();
+  }, []);
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
@@ -10,21 +28,20 @@ const AttendanceSystem = () => {
     lng: 7.009441, // Replace with your allowed longitude
   };
 
-  // Tolerance for comparison (degrees)
   const tolerance = 0.0001; // Adjust based on acceptable proximity
-
-  // Capture device fingerprint
-  const captureDeviceFingerprint = async () => {
-    const fp = await FingerprintJS.load();
-    const result = await fp.get();
-    return result.visitorId;
-  };
 
   // Handle attendance action
   const handleAction = async (action) => {
+    if (deviceFingerprint !== acceptedFingerPrint) {
+      setMessage(
+        "Sign-up rejected. Please use your authorized device to fill in attendance."
+      );
+      return;
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        async (position) => {
+        (position) => {
           const { latitude, longitude } = position.coords;
 
           const isWithinLatitude =
@@ -33,8 +50,7 @@ const AttendanceSystem = () => {
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
           if (isWithinLatitude && isWithinLongitude) {
-            const fingerprint = await captureDeviceFingerprint();
-            setMessage(`You have ${action}. Device ID: ${fingerprint}`);
+            setMessage(`You have ${action}. Device ID: ${deviceFingerprint}`);
           } else {
             setMessage(
               `You are not in the correct location. Latitude: ${latitude.toFixed(
