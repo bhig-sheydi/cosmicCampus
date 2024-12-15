@@ -5,8 +5,8 @@ const AttendanceSystem = () => {
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: 4.8822894, // Replace with your allowed latitude
-    lng: 7.018906,  // Replace with your allowed longitude
+    lat: 4.882297, // Replace with your allowed latitude
+    lng:  7.009441,  // Replace with your allowed longitude
   };
 
   // Tolerance for comparison (degrees)
