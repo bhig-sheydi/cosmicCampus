@@ -3,13 +3,11 @@ import React, { useState } from "react";
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
 
-  // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
     lat: 4.8822894, // Replace with your allowed latitude
     lng: 7.018906, // Replace with your allowed longitude
   };
 
-  // Function to calculate distance using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const toRadians = (degrees) => degrees * (Math.PI / 180);
     const R = 6371e3; // Earth's radius in meters
@@ -26,7 +24,6 @@ const AttendanceSystem = () => {
     return R * c; // Distance in meters
   };
 
-  // Handle attendance action
   const handleAction = async (action) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -39,7 +36,11 @@ const AttendanceSystem = () => {
             longitude
           );
 
-          if (distance <= 0.5) {
+          console.log("Current Position:", latitude, longitude);
+          console.log("Allowed Position:", allowedLocation.lat, allowedLocation.lng);
+          console.log("Calculated Distance (meters):", distance);
+
+          if (distance <= 10) { // Increased threshold to 10 meters
             setMessage(`You have ${action}.`);
           } else {
             setMessage(
@@ -51,6 +52,7 @@ const AttendanceSystem = () => {
         },
         (error) => {
           setMessage("Unable to fetch your location. Please try again.");
+          console.error("Geolocation error:", error);
         }
       );
     } else {
