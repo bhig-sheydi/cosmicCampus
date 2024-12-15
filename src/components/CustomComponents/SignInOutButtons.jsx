@@ -4,7 +4,7 @@ import FingerprintJS from "@fingerprintjs/fingerprintjs";
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
   const [deviceFingerprint, setDeviceFingerprint] = useState("");
-  const acceptedFingerPrint = "6aea513ff86ed2afbd01a1d280cf7787"; // Replace with your accepted fingerprint
+  const acceptedFingerPrint = "6aea513ff86ed2afbd01a1d280f7787"; // Replace with your accepted fingerprint
 
   useEffect(() => {
     const loadFingerprint = async () => {
@@ -24,8 +24,8 @@ const AttendanceSystem = () => {
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: 4.882297, // Replace with your allowed latitude
-    lng: 7.009441, // Replace with your allowed longitude
+    lat:  4.847223, // Replace with your allowed latitude
+    lng: 6.974604, // Replace with your allowed longitude
   };
 
   const tolerance = 0.0001; // Adjust based on acceptable proximity
@@ -34,7 +34,8 @@ const AttendanceSystem = () => {
   const handleAction = async (action) => {
     if (deviceFingerprint !== acceptedFingerPrint) {
       setMessage(
-        "Sign-up rejected. Please use your authorized device to fill in attendance."
+        `Sign-up rejected. Please use your authorized device to fill in attendance. ${deviceFingerprint}`,
+        
       );
       return;
     }
