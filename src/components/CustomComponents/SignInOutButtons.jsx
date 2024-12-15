@@ -3,7 +3,7 @@ import React from "react";
 const SignInOutButtons = () => {
   const roomLatitude = 4.869231;
   const roomLongitude = 6.9479208333333334;
-  const roomRadius = 5; // Radius in meters for the "room"
+  const roomRadius = 10; // Radius in meters for the "room"
 
   const toRadians = (degrees) => degrees * (Math.PI / 180);
 
