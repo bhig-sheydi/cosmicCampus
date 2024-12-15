@@ -4,7 +4,7 @@ import FingerprintJS from "@fingerprintjs/fingerprintjs";
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
   const [deviceFingerprint, setDeviceFingerprint] = useState("");
-  const acceptedFingerPrint = "6aea513ff86ed2afbd01a1d280f7787"; // Replace with your accepted fingerprint
+  const acceptedFingerPrint = "c979d165a5ef22089ffb9b2bfad49ce8"; // Replace with your accepted fingerprint
 
   useEffect(() => {
     const loadFingerprint = async () => {
