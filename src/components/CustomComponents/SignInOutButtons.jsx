@@ -3,56 +3,39 @@ import React, { useState } from "react";
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
 
+  // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
     lat: 4.8822894, // Replace with your allowed latitude
-    lng: 7.018906, // Replace with your allowed longitude
+    lng: 7.018906,  // Replace with your allowed longitude
   };
 
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const toRadians = (degrees) => degrees * (Math.PI / 180);
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = toRadians(lat1);
-    const φ2 = toRadians(lat2);
-    const Δφ = toRadians(lat2 - lat1);
-    const Δλ = toRadians(lon2 - lon1);
+  // Tolerance for comparison (degrees)
+  const tolerance = 0.0001; // Adjust based on acceptable proximity
 
-    const a =
-      Math.sin(Δφ / 2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
-  };
-
+  // Handle attendance action
   const handleAction = async (action) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          const distance = calculateDistance(
-            allowedLocation.lat,
-            allowedLocation.lng,
-            latitude,
-            longitude
-          );
 
-          console.log("Current Position:", latitude, longitude);
-          console.log("Allowed Position:", allowedLocation.lat, allowedLocation.lng);
-          console.log("Calculated Distance (meters):", distance);
+          const isWithinLatitude =
+            Math.abs(latitude - allowedLocation.lat) <= tolerance;
+          const isWithinLongitude =
+            Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
-          if (distance <= 10) { // Increased threshold to 10 meters
+          if (isWithinLatitude && isWithinLongitude) {
             setMessage(`You have ${action}.`);
           } else {
             setMessage(
-              `You are not in the correct location. Distance: ${distance.toFixed(
-                2
-              )} meters away.`
+              `You are not in the correct location. Latitude: ${latitude.toFixed(
+                6
+              )}, Longitude: ${longitude.toFixed(6)}`
             );
           }
         },
         (error) => {
           setMessage("Unable to fetch your location. Please try again.");
-          console.error("Geolocation error:", error);
         }
       );
     } else {
