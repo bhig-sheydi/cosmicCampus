@@ -6,11 +6,11 @@ const AttendanceSystem = () => {
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
     lat: 4.846387, // Replace with your allowed latitude
-    lng:  7.015629,  // Replace with your allowed longitude
+    lng:   7.015629,  // Replace with your allowed longitude
   };
 
   // Tolerance for comparison (degrees)
-  const tolerance = 0.7; // Adjust based on acceptable proximity
+  const tolerance = 0.0001; // Adjust based on acceptable proximity
 
   // Handle attendance action
   const handleAction = async (action) => {
@@ -71,7 +71,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location test2 change.
+        the correct location sign out test 3.
       </p>
     </div>
   );
