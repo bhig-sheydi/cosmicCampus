@@ -10,7 +10,8 @@ const AttendanceSystem = () => {
   };
 
   // Tolerance for comparison (degrees)
-  const tolerance = 0.000108; // Tolerance for 12 meters
+  const tolerance = 0.000135; // Tolerance for 15 meters
+
 
 
   // Handle attendance action
@@ -72,7 +73,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location sign out test 9
+        the correct location sign out test 10
       </p>
     </div>
   );
