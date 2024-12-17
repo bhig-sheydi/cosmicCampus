@@ -10,7 +10,7 @@ const AttendanceSystem = () => {
   };
 
   // Tolerance for comparison (degrees)
-  const tolerance = 0.0009; // Adjust based on acceptable proximity
+  const tolerance = 1; // Adjust based on acceptable proximity
 
   // Handle attendance action
   const handleAction = async (action) => {
