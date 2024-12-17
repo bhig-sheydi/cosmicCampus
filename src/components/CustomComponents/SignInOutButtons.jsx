@@ -1,45 +1,19 @@
-import React, { useState, useEffect } from "react";
-import FingerprintJS from "@fingerprintjs/fingerprintjs";
+import React, { useState } from "react";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
-  const [deviceFingerprint, setDeviceFingerprint] = useState("");
-  const acceptedFingerPrint = "c979d165a5ef22089ffb9b2bfad49ce8"; // Replace with your accepted fingerprint
-
-  useEffect(() => {
-    const loadFingerprint = async () => {
-      const fp = await FingerprintJS.load();
-      const result = await fp.get();
-      const fingerprint = result.visitorId;
-
-      // Log the fingerprint
-      console.log("Device Fingerprint:", fingerprint);
-
-      // Set fingerprint in the state
-      setDeviceFingerprint(fingerprint);
-    };
-
-    loadFingerprint();
-  }, []);
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: 4.881502, // Replace with your allowed latitude
-    lng: 7.009452, // Replace with your allowed longitude
+    lat: 4.846387, // Replace with your allowed latitude
+    lng:  7.015629,  // Replace with your allowed longitude
   };
 
-  const tolerance = 0.0001; // Adjust based on acceptable proximity
+  // Tolerance for comparison (degrees)
+  const tolerance = 0.0009; // Adjust based on acceptable proximity
 
   // Handle attendance action
   const handleAction = async (action) => {
-    if (deviceFingerprint !== acceptedFingerPrint) {
-      setMessage(
-        `Sign-up rejected. Please use your authorized device to fill in attendance. ${deviceFingerprint}`,
-        
-      );
-      return;
-    }
-
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -51,7 +25,7 @@ const AttendanceSystem = () => {
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
           if (isWithinLatitude && isWithinLongitude) {
-            setMessage(`You have ${action}. Device ID: ${deviceFingerprint}`);
+            setMessage(`You have ${action}.`);
           } else {
             setMessage(
               `You are not in the correct location. Latitude: ${latitude.toFixed(
