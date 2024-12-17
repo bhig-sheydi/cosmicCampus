@@ -10,7 +10,7 @@ const AttendanceSystem = () => {
   };
 
   // Tolerance for comparison (degrees)
-  const tolerance = 1; // Adjust based on acceptable proximity
+  const tolerance = 0.7; // Adjust based on acceptable proximity
 
   // Handle attendance action
   const handleAction = async (action) => {
@@ -71,7 +71,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location test1 change.
+        the correct location test2 change.
       </p>
     </div>
   );
