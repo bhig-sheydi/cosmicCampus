@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useUser } from '@/components/Contexts/userContext'
 import SignInOutButtons from "./SignInOutButtons";
+import WifiAttendance from "./SignInOutButtons";
 
 const TeachersAttendance = ({ attendanceData }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,7 +19,7 @@ const TeachersAttendance = ({ attendanceData }) => {
     {
       userData?.role_id  ==3 ? (
         <div>
-              <SignInOutButtons/>
+              <WifiAttendance/>
         </div>
       ) :
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-[100%]">
