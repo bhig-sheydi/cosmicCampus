@@ -5,14 +5,28 @@ const AttendanceSystem = () => {
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat:  4.846387, // Replace with your allowed latitude
-    lng:  7.015629,  // Replace with your allowed longitude
+    lat: 4.849177, // Replace with your allowed latitude
+    lng: 7.019100, // Replace with your allowed longitude
   };
 
-// Tolerance for comparison (degrees)
-const tolerance = 0.0009; // Tolerance for 100 meters
+  // Tolerance for comparison (degrees)
+  const tolerance = 0.0009; // Tolerance for 100 meters
 
-
+  // Function to calculate distance between two coordinates in meters
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000; // Radius of the Earth in meters
+    const toRadians = (deg) => (deg * Math.PI) / 180;
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  };
 
   // Handle attendance action
   const handleAction = async (action) => {
@@ -29,10 +43,18 @@ const tolerance = 0.0009; // Tolerance for 100 meters
           if (isWithinLatitude && isWithinLongitude) {
             setMessage(`You have ${action}.`);
           } else {
+            const distance = calculateDistance(
+              latitude,
+              longitude,
+              allowedLocation.lat,
+              allowedLocation.lng
+            );
+            const walkingSpeed = 1.39; // Average walking speed in meters/second
+            const walkingTime = distance / walkingSpeed; // Time in seconds
+            const walkingMinutes = Math.ceil(walkingTime / 60); // Convert to minutes and round up
+
             setMessage(
-              `You are not in the correct location. Latitude: ${latitude.toFixed(
-                6
-              )}, Longitude: ${longitude.toFixed(6)}`
+              `You are ${distance.toFixed(1)} meters away from the office. It will take approximately ${walkingMinutes} minutes to walk there at normal speed.`
             );
           }
         },
@@ -73,7 +95,7 @@ const tolerance = 0.0009; // Tolerance for 100 meters
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location sign out test 10
+        the correct location test12.
       </p>
     </div>
   );
