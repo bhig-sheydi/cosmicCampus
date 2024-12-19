@@ -5,8 +5,8 @@ const AttendanceSystem = () => {
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: 4.849177, // Replace with your allowed latitude
-    lng: 7.019100, // Replace with your allowed longitude
+    lat: 4.846387, // Replace with your allowed latitude
+    lng: 7.015629, // Replace with your allowed longitude
   };
 
   // Tolerance for comparison (degrees)
@@ -41,7 +41,11 @@ const AttendanceSystem = () => {
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
           if (isWithinLatitude && isWithinLongitude) {
-            setMessage(`You have ${action}.`);
+            setMessage(
+              `You have ${action}. Your current location is Latitude: ${latitude.toFixed(
+                6
+              )}, Longitude: ${longitude.toFixed(6)}.`
+            );
           } else {
             const distance = calculateDistance(
               latitude,
@@ -54,7 +58,12 @@ const AttendanceSystem = () => {
             const walkingMinutes = Math.ceil(walkingTime / 60); // Convert to minutes and round up
 
             setMessage(
-              `You are ${distance.toFixed(1)} meters away from the office. It will take approximately ${walkingMinutes} minutes to walk there at normal speed.`
+              `You are ${distance.toFixed(
+                1
+              )} meters away from the office. It will take approximately ${walkingMinutes} minutes to walk there at normal speed. 
+              Your current location is Latitude: ${latitude.toFixed(
+                6
+              )}, Longitude: ${longitude.toFixed(6)}.`
             );
           }
         },
@@ -95,7 +104,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location test12.
+        the correct location test13.
       </p>
     </div>
   );
