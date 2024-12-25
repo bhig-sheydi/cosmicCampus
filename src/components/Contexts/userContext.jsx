@@ -20,15 +20,16 @@ export const UserProvider = ({ children }) => {
   const [userSchools, setUserSchools] = useState([]);
   const [attendace, setattenndance] = useState([]);
   const [teachers, setTeachers] = useState([]); // Teachers data
+  const [teacherMetaData, setTeacherMetaDatA] = useState([]); // single teacher meta data
   const [subjects, setSubjects] = useState([]); // Subjects data
   const [teacherSubjects, setTeacherSubjects] = useState([]);
   const [teacherSubjectsFull, setTeacherSubjectsFull] = useState([]);
-  const [teacher, setTeacher] = useState([]);
+  const [teacher, setTeacher] = useState([]); // fetch a single teacher id 
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
-  
+  const [teacherAttendance, setTeacherAttendance] = useState([]);
   const [classSubject, setClassSubject] = useState(null); // New state for selected student
-
+7.018906
   useEffect(() => {
     const fetchSubjects = async () => {
       console.log('Fetching subjects...');
@@ -41,6 +42,27 @@ export const UserProvider = ({ children }) => {
       }
     };
     fetchSubjects();
+  }, []);
+
+
+  const fetchTeacherAttendance = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("teacher_attendance")
+        .select("*")
+        .match({'owner_id' : teacher?.teacher_proprietor,  "teacher_id" : userData?.user_id});
+
+      if (error) throw error;
+      setTeacherAttendance(data || []);
+    } catch (error) {
+      console.error("Error fetching teacher attendance:", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    fetchTeacherAttendance();
   }, []);
 
   useEffect(() => {
@@ -439,7 +461,9 @@ export const UserProvider = ({ children }) => {
         selectedStudent,
         setSelectedStudent, 
         classSubject,
-        setClassSubject
+        setClassSubject,
+        teacherAttendance,
+      
         
 
       }}

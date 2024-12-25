@@ -1,20 +1,23 @@
 import React, { useState } from "react";
+import { useUser } from "../Contexts/userContext";
+import { QrReader } from "react-qr-reader";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
+  const [qrData, setQrData] = useState(null);
+  const { teacherAttendance, teacher } = useUser();
 
   // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: 4.882301, // Replace with your allowed latitude
-    lng: 7.009521, // Replace with your allowed longitude
+    lat: teacher[0]?.accepted_lag, // Replace with your allowed latitude
+    lng: teacher[0]?.accepted_long, // Replace with your allowed longitude
   };
 
-  // Tolerance for comparison (degrees)
   const tolerance = 0.0009; // Tolerance for 100 meters
 
-  // Function to calculate distance between two coordinates in meters
+  // Function to calculate distance between two coordinates
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Radius of the Earth in meters
+    const R = 6371000; // Radius of Earth in meters
     const toRadians = (deg) => (deg * Math.PI) / 180;
     const dLat = toRadians(lat2 - lat1);
     const dLon = toRadians(lon2 - lon1);
@@ -28,8 +31,7 @@ const AttendanceSystem = () => {
     return R * c; // Distance in meters
   };
 
-  // Handle attendance action
-  const handleAction = async (action) => {
+  const verifyLocationAndQRCode = async (action) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -40,30 +42,16 @@ const AttendanceSystem = () => {
           const isWithinLongitude =
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
-          if (isWithinLatitude && isWithinLongitude) {
+          if (isWithinLatitude && isWithinLongitude && qrData === "VALID_QR_CODE") {
             setMessage(
-              `You have ${action}. Your current location is Latitude: ${latitude.toFixed(
+              `You have successfully ${action}. Your current location is Latitude: ${latitude.toFixed(
                 6
               )}, Longitude: ${longitude.toFixed(6)}.`
             );
+            // Add your attendance logic here
           } else {
-            const distance = calculateDistance(
-              latitude,
-              longitude,
-              allowedLocation.lat,
-              allowedLocation.lng
-            );
-            const walkingSpeed = 1.39; // Average walking speed in meters/second
-            const walkingTime = distance / walkingSpeed; // Time in seconds
-            const walkingMinutes = Math.ceil(walkingTime / 60); // Convert to minutes and round up
-
             setMessage(
-              `You are ${distance.toFixed(
-                1
-              )} meters away from the office. It will take approximately ${walkingMinutes} minutes to walk there at normal speed. 
-              Your current location is Latitude: ${latitude.toFixed(
-                6
-              )}, Longitude: ${longitude.toFixed(6)}.`
+              "Attendance failed: Invalid QR code or incorrect location."
             );
           }
         },
@@ -81,17 +69,33 @@ const AttendanceSystem = () => {
       <h1 className="text-4xl font-bold text-purple-600 dark:text-gray-100 mb-8">
         Smart Attendance System
       </h1>
+      <div className="mb-6">
+        <QrReader
+          onResult={(result, error) => {
+            if (!!result) {
+              setQrData(result?.text);
+            }
+            if (!!error) {
+              console.error(error);
+            }
+          }}
+          style={{ width: "100%" }}
+        />
+        <p className="text-gray-600 dark:text-gray-300 mt-4">
+          QR Code: {qrData || "No QR code detected"}
+        </p>
+      </div>
       <div className="flex flex-wrap gap-4 justify-center">
         <button
           className="px-8 py-3 font-bold text-white bg-gradient-to-r from-purple-500 to-purple-700 rounded-full shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
-          onClick={() => handleAction("signed in")}
+          onClick={() => verifyLocationAndQRCode("signed in")}
           aria-label="Sign In"
         >
           Sign In
         </button>
         <button
           className="px-8 py-3 font-bold text-purple-700 bg-white border-2 border-purple-500 rounded-full shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
-          onClick={() => handleAction("signed out")}
+          onClick={() => verifyLocationAndQRCode("signed out")}
           aria-label="Sign Out"
         >
           Sign Out
@@ -104,7 +108,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location test15.
+        the correct location and scan the correct QR code.
       </p>
     </div>
   );
