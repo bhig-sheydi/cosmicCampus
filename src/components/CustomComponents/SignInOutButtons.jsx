@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useUser } from "../Contexts/userContext";
-import { QrReader } from "react-qr-reader";
+import QrScanner from "react-qr-scanner";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
@@ -70,13 +70,14 @@ const AttendanceSystem = () => {
         Smart Attendance System
       </h1>
       <div className="mb-6">
-        <QrReader
-          onResult={(result, error) => {
-            if (!!result) {
-              setQrData(result?.text);
-            }
-            if (!!error) {
-              console.error(error);
+        <QrScanner
+          delay={300}
+          onError={(error) => {
+            console.error("QR Scanner Error: ", error);
+          }}
+          onScan={(result) => {
+            if (result) {
+              setQrData(result.text);
             }
           }}
           style={{ width: "100%" }}

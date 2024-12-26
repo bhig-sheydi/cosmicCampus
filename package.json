@@ -52,6 +52,7 @@
     "react-draggable": "^4.4.6",
     "react-hook-form": "^7.52.2",
     "react-qr-code": "^2.0.15",
+    "react-qr-scanner": "^1.0.0-alpha.11",
     "react-router-dom": "^6.26.0",
     "react-toastify": "^10.0.6",
     "recharts": "^2.12.7",
