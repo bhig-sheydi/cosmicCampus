@@ -137,7 +137,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location and scan the correct QR code.
+        the correct location and scan the correct QR code. test1
       </p>
     </div>
   );
