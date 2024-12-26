@@ -42,7 +42,11 @@ const AttendanceSystem = () => {
           const isWithinLongitude =
             Math.abs(longitude - allowedLocation.lng) <= tolerance;
 
-          if (isWithinLatitude && isWithinLongitude && qrData === "VALID_QR_CODE") {
+          if (
+            isWithinLatitude &&
+            isWithinLongitude &&
+            qrData === "https://example.com/attendance-location"
+          ) {
             setMessage(
               `You have successfully ${action}. Your current location is Latitude: ${latitude.toFixed(
                 6
@@ -69,7 +73,7 @@ const AttendanceSystem = () => {
       <h1 className="text-4xl font-bold text-purple-600 dark:text-gray-100 mb-8">
         Smart Attendance System
       </h1>
-      <div className="mb-6">
+      <div className="relative mb-6 w-64 h-64">
         <QrScanner
           delay={300}
           onError={(error) => {
@@ -80,13 +84,19 @@ const AttendanceSystem = () => {
               setQrData(result.text);
             }
           }}
-          style={{ width: "100%" }}
+          constraints={{ facingMode: "environment" }} // Use back camera
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover", // Ensure the scanner feed is not stretched
+            transform: "rotate(0deg)", // Keep orientation in portrait
+          }}
         />
-        <p className="text-gray-600 dark:text-gray-300 mt-4">
+        <p className="text-gray-600 dark:text-gray-300 mt-4 text-center">
           QR Code: {qrData || "No QR code detected"}
         </p>
       </div>
-      <div className="flex flex-wrap gap-4 justify-center">
+      <div className="flex flex-wrap gap-4 justify-center pt-10">
         <button
           className="px-8 py-3 font-bold text-white bg-gradient-to-r from-purple-500 to-purple-700 rounded-full shadow-lg transform hover:scale-105 hover:shadow-xl transition-all duration-300"
           onClick={() => verifyLocationAndQRCode("signed in")}
