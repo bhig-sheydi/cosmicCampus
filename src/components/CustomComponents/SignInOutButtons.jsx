@@ -1,42 +1,48 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "../Contexts/userContext";
 import QrScanner from "react-qr-scanner";
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
   const [qrData, setQrData] = useState(null);
+  const [useBackCamera, setUseBackCamera] = useState(false); // Track camera mode
+  const [cameraOptions, setCameraOptions] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState(null); // Store the selected camera
   const { teacherAttendance, teacher } = useUser();
 
-  // Allowed location coordinates (latitude and longitude)
   const allowedLocation = {
-    lat: teacher[0]?.accepted_lag, // Replace with your allowed latitude
-    lng: teacher[0]?.accepted_long, // Replace with your allowed longitude
+    lat: teacher[0]?.accepted_lag,
+    lng: teacher[0]?.accepted_long,
+  };
+  const tolerance = 0.0009;
+
+  // Fetch available cameras
+  useEffect(() => {
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      const videoInputs = devices.filter((device) => device.kind === "videoinput");
+      setCameraOptions(videoInputs);
+      if (videoInputs.length > 0) {
+        setSelectedCamera(videoInputs[0].deviceId); // Default to the first camera
+      }
+    });
+  }, []);
+
+  const toggleCamera = () => {
+    setUseBackCamera((prev) => !prev);
+    if (cameraOptions.length > 1) {
+      const currentIndex = cameraOptions.findIndex(
+        (camera) => camera.deviceId === selectedCamera
+      );
+      const nextIndex = (currentIndex + 1) % cameraOptions.length;
+      setSelectedCamera(cameraOptions[nextIndex].deviceId);
+    }
   };
 
-  const tolerance = 0.0009; // Tolerance for 100 meters
-
-  // Function to calculate distance between two coordinates
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Radius of Earth in meters
-    const toRadians = (deg) => (deg * Math.PI) / 180;
-    const dLat = toRadians(lat2 - lat1);
-    const dLon = toRadians(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRadians(lat1)) *
-        Math.cos(toRadians(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in meters
-  };
-
-  const verifyLocationAndQRCode = async (action) => {
+  const verifyLocationAndQRCode = (action) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-
           const isWithinLatitude =
             Math.abs(latitude - allowedLocation.lat) <= tolerance;
           const isWithinLongitude =
@@ -52,14 +58,13 @@ const AttendanceSystem = () => {
                 6
               )}, Longitude: ${longitude.toFixed(6)}.`
             );
-            // Add your attendance logic here
           } else {
             setMessage(
               "Attendance failed: Invalid QR code or incorrect location."
             );
           }
         },
-        (error) => {
+        () => {
           setMessage("Unable to fetch your location. Please try again.");
         }
       );
@@ -78,18 +83,20 @@ const AttendanceSystem = () => {
           delay={300}
           onError={(error) => {
             console.error("QR Scanner Error: ", error);
+            setMessage("Error accessing the camera. Please check your permissions.");
           }}
           onScan={(result) => {
             if (result) {
               setQrData(result.text);
             }
           }}
-          constraints={{ facingMode: "environment" }} // Use back camera
+          constraints={{
+            video: selectedCamera ? { deviceId: { exact: selectedCamera } } : true,
+          }}
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover", // Ensure the scanner feed is not stretched
-            transform: "rotate(0deg)", // Keep orientation in portrait
+            objectFit: "cover",
           }}
         />
         <p className="text-gray-600 dark:text-gray-300 mt-4 text-center">
@@ -112,6 +119,17 @@ const AttendanceSystem = () => {
           Sign Out
         </button>
       </div>
+      <button
+        className="mt-6 px-6 py-2 bg-blue-500 text-white rounded-full"
+        onClick={toggleCamera}
+      >
+        Switch to {useBackCamera ? "Front Camera" : "Back Camera"}
+      </button>
+      {cameraOptions.length > 0 && (
+        <p className="text-gray-500 mt-2 text-sm">
+          {cameraOptions.length} cameras detected.
+        </p>
+      )}
       {message && (
         <p className="mt-6 text-center text-gray-600 dark:text-gray-300">
           {message}
