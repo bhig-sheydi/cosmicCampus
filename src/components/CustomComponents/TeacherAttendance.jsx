@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { useUser } from '@/components/Contexts/userContext'
 import SignInOutButtons from "./SignInOutButtons";
 import WifiAttendance from "./SignInOutButtons";
+import SetLocation from "./SetLocation";
 
 const TeachersAttendance = ({ attendanceData }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const {userData} = useUser()
+  const {userData , teacher} = useUser()
 
   // Filter attendance data based on the search query
   const filteredAttendance = attendanceData?.filter((record) =>
@@ -19,7 +20,15 @@ const TeachersAttendance = ({ attendanceData }) => {
     {
       userData?.role_id  ==3 ? (
         <div>
+
+          {
+            teacher[0]?.accepted_lag || teacher[0]?.accepted_long == 0 ? (
               <WifiAttendance/>
+               
+            ):
+            <SetLocation/>
+          }
+              
         </div>
       ) :
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-[100%]">
