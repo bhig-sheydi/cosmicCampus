@@ -21,11 +21,21 @@ const AttendanceSystem = () => {
     navigator.mediaDevices.enumerateDevices().then((devices) => {
       const videoInputs = devices.filter((device) => device.kind === "videoinput");
       setCameraOptions(videoInputs);
-      if (videoInputs.length > 0) {
+  
+      // Attempt to find the back camera
+      const backCamera = videoInputs.find((device) =>
+        device.label.toLowerCase().includes("back")
+      );
+  
+      if (backCamera) {
+        setSelectedCamera(backCamera.deviceId); // Set back camera if found
+        setUseBackCamera(true);
+      } else if (videoInputs.length > 0) {
         setSelectedCamera(videoInputs[0].deviceId); // Default to the first camera
       }
     });
   }, []);
+  
 
   const toggleCamera = () => {
     setUseBackCamera((prev) => !prev);
@@ -51,7 +61,7 @@ const AttendanceSystem = () => {
           if (
             isWithinLatitude &&
             isWithinLongitude &&
-            qrData === "Now Click The Sign/out In Button"
+            qrData === "Now Click The Sign-in/out Button"
           ) {
             setMessage(
               `You have successfully ${action}. Your current location is Latitude: ${latitude.toFixed(

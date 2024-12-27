@@ -2,7 +2,7 @@ import React from "react";
 import QRCode from "react-qr-code";
 
 const FixedQRCode = () => {
-  const fixedQRValue = "Now Click The Sign/out In Button";
+  const fixedQRValue = "Now Click The Sign-in/out Button";
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
