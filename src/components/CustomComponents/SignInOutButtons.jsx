@@ -51,7 +51,7 @@ const AttendanceSystem = () => {
           if (
             isWithinLatitude &&
             isWithinLongitude &&
-            qrData === "teacherId:12345;location:Room101;date:2024-12-26"
+            qrData === "Now Click The Sign/out In Button"
           ) {
             setMessage(
               `You have successfully ${action}. Your current location is Latitude: ${latitude.toFixed(
