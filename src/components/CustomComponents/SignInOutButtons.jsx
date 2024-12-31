@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useUser } from "../Contexts/userContext";
 import QrScanner from "react-qr-scanner";
+import { supabase } from '@/supabaseClient';
 
 const AttendanceSystem = () => {
   const [message, setMessage] = useState("");
@@ -9,7 +10,7 @@ const AttendanceSystem = () => {
   const [cameraOptions, setCameraOptions] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null); // Store the selected camera
   const { teacherAttendance, teacher } = useUser();
-
+  const { userData } = useUser();
   const allowedLocation = {
     lat: teacher[0]?.accepted_lag,
     lng: teacher[0]?.accepted_long,
@@ -48,41 +49,43 @@ const AttendanceSystem = () => {
     }
   };
 
-  const verifyLocationAndQRCode = (action) => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const isWithinLatitude =
-            Math.abs(latitude - allowedLocation.lat) <= tolerance;
-          const isWithinLongitude =
-            Math.abs(longitude - allowedLocation.lng) <= tolerance;
-
-          if (
-            isWithinLatitude &&
-            isWithinLongitude &&
-            qrData === "Now Click The Sign-in/out Button"
-          ) {
-            setMessage(
-              `You have successfully ${action}. Your current location is Latitude: ${latitude.toFixed(
-                6
-              )}, Longitude: ${longitude.toFixed(6)}.`
-            );
-          } else {
-            setMessage(
-              "Attendance failed: Invalid QR code or incorrect location."
-            );
-          }
-        },
-        () => {
-          setMessage("Unable to fetch your location. Please try again.");
+  const verifyLocationAndQRCode = async (action) => {
+    try {
+      if (!navigator.geolocation) {
+        setMessage("Geolocation is not supported by your browser.");
+        return;
+      }
+  
+      const position = await getLocation();
+      const { latitude, longitude } = position.coords;
+  
+      const isWithinLatitude = Math.abs(latitude - allowedLocation.lat) <= tolerance;
+      const isWithinLongitude = Math.abs(longitude - allowedLocation.lng) <= tolerance;
+  
+      if (isWithinLatitude && isWithinLongitude && qrData === "Now Click The Sign-in/out Button") {
+        const { data, error } = await supabase
+          .from('teacher_attendance')
+          .insert({ teacher_id: userData?.user_id });
+  
+        if (error) {
+          setMessage("Error recording attendance. Please try again.");
+          console.error("Supabase Error:", error);
+          return;
         }
-      );
-    } else {
-      setMessage("Geolocation is not supported by your browser.");
+  
+        setMessage(
+          `You have successfully ${action}. Your location is Latitude: ${latitude.toFixed(
+            6
+          )}, Longitude: ${longitude.toFixed(6)}.`
+        );
+      } else {
+        setMessage("Attendance failed: Invalid QR code or incorrect location.");
+      }
+    } catch (error) {
+      setMessage("Unable to fetch your location. Please try again.");
     }
   };
-
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-white to-purple-100 dark:from-gray-800 dark:to-purple-900">
       <h1 className="text-4xl font-bold text-purple-600 dark:text-gray-100 mb-8">
@@ -147,7 +150,7 @@ const AttendanceSystem = () => {
       )}
       <p className="mt-6 text-gray-600 text-center dark:text-gray-400">
         Sign-in and sign-out is restricted to a specific room. Ensure you are in
-        the correct location and scan the correct QR code. test2
+        the correct location and scan the correct QR code. test3
       </p>
     </div>
   );
