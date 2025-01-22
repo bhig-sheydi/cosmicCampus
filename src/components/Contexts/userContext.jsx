@@ -28,7 +28,10 @@ export const UserProvider = ({ children }) => {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
   const [teacherAttendance, setTeacherAttendance] = useState([]);
-  const [classSubject, setClassSubject] = useState(null); // New state for selected student
+  const [classSubject, setClassSubject] = useState(null); // New state for selected 
+  const [allStudents, setAllStudents] = useState([]); // getting all the students with out classification 
+  
+  
 7.018906
   useEffect(() => {
     const fetchSubjects = async () => {
@@ -130,7 +133,7 @@ export const UserProvider = ({ children }) => {
         return;
       }
   
-      console.log('Fetching teacher-attendance...');
+      console.log('Fetching proprietor-attendance...');
       const { data, error } = await supabase
         .from('teacher_attendance')
         .select(`
@@ -142,9 +145,9 @@ export const UserProvider = ({ children }) => {
         .match({'owner_id' : userData?.user_id});
   
       if (error) {
-        console.error('Error fetching teacher-subject assignments:', error);
+        console.error('Error Fetching Proprietor Attendance:', error);
       } else {
-        console.log('Teacher-subject assignments fetched:', data);
+        console.log('Proprietor Attendance  Fetched ', data);
         setattenndance(data);
       }
     };
@@ -364,6 +367,25 @@ export const UserProvider = ({ children }) => {
     fetchClasses();
   }, []);
 
+
+    // Fetch all students from the 'students' table
+    useEffect(() => {
+      const fetchAllStudents = async () => {
+        console.log('Fetching all students ...');
+        const { data, error } = await supabase
+          .from('students')
+          .select('*');
+        if (error) {
+          console.error('Error fetching all students :', error);
+        } else {
+          console.log('All students fetched:', data);
+          setAllStudents(data);
+        }
+      };
+      fetchAllStudents();
+    }, []);
+  
+
   // Function to fetch authenticated user and profile data
   const fetchAuthenticatedUser = async () => {
     try {
@@ -463,6 +485,11 @@ export const UserProvider = ({ children }) => {
         classSubject,
         setClassSubject,
         teacherAttendance,
+        attendace,
+        setTeachers,
+        allStudents,
+        setAllStudents,
+
       
         
 

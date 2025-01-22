@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '@/components/Contexts/userContext';
 import { supabase } from '@/supabaseClient';
 import { ListFilterIcon } from 'lucide-react';
+import AssignClassModal from './AssignClassModal';
 
 const StudentsList = () => {
   const { students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject } = useUser();
@@ -14,7 +15,7 @@ const StudentsList = () => {
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showAssignClassModal, setShowAssignClassModal] = useState(false);
   
-
+  
   const schools = userSchools;
   
   const handleStudentClick = (student) => {
@@ -91,6 +92,7 @@ const StudentsList = () => {
   const handleAssignClass = (studentId) => {
     setCurrentStudentId(studentId);
     setShowAssignClassModal(true);
+  
   };
 
 
@@ -442,7 +444,18 @@ const StudentsList = () => {
           </div>
         </div>
       )}
+             <div>
+               {
+                 showAssignClassModal && (
+                  <>
+                    <AssignClassModal classes={classes} assignClassToStudent={assignClassToStudent} currentStudentId={currentStudentId}/>
 
+                    
+                  
+                  </>
+                 )
+               }
+             </div>
       </div>
 
      

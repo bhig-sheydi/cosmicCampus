@@ -42,7 +42,7 @@ const TeacherInfoModal = ({ teacher, onClose,  }) => {
             />
             <p><strong>Name:</strong> {teacher.teacher_name}</p>
             <p><strong>School:</strong> {teacher.schools?.name || 'N/A'}</p>
-            <p><strong>Class ID:</strong> {teacher.class_id || 'N/A'}</p>
+            <p><strong>Class ID:</strong> {teacher?.class?.class_name|| 'N/A'}</p>
           </div>
   
           <div className="mt-4">

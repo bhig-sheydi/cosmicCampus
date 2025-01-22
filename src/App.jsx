@@ -27,6 +27,7 @@ import Aray from './components/CustomComponents/Aray';
 import TeacherAssign from './components/CustomComponents/TeacherAsign';
 import TeacherAttendance from './components/CustomComponents/TeacherAttendance';
 import FixedQRCode from './components/CustomComponents/FixedQrCode';
+import GuardianProfile from './components/CustomComponents/GuardianProfile';
 
 
 
@@ -64,6 +65,7 @@ function App() {
             <Route path="classsubject" element={<TeacherAssign/>} />
             <Route path="attendance" element={<TeacherAttendance/>} />
             <Route path="attendanceQR" element={<FixedQRCode/>} />
+            <Route path="a" element={<GuardianProfile/>} />
           </Route>
 
           </Routes>

@@ -10,6 +10,7 @@ import {
   Search,
   ShoppingCart,
   Users,
+  CheckCheckIcon
   
 } from "lucide-react";
 
@@ -100,6 +101,26 @@ export function Dashboard() {
   Students
 </Link>
 
+
+<Link
+  to="/dashboard/ClassSubject"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <BookUserIcon className="h-4 w-4" />
+  Assign Class
+
+  
+</Link>
+
+
+<Link
+  to="/dashboard/attendance"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <CheckCheckIcon/>
+  Attendance
+</Link>
+
 <Link
   to="/dashboard/teachers"
   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
@@ -166,6 +187,26 @@ export function Dashboard() {
 >
   <BookUserIcon className="h-4 w-4" />
   Students
+
+  
+</Link>
+
+<Link
+  to="/dashboard/attendance"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <CheckCheckIcon className="h-4 w-4" />
+  Attendance
+
+  
+</Link>
+
+<Link
+  to="/dashboard/ClassSubject"
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 transition-all hover:text-white"
+>
+  <BookUserIcon className="h-4 w-4" />
+  Assign Subject
 
   
 </Link>
