@@ -55,7 +55,7 @@ function App() {
             <Route path="/db" element={<DashboardTest />} />
             <Route path="/dbs" element={<Aray/>} />
              <Route path="/reset" element={<ResetPassword/>}/>
-               <Route path="/update" element={<UpdatePassword/>}/>
+               <Route path="/update-password" element={<UpdatePassword/>}/>
 
 
             

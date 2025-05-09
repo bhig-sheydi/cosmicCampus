@@ -46,6 +46,21 @@ export function UpdatePassword() {
     setIsSubmitting(false);
   };
 
+
+  React.useEffect(() => {
+  const getSession = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (!data.session) {
+      toast({
+        title: "Session Error",
+        description: "No active session found. Please use the reset link from your email.",
+        variant: "destructive",
+      });
+    }
+  };
+  getSession();
+}, []);
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
