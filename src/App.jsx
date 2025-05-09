@@ -5,10 +5,9 @@ import { Routes, Route, BrowserRouter as Router } from 'react-router-dom';
 import { ThemeProvider } from './components/Contexts/ThemeProvider';
 import { AuthProvider } from './components/Contexts/AuthContext'; // Import the AuthProvider
 import Home from './Pages/Home';
-import Branding from './Pages/Branding';
+
 import WebsiteDesign from './Pages/WebsiteDesign';
 import DigitalMarketing from './Pages/DigitalMarketing';
-import BusinessStrategies from './Pages/BusinessStrategies';
 import GraphicDesign from './Pages/GraphicDesign';
 import GrowthTools from './Pages/GrowthTools';
 import DashboardTest from './Pages/DashboardTest';
@@ -28,6 +27,8 @@ import TeacherAssign from './components/CustomComponents/TeacherAsign';
 import TeacherAttendance from './components/CustomComponents/TeacherAttendance';
 import FixedQRCode from './components/CustomComponents/FixedQrCode';
 import GuardianProfile from './components/CustomComponents/GuardianProfile';
+import { ResetPassword } from './components/CustomComponents/Reset';
+import { UpdatePassword } from './components/CustomComponents/updatepassword';
 
 
 
@@ -44,10 +45,8 @@ function App() {
           <NavContainer />
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/branding" element={<Branding />} />
             <Route path="/website-design" element={<WebsiteDesign />} />
             <Route path="/digital-marketing" element={<DigitalMarketing />} />
-            <Route path="/business-strategies" element={<BusinessStrategies />} />
             <Route path="/graphic-design" element={<GraphicDesign />} />
             <Route path="/growth-tools" element={<GrowthTools />} />
              <Route path="/signup" element={<SignUp />} />
@@ -55,6 +54,10 @@ function App() {
              <Route path="/otp" element={<Auth/>} />
             <Route path="/db" element={<DashboardTest />} />
             <Route path="/dbs" element={<Aray/>} />
+             <Route path="/reset" element={<ResetPassword/>}/>
+               <Route path="/update" element={<UpdatePassword/>}/>
+
+
             
             
             <Route path="/dashboard" element={<Dashboard />}>

@@ -22,11 +22,6 @@ const GuardianProfile = () => {
     setTimeout(() => handleParentRequest(studentId), 1000); // Small delay to ensure state updates
   };
   
-
-  
-
-
-  
   const handleParentRequest = async (studentId) => {
     try {
       const user = userData?.user_id;

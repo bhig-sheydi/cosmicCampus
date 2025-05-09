@@ -30,11 +30,33 @@ export const UserProvider = ({ children }) => {
   const [teacherAttendance, setTeacherAttendance] = useState([]);
   const [classSubject, setClassSubject] = useState(null); // New state for selected 
   const [allStudents, setAllStudents] = useState([]); // getting all the students with out classification 
-  
-  
-7.018906
+const [fetchFlags, setFetchFlags] = useState({ 
+  students: false,
+  teachers: false,
+  schools: false,
+  subjects: false,
+  oneStudent: false,
+  attendance: false,
+  teacherAttendance: false,
+  teacherSubjects: false,
+  teacherSubjectsFull: false,
+  roles: false,
+  requests: false,
+  classes: false,
+  userSchools: false,
+  teacher: false,
+  classSubject: false,
+  allStudents: false,
+});
+
+
+
   useEffect(() => {
-    const fetchSubjects = async () => {
+    console.log("fetchlags is holding subjects")
+      if(!fetchFlags.subjects){
+
+
+            const fetchSubjects = async () => {
       console.log('Fetching subjects...');
       const { data, error } = await supabase.from('subjects').select('*');
       if (error) {
@@ -45,6 +67,8 @@ export const UserProvider = ({ children }) => {
       }
     };
     fetchSubjects();
+
+      }
   }, []);
 
 

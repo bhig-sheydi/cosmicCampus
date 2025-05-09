@@ -10,7 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import Logo from "../../assets/cosmic.png";
 import { supabase } from "../../supabaseClient";
 
-// Define schema for form validation
+
 const LoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters long" }),
@@ -25,7 +25,7 @@ export function Login() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const navigate = useNavigate();
 
-  // Function to handle login with email and password
+  
   const loginWithEmail = async (email, password) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({

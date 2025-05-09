@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { Button } from '../ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from '../Contexts/userContext';
+import AcceptGuardianRequests from './AcceptGuardianRequests';
 
 const AcceptRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -148,72 +149,82 @@ const AcceptRequests = () => {
   };
 
   return (
-    <div className="accept-requests-container p-12">
-      <h2 className="text-2xl font-semibold mb-6">All School Requests</h2>
+<>
+    {userData?.role_id == 1 && (
+      <div className="accept-requests-container p-12">
+        <h2 className="text-2xl font-semibold mb-6">All School Requests</h2>
 
-      <input
-        type="text"
-        value={searchQuery}
-        onChange={handleSearch}
-        placeholder="Search by student name"
-        className="mb-4 p-2 border rounded w-full"
-      />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={handleSearch}
+          placeholder="Search by student name"
+          className="mb-4 p-2 border rounded w-full"
+        />
 
-      <div className="flex gap-4 mb-4">
-        <Button onClick={() => handleFilterTypeChange('all')}>
-          All
-        </Button>
-        <Button onClick={() => handleFilterTypeChange('students')}>
-          Students
-        </Button>
-        <Button onClick={() => handleFilterTypeChange('teachers')}>
-          Teachers
-        </Button>
-      </div>
+        <div className="flex gap-4 mb-4">
+          <Button onClick={() => handleFilterTypeChange('all')}>All</Button>
+          <Button onClick={() => handleFilterTypeChange('students')}>Students</Button>
+          <Button onClick={() => handleFilterTypeChange('teachers')}>Teachers</Button>
+        </div>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : filteredRequests.length === 0 ? (
-        <p>No requests available.</p>
-      ) : (
-        <div className="space-y-4">
-          {filteredRequests.map((request) => (
-            <div
-              key={request.request_id}
-              className="flex items-center justify-between p-4 border rounded-md shadow-sm"
-            >
-              <div className="flex items-center gap-4">
-                <img
-                  src={request.schools.logo_url}
-                  alt={`${request.schools.name} Logo`}
-                  className="h-16 w-16 object-cover border-2 border-gray-300"
-                />
-                <div>
-                  <h4 className="text-lg font-bold">{request.schools.name}</h4>
-                  <p className="text-gray-500">
-                    {request?.student_id ? 'Student' : request?.teacher_id ? 'Teacher' : 'Guardian'}: {request?.student_id ? request.students?.student_name : request?.teacher_id ? request?.teachers?.teacher_name : 'N/A'}
-                  </p>
+        {loading ? (
+          <p>Loading...</p>
+        ) : filteredRequests.length === 0 ? (
+          <p>No requests available.</p>
+        ) : (
+          <div className="space-y-4">
+            {filteredRequests.map((request) => (
+              <div
+                key={request.request_id}
+                className="flex items-center justify-between p-4 border rounded-md shadow-sm"
+              >
+                <div className="flex items-center gap-4">
+                  <img
+                    src={request.schools.logo_url}
+                    alt={`${request.schools.name} Logo`}
+                    className="h-16 w-16 object-cover border-2 border-gray-300"
+                  />
+                  <div>
+                    <h4 className="text-lg font-bold">{request.schools.name}</h4>
+                    <p className="text-gray-500">
+                      {request?.student_id
+                        ? 'Student'
+                        : request?.teacher_id
+                        ? 'Teacher'
+                        : 'Guardian'}
+                      :{' '}
+                      {request?.student_id
+                        ? request.students?.student_name
+                        : request?.teacher_id
+                        ? request?.teachers?.teacher_name
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleAcceptRequest(request.request_id)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    onClick={() => handleRejectRequest(request.request_id)}
+                    className="bg-red-500 hover:bg-red-600 text-white"
+                  >
+                    Reject
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleAcceptRequest(request.request_id)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Accept
-                </Button>
-                <Button
-                  onClick={() => handleRejectRequest(request.request_id)}
-                  className="bg-red-500 hover:bg-red-600 text-white"
-                >
-                  Reject
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    {userData?.role_id == 4 && <AcceptGuardianRequests />}
+  </>
   );
 };
 
