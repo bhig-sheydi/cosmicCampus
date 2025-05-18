@@ -30,7 +30,7 @@ import GuardianProfile from './components/CustomComponents/GuardianProfile';
 import { ResetPassword } from './components/CustomComponents/Reset';
 import { UpdatePassword } from './components/CustomComponents/updatepassword';
 import CBTExam from './components/CustomComponents/CBTEXAMS'
-import TeachersAssingnmentDashboard from './components/CustomComponents/teachersAssingnmentDashboard';
+import TeacherSubjectsCard from './components/CustomComponents/TeachersAssingnmentDashboard';
 
 
 
@@ -68,7 +68,7 @@ function App() {
               <Route path="attendance" element={<TeacherAttendance />} />
               <Route path="attendanceQR" element={<FixedQRCode />} />
               <Route path="a" element={<GuardianProfile />} />
-              <Route path="Assingnments" element={<TeachersAssingnmentDashboard/>} />
+              <Route path="Assingnments" element={<TeacherSubjectsCard/>} />
               <Route path="dbs" element={<Aray />} />
             </Route>
 
