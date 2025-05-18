@@ -5,7 +5,7 @@ import { ListFilterIcon } from 'lucide-react';
 import AssignClassModal from './AssignClassModal';
 
 const StudentsList = () => {
-  const { students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject } = useUser();
+  const { students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject , setFetchFlags } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState(''); 
   const [selectedSchool, setSelectedSchool] = useState('');
@@ -14,6 +14,16 @@ const StudentsList = () => {
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showAssignClassModal, setShowAssignClassModal] = useState(false);
+
+
+
+  useEffect(() => {
+    setFetchFlags(prev => ({ ...prev, oneStudent: true ,userData: true , classes: true , students: true , userSchools: true ,classSubject: true})); // Set the flags to true
+  }, []);
+
+
+
+  
   
   
   const schools = userSchools;
@@ -388,11 +398,16 @@ const StudentsList = () => {
           <p className="mb-4">
             <strong>Subjects:</strong>
             <ul className="list-disc list-inside mt-2">
-              {classSubject
-                .filter((subject) => subject.class_id === selectedStudent.class_id)
-                .map((subject, index) => (
-                  <li key={index}>{subject?.subjects?.subject_name}</li>
-                ))}
+  {Array.isArray(classSubject) && selectedStudent?.class_id && (
+  <ul className="list-disc list-inside mt-2">
+    {classSubject
+      .filter((subject) => subject?.class_id === selectedStudent?.class_id)
+      .map((subject, index) => (
+        <li key={index}>{subject?.subjects?.subject_name}</li>
+      ))}
+  </ul>
+)}
+
             </ul>
           </p>
           {/* Close Button */}

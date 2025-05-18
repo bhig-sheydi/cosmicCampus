@@ -5,7 +5,7 @@ import { ListFilterIcon } from 'lucide-react';
 import TeacherInfoModal from "./TeacherInfoModal"
 
 const TeacherList = () => {
-  const { teachers, setTeachers, classes, subjects, userSchools, userData, teacherSubjects, selectedTeacher, setSelectedTeacher ,teacherSubjectsFull} = useUser();
+  const {setFetchFlags , teachers, setTeachers, classes, subjects, userSchools, userData, selectedTeacher, setSelectedTeacher ,teacherSubjectsFull} = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSchool, setSelectedSchool] = useState('');
@@ -21,6 +21,11 @@ const TeacherList = () => {
   // New states for teacher info modal
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const schools = userSchools;
+
+
+    useEffect(() => {
+      setFetchFlags(prev => ({ ...prev,userData: true , classes: true  , userSchools: true , teachers: true , subjects: true , teacherSubjectsFull: true})); // Set the flags to true
+    }, []);
 
 
 

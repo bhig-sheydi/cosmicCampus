@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react'; 
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Button } from '../ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from '../Contexts/userContext';
-
 
 const AcceptGuardianRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -14,25 +13,22 @@ const AcceptGuardianRequests = () => {
 
   useEffect(() => {
     const fetchRequests = async () => {
-      if (!userData) {
-        console.error('User data not available');
-        return;
-      }
+      if (!userData) return;
 
       setLoading(true);
       try {
         const { data, error } = await supabase
-          .from('guardian_requests')
+          .from('guardianrequest')
           .select(`
             request_id,
             guardian_id,
-            school_id,
-            owner_id,
-            status,
-            schools (name, logo_url),
-            guardians:guardian_id (guardian_name)
+            child_id,
+            response,
+            guardians!guardian_id (
+              guardianname
+            )
           `)
-          .match({ owner_id: userData.user_id, status: 'pending' });
+          .match({ child_id: userData.user_id, response: 'pending' });
 
         if (error) throw error;
 
@@ -50,15 +46,12 @@ const AcceptGuardianRequests = () => {
 
   const handleAcceptRequest = async (requestId) => {
     try {
-      const request = requests.find((req) => req?.request_id === requestId);
-      if (!request) throw new Error('Request not found');
-
-      const { error: requestError } = await supabase
-        .from('guardian_requests')
-        .update({ status: 'accepted' })
+      const { error } = await supabase
+        .from('guardianrequest')
+        .update({ response: 'accepted' })
         .eq('request_id', requestId);
 
-      if (requestError) throw requestError;
+      if (error) throw error;
 
       toast({
         title: 'Request Accepted',
@@ -83,15 +76,15 @@ const AcceptGuardianRequests = () => {
   const handleRejectRequest = async (requestId) => {
     try {
       const { error } = await supabase
-        .from('guardian_requests')
-        .update({ status: 'rejected' })
+        .from('guardianrequest')
+        .delete()
         .eq('request_id', requestId);
 
       if (error) throw error;
 
       toast({
         title: 'Request Rejected',
-        description: 'The guardian request has been rejected.',
+        description: 'The guardian request has been removed.',
         className: 'bg-red-500 text-white',
       });
 
@@ -114,7 +107,7 @@ const AcceptGuardianRequests = () => {
     setSearchQuery(query);
 
     const filtered = requests.filter((req) =>
-      req.guardians?.guardian_name.toLowerCase().includes(query)
+      req.guardians?.guardianname.toLowerCase().includes(query)
     );
     setFilteredRequests(filtered);
   };
@@ -142,16 +135,8 @@ const AcceptGuardianRequests = () => {
               key={request.request_id}
               className="flex items-center justify-between p-4 border rounded-md shadow-sm"
             >
-              <div className="flex items-center gap-4">
-                <img
-                  src={request.schools.logo_url}
-                  alt={`${request.schools.name} Logo`}
-                  className="h-16 w-16 object-cover border-2 border-gray-300"
-                />
-                <div>
-                  <h4 className="text-lg font-bold">{request.schools.name}</h4>
-                  <p className="text-gray-500">Guardian: {request.guardians?.guardian_name || 'N/A'}</p>
-                </div>
+              <div className="text-black font-bold">
+                Guardian: {request.guardians?.guardianname || 'N/A'}
               </div>
               <div className="flex gap-2">
                 <Button

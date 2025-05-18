@@ -18,18 +18,26 @@ import {
   AlertDialogDescription,
 } from "../ui/alert-dialog";
 import { supabase } from "../../supabaseClient";
-import JoinSchool from './JoinSchool'; // Import JoinSchool component
+import JoinSchool from './JoinSchool'; 
 import TeachersJoin from "./TeachersJoin";
+import GuardiansProfile from "./GuardiansProfile";
 
 const Profile = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [schoolToDelete, setSchoolToDelete] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(true); // Track loading state
-  const { roles, userData, schools, setSchools , teacher, oneStudent} = useUser();
-  const [previewPic, setPreviewPic] = useState(null); //, For image preview
-  const [selectedPic, setSelectedPic] = useState(null); // For storing the selected file
+  const [loading, setLoading] = useState(true); 
+  const { roles, userData, schools, setSchools , teacher, oneStudent , setFetchFlags} = useUser();
+  const [previewPic, setPreviewPic] = useState(null);
+  const [selectedPic, setSelectedPic] = useState(null); 
+
+
+useEffect(() => {
+  setFetchFlags(prev => ({ ...prev, oneStudent: true ,userData: true , schools: true , teacher: true})); // Set the flags to true
+}, []);
+
+
    
 
   const hideCreate = () => setShowCreate((prev) => !prev);
@@ -247,7 +255,10 @@ const Profile = () => {
   <JoinSchool /> // Render the JoinSchool component if the user is a student
 ) : userData?.role_id === 3 ? (
   <TeachersJoin /> // Render the TeachersJoin component if the user is a teacher
-) : null}
+) : 
+     userData.role_id === 4 ? (<GuardiansProfile/>):
+
+null}
 
       {/* Only show schools if the user is not a student */}
       {userData?.role_id == 1 && (

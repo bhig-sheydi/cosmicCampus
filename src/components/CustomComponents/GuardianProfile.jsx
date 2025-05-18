@@ -1,79 +1,70 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useUser } from "../Contexts/userContext";
-import { Carousel } from "../ui/carousel";
 import { CosmicCarouselPlugin } from "./RerquestTs&Cs";
-import { supabase } from '../../supabaseClient';
+import { supabase } from "../../supabaseClient";
 
 const GuardianProfile = () => {
-  const { allStudents, userData  } = useUser();
+  const { allStudents, userData, setFetchFlags } = useUser();
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentChild, setCurrentChild] = useState("");
+  const [message, setMessage] = useState(null);
 
-  const [currentChild, setCurrentStudent] = useState("");
-  
-  const [message, setMessage] = useState(null); // State to display success or error messages
+  useEffect(() => {
+    setFetchFlags((prev) => ({
+      ...prev,
+      oneStudent: true,
+      userData: true,
+      allStudents: true,
+      guardianStudents: true,
+    }));
+  }, []);
 
-  // Filter students based on search query
   const filteredStudents = allStudents?.filter((student) =>
     student?.student_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleClick = (studentId) => {
-    setCurrentStudent(studentId);
-    setTimeout(() => handleParentRequest(studentId), 1000); // Small delay to ensure state updates
+    setCurrentChild(studentId);
+    setTimeout(() => handleParentRequest(studentId), 1000);
   };
-  
+
   const handleParentRequest = async (studentId) => {
-    try {
-      const user = userData?.user_id;
-      if (!user) {
-        setMessage({ type: "error", text: "User is not authenticated." });
-        return;
-      }
-  
-      const { data, error } = await supabase
-        .from("guardianrequest")
-        .insert({ guardian_id: userData?.user_id, child_id: studentId }); // Use studentId instead of currentChild
-  
-      console.log("current child", studentId); // Debugging
-  
-      if (error) {
-        setMessage({ type: "error", text: "Failed to send the request. Please try again." });
-        console.error("Error updating data:", error);
-      } else {
-        setMessage({ type: "success", text: "Parent request successfully sent!" });
-        console.log("Parent request successfully updated:", data);
-      }
-    } catch (err) {
-      setMessage({ type: "error", text: "Unexpected error occurred. Please try again later." });
-      console.error("Unexpected error:", err);
+    const guardianId = userData?.user_id;
+    if (!guardianId) {
+      return setMessage({ type: "error", text: "User is not authenticated." });
+    }
+
+    const { data, error } = await supabase
+      .from("guardianrequest")
+      .insert({ guardian_id: guardianId, child_id: studentId });
+
+    if (error) {
+      console.error("Insert error:", error);
+      setMessage({ type: "error", text: "Failed to send the request. Please try again." });
+    } else {
+      setMessage({ type: "success", text: "Parent request successfully sent!" });
+      console.log("Insert success:", data);
     }
   };
-  
-  
-  
+
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-      {/* Header */}
       <header className="py-4 bg-white dark:bg-gray-800 shadow">
         <div className="container mx-auto px-4 flex justify-center">
           <h1 className="text-2xl font-bold">Guardian Profile</h1>
         </div>
       </header>
 
-      {/* Search Section */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="text-center">
-          <input
-            type="text"
-            placeholder="Search for a student..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-lg p-3 border border-gray-300 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-          />
-        </div>
+      <div className="container mx-auto px-4 py-6 text-center">
+        <input
+          type="text"
+          placeholder="Search for a student..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full max-w-lg p-3 border border-gray-300 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+        />
       </div>
 
-      {/* Message Display */}
       {message && (
         <div
           className={`container mx-auto px-4 py-3 rounded-lg text-center ${
@@ -86,7 +77,6 @@ const GuardianProfile = () => {
         </div>
       )}
 
-      {/* Content Section */}
       <div className="container mx-auto px-4 pb-8 flex flex-col space-y-6">
         {searchQuery.trim() === "" ? (
           <div className="flex justify-center py-6">
@@ -94,7 +84,7 @@ const GuardianProfile = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredStudents && filteredStudents.length > 0 ? (
+            {filteredStudents?.length > 0 ? (
               filteredStudents.map((student) => (
                 <div
                   key={student.id}
@@ -105,9 +95,7 @@ const GuardianProfile = () => {
                     alt={`${student?.student_name}'s profile`}
                     className="w-24 h-24 mx-auto rounded-full mb-4 border border-gray-300 dark:border-gray-600 object-cover"
                   />
-                  <h2 className="text-lg font-semibold text-center">
-                    {student?.student_name}
-                  </h2>
+                  <h2 className="text-lg font-semibold text-center">{student?.student_name}</h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
                     Age: {student?.age}
                   </p>

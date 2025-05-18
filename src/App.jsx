@@ -29,6 +29,9 @@ import FixedQRCode from './components/CustomComponents/FixedQrCode';
 import GuardianProfile from './components/CustomComponents/GuardianProfile';
 import { ResetPassword } from './components/CustomComponents/Reset';
 import { UpdatePassword } from './components/CustomComponents/updatepassword';
+import CBTExam from './components/CustomComponents/CBTEXAMS'
+import TeachersAssingnmentDashboard from './components/CustomComponents/teachersAssingnmentDashboard';
+
 
 
 
@@ -38,9 +41,9 @@ import { UpdatePassword } from './components/CustomComponents/updatepassword';
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-     
+
       <AuthProvider>
-      <Toaster /> 
+        <Toaster />
         <Router>
           <NavContainer />
           <Routes>
@@ -49,30 +52,28 @@ function App() {
             <Route path="/digital-marketing" element={<DigitalMarketing />} />
             <Route path="/graphic-design" element={<GraphicDesign />} />
             <Route path="/growth-tools" element={<GrowthTools />} />
-             <Route path="/signup" element={<SignUp />} />
-             <Route path="/login" element={<Login/>} />
-             <Route path="/otp" element={<Auth/>} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/otp" element={<Auth />} />
             <Route path="/db" element={<DashboardTest />} />
-            <Route path="/dbs" element={<Aray/>} />
-             <Route path="/reset" element={<ResetPassword/>}/>
-               <Route path="/update-password" element={<UpdatePassword/>}/>
-
-
-            
-            
+             <Route path="/exams" element={<CBTExam />} />
+            <Route path="/reset" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/dashboard" element={<Dashboard />}>
-            <Route path="accept-requests" element={<AcceptRequests />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="students" element={<StudentsList/>} />
-            <Route path="teachers" element={<TeacherList/>} />
-            <Route path="classsubject" element={<TeacherAssign/>} />
-            <Route path="attendance" element={<TeacherAttendance/>} />
-            <Route path="attendanceQR" element={<FixedQRCode/>} />
-            <Route path="a" element={<GuardianProfile/>} />
-          </Route>
+              <Route path="accept-requests" element={<AcceptRequests />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="students" element={<StudentsList />} />
+              <Route path="teachers" element={<TeacherList />} />
+              <Route path="classsubject" element={<TeacherAssign />} />
+              <Route path="attendance" element={<TeacherAttendance />} />
+              <Route path="attendanceQR" element={<FixedQRCode />} />
+              <Route path="a" element={<GuardianProfile />} />
+              <Route path="Assingnments" element={<TeachersAssingnmentDashboard/>} />
+              <Route path="dbs" element={<Aray />} />
+            </Route>
 
           </Routes>
-          <Footer  />
+          <Footer />
         </Router>
       </AuthProvider>
     </ThemeProvider>

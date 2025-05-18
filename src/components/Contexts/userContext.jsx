@@ -1,12 +1,15 @@
 // src/contexts/UserContext.js
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+ import { useRef } from 'react';
 
 // Create the UserContext
 const UserContext = createContext();
 
 // Create a provider component
 export const UserProvider = ({ children }) => {
+
+ const hasFetchedRoles = useRef(false);
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null); // User profile data
   const [session, setSession] = useState(null);
@@ -20,16 +23,18 @@ export const UserProvider = ({ children }) => {
   const [userSchools, setUserSchools] = useState([]);
   const [attendace, setattenndance] = useState([]);
   const [teachers, setTeachers] = useState([]); // Teachers data
-  const [teacherMetaData, setTeacherMetaDatA] = useState([]); // single teacher meta data
+ // const [teacherMetaData, setTeacherMetaDatA] = useState([]); // single teacher meta data
   const [subjects, setSubjects] = useState([]); // Subjects data
   const [teacherSubjects, setTeacherSubjects] = useState([]);
-  const [teacherSubjectsFull, setTeacherSubjectsFull] = useState([]);
+  const [teacherSubjectsFull, setTeacherSubjectsFull] = useState([]); // get teacher subjects when teacher is selected
   const [teacher, setTeacher] = useState([]); // fetch a single teacher id 
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null); // New state for selected student
-  const [teacherAttendance, setTeacherAttendance] = useState([]);
+  // const [teacherAttendance, setTeacherAttendance] = useState([]);
   const [classSubject, setClassSubject] = useState(null); // New state for selected 
+  const [guardianStudents , setGuardianStudents] = useState([])
   const [allStudents, setAllStudents] = useState([]); // getting all the students with out classification 
+  const [teacherDashboardSubjects, setTeacherDashboardSubjects] = useState([]); // getting all the subjects  the teacher is teaching for the teacher dashboard
 const [fetchFlags, setFetchFlags] = useState({ 
   students: false,
   teachers: false,
@@ -37,26 +42,30 @@ const [fetchFlags, setFetchFlags] = useState({
   subjects: false,
   oneStudent: false,
   attendance: false,
-  teacherAttendance: false,
+  teacherDashboardSubjects: false,
+  // teacherAttendance: false,
   teacherSubjects: false,
   teacherSubjectsFull: false,
   roles: false,
   requests: false,
-  classes: false,
+   classes: false,
+  classSubject: false,
   userSchools: false,
   teacher: false,
-  classSubject: false,
   allStudents: false,
+  teacherMetaData: false,
+  userData: false,
+  guardianStudents: false,
+
 });
 
 
 
-  useEffect(() => {
-    console.log("fetchlags is holding subjects")
-      if(!fetchFlags.subjects){
+  useEffect(() => { 
+  if (fetchFlags.subjects === true) {
+    console.log("fetchFlags is holding subjects");
 
-
-            const fetchSubjects = async () => {
+    const fetchSubjects = async () => {
       console.log('Fetching subjects...');
       const { data, error } = await supabase.from('subjects').select('*');
       if (error) {
@@ -66,69 +75,77 @@ const [fetchFlags, setFetchFlags] = useState({
         setSubjects(data);
       }
     };
+
     fetchSubjects();
+  }
+}, [fetchFlags.subjects]); // ✅ This is the fix
 
-      }
-  }, []);
 
+  // const fetchTeacherAttendance = async () => {
+  //   try {
+  //     setLoading(true);
+  //     const { data, error } = await supabase
+  //       .from("teacher_attendance")
+  //       .select("*")
+  //       .match({'owner_id' : teacher?.teacher_proprietor,  "teacher_id" : userData?.user_id});
 
-  const fetchTeacherAttendance = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("teacher_attendance")
-        .select("*")
-        .match({'owner_id' : teacher?.teacher_proprietor,  "teacher_id" : userData?.user_id});
+  //     if (error) throw error;
+  //     setTeacherAttendance(data || []);
+  //   } catch (error) {
+  //     console.error("Error fetching teacher attendance:", error.message);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+  // useEffect(() => {
+  //   fetchTeacherAttendance();
+  // }, []);
 
-      if (error) throw error;
-      setTeacherAttendance(data || []);
-    } catch (error) {
-      console.error("Error fetching teacher attendance:", error.message);
-    } finally {
-      setLoading(false);
+useEffect(() => {
+  if (!fetchFlags.teacherSubjects) return;
+
+  const fetchTeacherSubjects = async () => {
+    if (!userData?.user_id || !selectedTeacher?.teacher_id) {
+      console.warn('User data or selected teacher not available. Skipping fetchTeacherSubjects.');
+      return;
+    }
+
+    console.log('Fetching teacher-subject assignments...');
+    const { data, error } = await supabase
+      .from('teacher_subjects')
+      .select(`
+        *,
+        teachers (teacher_name),
+        subjects (subject_name)
+      `)
+      .match({
+        owner_id: userData.user_id,
+        teacher_id: selectedTeacher.teacher_id,
+      });
+
+    if (error) {
+      console.error('Error fetching teacher-subject assignments:', error);
+    } else {
+      console.log('Teacher-subject assignments fetched:', data);
+      setTeacherSubjects(data);
+      setFetchFlags(prev => ({ ...prev, teacherSubjects: false })); // ✅ Reset the flag here
     }
   };
-  useEffect(() => {
-    fetchTeacherAttendance();
-  }, []);
 
-  useEffect(() => {
-    const fetchTeacherSubjects = async () => {
-      if (!userData?.user_id || !selectedTeacher?.teacher_id) {
-        console.warn('User data not available. Skipping fetchTeacherSubjects.');
-        return;
-      }
-  
-      console.log('Fetching teacher-subject assignments...');
-      const { data, error } = await supabase
-        .from('teacher_subjects')
-        .select(`
-          *,
-          teachers (teacher_name),
-          subjects (subject_name)
-        `)
-        .match({'owner_id' : userData.user_id,  "teacher_id" : selectedTeacher?.teacher_id});
-  
-      if (error) {
-        console.error('Error fetching teacher-subject assignments:', error);
-      } else {
-        console.log('Teacher-subject assignments fetched:', data);
-        setTeacherSubjects(data);
-      }
-    };
-  
-    fetchTeacherSubjects();
-  }, [userData , selectedTeacher]); // Ensure userData is a dependency
+  fetchTeacherSubjects();
+}, [fetchFlags.teacherSubjects, userData?.user_id, selectedTeacher?.teacher_id]); // ✅ Use stable primitives
+
   
 
-  useEffect(() => {
+ useEffect(() => {
+  if (fetchFlags.teacherSubjectsFull === true) {
     const fetchTeacherSubjectsFull = async () => {
-      if (!userData?.user_id ) {
+      if (!userData?.user_id) {
         console.warn('User data not available. Skipping fetchTeacherSubjects.');
         return;
       }
-  
-      console.log('Fetching teacher-subject assignments...');
+
+      console.log('Fetching teacher-subject assignments2...');
       const { data, error } = await supabase
         .from('teacher_subjects')
         .select(`
@@ -136,8 +153,8 @@ const [fetchFlags, setFetchFlags] = useState({
           teachers (teacher_name),
           subjects (subject_name)
         `)
-        .match({'owner_id' : userData?.user_id});
-  
+        .match({ 'owner_id': userData?.user_id });
+
       if (error) {
         console.error('Error fetching teacher-subject assignments:', error);
       } else {
@@ -145,18 +162,49 @@ const [fetchFlags, setFetchFlags] = useState({
         setTeacherSubjectsFull(data);
       }
     };
-  
+
     fetchTeacherSubjectsFull();
-  }, [userData]); // Ensure userData is a dependency
+  }
+}, [fetchFlags.teacherSubjectsFull, userData]);
 
 
-  useEffect(() => {
-    const fetchAttendace = async () => {
-      if (!userData?.user_id ) {
-        console.warn('User data not available. Skipping fetchTeacherSubjects.');
-        return;
-      }
-  
+
+useEffect(() => { 
+  if (!fetchFlags.teacherDashboardSubjects || !userData?.user_id) return;
+
+  const fetchTeacherSubjects = async () => {
+    console.log('Fetching teacher dashboard subjects...');
+
+    const { data, error } = await supabase
+      .from('teacher_subjects')
+      .select(`
+        *,
+        subjects (
+          id,
+          subject_name,
+          level,
+          track
+        )
+      `)
+      .eq('teacher_id', userData.user_id);
+
+    if (error) {
+      console.error('Error fetching teacher dashboard subjects:', error);
+    } else {
+      console.log('Fetched teacher dashboard subjects:', data);
+      setTeacherDashboardSubjects(data);
+    }
+
+    // ✅ Always reset the flag
+    setFetchFlags(prev => ({ ...prev, teacherDashboardSubjects: false }));
+  };
+
+  fetchTeacherSubjects();
+}, [fetchFlags.teacherDashboardSubjects, userData?.user_id]);
+
+useEffect(() => {
+  if (fetchFlags.attendace === true && userData?.user_id) {
+    const fetchAttendance = async () => {
       console.log('Fetching proprietor-attendance...');
       const { data, error } = await supabase
         .from('teacher_attendance')
@@ -166,36 +214,45 @@ const [fetchFlags, setFetchFlags] = useState({
           class (class_name),
           schools (name)
         `)
-        .match({'owner_id' : userData?.user_id});
-  
+        .match({ owner_id: userData.user_id });
+
       if (error) {
         console.error('Error Fetching Proprietor Attendance:', error);
       } else {
-        console.log('Proprietor Attendance  Fetched ', data);
+        console.log('Proprietor Attendance Fetched:', data);
         setattenndance(data);
       }
     };
-  
-    fetchAttendace();
-  }, [userData]); // Ensure userData is a dependency
+
+    fetchAttendance();
+  }
+}, [fetchFlags.attendacee, userData]);
+
 
   // Fetch roles from the 'roles' table
-  useEffect(() => {
-    const fetchRoles = async () => {
-      console.log('Fetching roles...');
-      const { data, error } = await supabase.from('roles').select('*');
-      if (error) {
-        console.error('Error fetching roles:', error);
-      } else {
-        console.log('Roles fetched:', data);
-        setRoles(data);
-      }
-    };
-    fetchRoles();
-  }, []);
+useEffect(() => {
+  if (hasFetchedRoles.current) return;
+
+  hasFetchedRoles.current = true; // 🛠️ Set this immediately to prevent re-trigger
+
+  const fetchRoles = async () => {
+    console.log('Fetching roles...');
+    const { data, error } = await supabase.from('roles').select('*');
+
+    if (error) {
+      console.error('Error fetching roles:', error);
+    } else {
+      console.log('Roles fetched:', data);
+      setRoles(data);
+    }
+  };
+
+  fetchRoles();
+}, []);
 
   // Fetch schools from the 'schools' table
-  useEffect(() => {
+useEffect(() => {
+  if (fetchFlags.schools === true) {
     const fetchSchools = async () => {
       console.log('Fetching schools...');
       const { data, error } = await supabase.from('schools').select('*');
@@ -206,11 +263,47 @@ const [fetchFlags, setFetchFlags] = useState({
         setSchools(data);
       }
     };
+
     fetchSchools();
-  }, []);
+  }
+}, [fetchFlags.schools]);
+
+
+
+useEffect(() => {
+  if (fetchFlags.guardianStudents === true && userData?.user_id) {
+    const fetchGuardianStudents = async () => {
+      console.log('Fetching guardian students...');
+      const { data, error } = await supabase
+        .from('guardian_children')
+        .select(
+          `
+          *,
+          students (
+            *
+          )
+          `
+        )
+        .eq('guardian_name', userData.user_id);
+
+      if (error) {
+        console.error('Error fetching guardian students:', error);
+      } else {
+        console.log('Guardian students fetched:', data);
+        setGuardianStudents(data);
+      }
+    };
+
+    fetchGuardianStudents();
+  }
+}, [fetchFlags.guardianStudents, userData]);
+
+
+
 
   // Fetch teachers from the 'teachers' table
-  useEffect(() => {
+useEffect(() => {
+  if (fetchFlags.teachers === true && userData?.user_id) {
     const fetchTeachers = async () => {
       console.log('Fetching teachers...');
       const { data, error } = await supabase
@@ -224,22 +317,31 @@ const [fetchFlags, setFetchFlags] = useState({
             class_name
           )
         `)
-        .eq('teacher_proprietor', userData?.user_id);
-  
+        .eq('teacher_proprietor', userData.user_id);
+
       if (error) {
         console.error('Error fetching teachers:', error);
       } else {
-        console.log('Teachers fetched:', data); // Log the data here
+        console.log('Teachers fetched:', data);
         setTeachers(data);
       }
     };
+
     fetchTeachers();
-  }, [userData]);
+  }
+}, [fetchFlags.teachers, userData]);
+
   
 
-  useEffect(() => {
-    const fetchClsssSubs = async () => {
-      console.log('Fetching class subjects ...');
+ useEffect(() => {
+  if (fetchFlags.classSubject === true) {
+    const fetchClassSubs = async () => {
+      if (!userData?.user_id || !selectedStudent?.class_id) {
+        console.warn('Missing userData or selectedStudent, skipping fetch.');
+        return;
+      }
+
+      console.log('Fetching class subjects...');
       const { data, error } = await supabase
         .from('class_subjects')
         .select(`
@@ -251,44 +353,97 @@ const [fetchFlags, setFetchFlags] = useState({
             user_id
           )
         `)
-        .eq('proprietor_id', userData?.user_id , "class_id", selectedStudent?.class_id);
-  
+        .match({
+          proprietor_id: userData.user_id,
+          class_id: selectedStudent.class_id,
+        });
+
       if (error) {
-        console.error('Error fetching , class subjects:', error );
+        console.error('Error fetching class subjects:', error);
       } else {
-        console.log('class subjects for students :', data, selectedStudent?.class_id); // Log the data here
+        console.log('Class subjects fetched:', data);
         setClassSubject(data);
       }
     };
-    fetchClsssSubs();
-  }, [userData, selectedStudent]);
+
+    fetchClassSubs();
+  }
+}, [fetchFlags.classSubject, userData, selectedStudent]);
+
   
 
 
-  useEffect(() => {
-    const fetchTeacher = async () => {
-      console.log('Fetching teachers...');
-      const { data, error } = await supabase
-      .from('teachers')
-      .select("*")
-      .eq("teacher_id", userData?.user_id)
+useEffect(() => {
+  if (!fetchFlags.teacher || !userData?.user_id) return;
 
+  const fetchTeacher = async () => {
+    console.log('Fetching teachers...');
+    const { data, error } = await supabase
+      .from('teachers')
+      .select('*')
+      .eq('teacher_id', userData.user_id);
+
+    if (error) {
+      console.error('Error fetching teacher:', error);
+    } else {
+      console.log('Teacher fetched:', data);
+      setTeacher(data);
+      setFetchFlags(prev => ({ ...prev, teacher: false })); // reset flag
+    }
+  };
+
+  fetchTeacher();
+}, [fetchFlags.teacher, userData?.user_id]);
+
+
+// fetchies the 
+useEffect(() => {
+  if (fetchFlags.guardianStudents === true && userData?.user_id) {
+    const fetchGuardianStudents = async () => {
+      console.log('Fetching guardian students...'); 
+     const { data, error } = await supabase
+.from('guardian_children')
+.select(`
+  guardian_name,
+  guardians (
+    guardianname,
+    guardian_picture
+  ),
+  students (
+    id,
+    student_name,
+    student_picture,
+    age,
+    class_id,
+    class (
+      class_name
+    )
+  )
+`)
+
+  .eq('guardian_name', userData.user_id);
       if (error) {
         console.error('Error fetching teacher:', error);
       } else {
         console.log('Teacher fetched:', data);
-        setTeacher(data);
+         setGuardianStudents(data);
       }
     };
-    fetchTeacher();
-  }, [userData]);
 
-  useEffect(() => {
+    fetchGuardianStudents();
+  }
+}, [fetchFlags.teacher, userData]);
+
+
+useEffect(() => {
+  if (fetchFlags.userSchools === true && userData?.user_id) {
     const fetchUserSchools = async () => {
       console.log('Fetching user schools...');
-      const { data, error } = await supabase.from('schools')
-      .select('*')
-      .eq("school_owner", userData?.user_id);
+      const { data, error } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('school_owner', userData.user_id);
+
       if (error) {
         console.error('Error fetching user schools:', error);
       } else {
@@ -296,11 +451,15 @@ const [fetchFlags, setFetchFlags] = useState({
         setUserSchools(data);
       }
     };
+
     fetchUserSchools();
-  }, [userData]);
+  }
+}, [fetchFlags.userSchools , userData]);
+
 
   // Fetch students with a join on the 'schools' table to get school names
-  useEffect(() => {
+useEffect(() => {
+  if (fetchFlags.students === true && userData?.user_id) {
     const fetchStudents = async () => {
       console.log('Fetching students with school names...');
       const { data, error } = await supabase
@@ -314,7 +473,7 @@ const [fetchFlags, setFetchFlags] = useState({
             class_name
           )
         `)
-        .eq('proprietor', userData?.user_id); // Adjusted based on the proprietor reference
+        .eq('proprietor', userData.user_id);
 
       if (error) {
         console.error('Error fetching students:', error);
@@ -323,13 +482,17 @@ const [fetchFlags, setFetchFlags] = useState({
         setStudents(data);
       }
     };
+
     fetchStudents();
-  }, [userData]);
+  }
+}, [fetchFlags.students, userData]);
+
 
 
 
    // Fetch student with a join on the 'schools' table to get school names
-   useEffect(() => {
+useEffect(() => {
+  if (fetchFlags.oneStudent === true && userData) {
     const fetchStudent = async () => {
       console.log('Fetching students with school names...');
       const { data, error } = await supabase
@@ -343,7 +506,7 @@ const [fetchFlags, setFetchFlags] = useState({
             class_name
           )
         `)
-        .eq('id', userData?.user_id); // Adjusted based on the student reference
+        .eq('id', userData?.user_id);
 
       if (error) {
         console.error('Error fetching student:', error);
@@ -352,11 +515,15 @@ const [fetchFlags, setFetchFlags] = useState({
         set1Student(data);
       }
     };
+
     fetchStudent();
-  }, [userData]);
+  }
+}, [fetchFlags.oneStudent, userData]);
+
 
   // Fetch requests based on userData availability
-  useEffect(() => {
+useEffect(() => { 
+  if (fetchFlags.requests === true) {
     const fetchRequests = async () => {
       if (!userData) return;
       console.log('Fetching requests...');
@@ -372,10 +539,13 @@ const [fetchFlags, setFetchFlags] = useState({
       }
     };
     fetchRequests();
-  }, [userData]);
+  }
+}, [fetchFlags.requests, userData]);
+
 
   // Fetch classes from the 'class' table
-  useEffect(() => {
+useEffect(() => {
+  if (fetchFlags.classes === true) {
     const fetchClasses = async () => {
       console.log('Fetching classes...');
       const { data, error } = await supabase
@@ -388,26 +558,32 @@ const [fetchFlags, setFetchFlags] = useState({
         setClasses(data);
       }
     };
+
     fetchClasses();
-  }, []);
+  }
+}, [fetchFlags.classes]);
+
 
 
     // Fetch all students from the 'students' table
-    useEffect(() => {
-      const fetchAllStudents = async () => {
-        console.log('Fetching all students ...');
-        const { data, error } = await supabase
-          .from('students')
-          .select('*');
-        if (error) {
-          console.error('Error fetching all students :', error);
-        } else {
-          console.log('All students fetched:', data);
-          setAllStudents(data);
-        }
-      };
-      fetchAllStudents();
-    }, []);
+ useEffect(() => {
+  if (fetchFlags.allStudents === true) {
+    const fetchAllStudents = async () => {
+      console.log('Fetching all students ...');
+      const { data, error } = await supabase
+        .from('students')
+        .select('*');
+      if (error) {
+        console.error('Error fetching all students :', error);
+      } else {
+        console.log('All students fetched:', data);
+        setAllStudents(data);
+      }
+    };
+    fetchAllStudents();
+  }
+}, [fetchFlags.allStudents]);
+
   
 
   // Function to fetch authenticated user and profile data
@@ -476,6 +652,8 @@ const [fetchFlags, setFetchFlags] = useState({
   return (
     <UserContext.Provider
       value={{
+        setFetchFlags,
+        fetchFlags,
         user,
         userData,
         session,
@@ -484,9 +662,10 @@ const [fetchFlags, setFetchFlags] = useState({
         setShowNav,
         roles,
         setRoles,
-        schools,
         setSchools,
         students,
+        guardianStudents, 
+        setGuardianStudents,
         setStudents,
         requests,
         setRequests,
@@ -495,8 +674,10 @@ const [fetchFlags, setFetchFlags] = useState({
         userSchools,
         teachers ,// Expose teachers through context
         subjects
-        , teacherSubjects
+        , teacherSubjects,
+        teacherDashboardSubjects
         , setTeacher,
+        schools, 
         selectedTeacher,
         setSelectedTeacher,
         teacher,
@@ -508,7 +689,7 @@ const [fetchFlags, setFetchFlags] = useState({
         setSelectedStudent, 
         classSubject,
         setClassSubject,
-        teacherAttendance,
+        // teacherAttendance,
         attendace,
         setTeachers,
         allStudents,

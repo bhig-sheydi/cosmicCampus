@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useUser } from '../Contexts/userContext';
 import { toast } from "@/components/ui/use-toast";
 import 'react-toastify/dist/ReactToastify.css';
 import { supabase } from '@/supabaseClient';
+
 
 const TeacherAssign = () => {
   const [state, setState] = useState({
@@ -13,8 +14,14 @@ const TeacherAssign = () => {
     assignedSubjects: [], // Track assigned subjects
   });
 
-  const { classes, subjects, userData } = useUser();
+  const { classes, subjects, userData , setFetchFlags  } = useUser();
   const [selectedClassId, setSelectedClassId] = useState(null);
+
+
+useEffect(() => {
+  setFetchFlags(prev => ({ ...prev, subjects: true, classes: true }));
+}, []);
+
 
   const handleStateChange = (key, value) => {
     setState((prev) => ({ ...prev, [key]: value }));

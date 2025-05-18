@@ -1,4 +1,4 @@
-import React, { useState } from "react"; 
+import React, { useState , useEffect } from "react"; 
 import { useUser } from "@/components/Contexts/userContext";
 import WifiAttendance from "./SignInOutButtons";
 import SetLocation from "./SetLocation";
@@ -11,7 +11,7 @@ const TeachersAttendance = () => {
   const [schoolFilter, setSchoolFilter] = useState(""); // School filter
   const [dateFilter, setDateFilter] = useState(""); // Date filter
   const [timeFilter, setTimeFilter] = useState(""); // Time filter
-  const { userData, teacher, attendace, teachers, classes, schools  } = useUser();
+  const { userData, teacher, attendace, teachers, classes, schools , setFetchFlags  } = useUser();
 
   // Utility function to get today's date in YYYY-MM-DD format
   const getCurrentDate = () => new Date().toISOString().split("T")[0];
@@ -25,6 +25,11 @@ const TeachersAttendance = () => {
       (!dateFilter || record.date === dateFilter) &&
       (!timeFilter || record.time_stamp.startsWith(timeFilter))
   );
+
+
+      useEffect(() => {
+        setFetchFlags(prev => ({ ...prev ,userData: true , classes: true  , teachers: true  , attendace: true , schools: true})); // Set the flags to true
+      }, []);
 
   // Sort attendance records
   const sortedAttendance = [...filteredAttendance].sort((a, b) => {

@@ -4,7 +4,14 @@ import { useEffect } from 'react';
 const TeacherInfoModal = ({ teacher, onClose,  }) => {
 
 
-   const  {teacherSubjects} = useUser()
+   const  {teacherSubjects, setFetchFlags} = useUser()
+
+
+
+       useEffect(() => {
+         setFetchFlags(prev => ({ ...prev,teacherSubjects: true})); // Set the flags to true
+       }, []);
+   
     
   
    useEffect(() => {

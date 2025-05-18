@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { useUser } from '../Contexts/userContext';
 import AcceptGuardianRequests from './AcceptGuardianRequests';
+import { use } from 'react';
 
 const AcceptRequests = () => {
   const [requests, setRequests] = useState([]);
@@ -11,7 +12,14 @@ const AcceptRequests = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // New filter state
-  const { userData } = useUser();
+  const { userData , setFetchFlags } = useUser();
+
+
+
+
+   useEffect(() => {
+      setFetchFlags(prev => ({ ...prev, oneStudent: true ,userData: true ,  requests: true})); // Set the flags to true
+    }, []);
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -223,7 +231,7 @@ const AcceptRequests = () => {
       </div>
     )}
 
-    {userData?.role_id == 4 && <AcceptGuardianRequests />}
+    {userData?.role_id == 2 && <AcceptGuardianRequests />}
   </>
   );
 };
