@@ -31,7 +31,9 @@ import { ResetPassword } from './components/CustomComponents/Reset';
 import { UpdatePassword } from './components/CustomComponents/updatepassword';
 import CBTExam from './components/CustomComponents/CBTEXAMS'
 import TeacherSubjectsCard from './components/CustomComponents/TeachersAssingnmentDashboard';
-
+import StudentAssingnments from './components/CustomComponents/StudentAssingnments';
+import AssignmentPage from './components/CustomComponents/AssignmentPage';
+import AssignmentHistory from './components/CustomComponents/AssignmentHistory';
 
 
 
@@ -68,8 +70,11 @@ function App() {
               <Route path="attendance" element={<TeacherAttendance />} />
               <Route path="attendanceQR" element={<FixedQRCode />} />
               <Route path="a" element={<GuardianProfile />} />
-              <Route path="Assingnments" element={<TeacherSubjectsCard/>} />
+              <Route path="Assignments" element={<TeacherSubjectsCard/>} />
               <Route path="dbs" element={<Aray />} />
+              <Route path="studentAssignment" element={<StudentAssingnments/>} />
+              <Route path="homework" element={<AssignmentPage/>} />
+              <Route path="teachhersAsignment" element={<AssignmentHistory/>} />
             </Route>
 
           </Routes>

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "../Contexts/userContext";
 import { supabase } from "@/supabaseClient";
+import { useNavigate } from "react-router-dom";
+
+
 
 const TeacherSubjectsCard = () => {
   const { teacherDashboardSubjects, setFetchFlags, userData , teacher} = useUser();
@@ -10,6 +13,8 @@ const TeacherSubjectsCard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [homeworkModal, setHomeworkModal] = useState(null);
   const [questions, setQuestions] = useState([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+   const [assignmentTitle, setAssignmentTitle] = useState("");
+ const navigate = useNavigate();
 
   useEffect(() => {
     setFetchFlags(prev => ({ ...prev, teacherDashboardSubjects: true , teacher: true }));
@@ -60,10 +65,11 @@ const TeacherSubjectsCard = () => {
     setHomeworkModal({ class: cls });
   };
 
-  const closeHomeworkModal = () => {
-    setHomeworkModal(null);
-    setQuestions([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
-  };
+const closeHomeworkModal = () => {
+  setHomeworkModal(null);
+  setQuestions([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+  setAssignmentTitle("");
+};
 
   const handleQuestionChange = (index, field, value) => {
     const updated = [...questions];
@@ -94,11 +100,16 @@ const submitHomework = async () => {
   }
 
   try {
-    const { data: assignmentData, error: assignmentError } = await supabase
-      .from("assignments")
-      .insert({ class_id, teacher_id, school_id })
-      .select("id") // Get the generated assignment ID
-      .single();
+ const { data: assignmentData, error: assignmentError } = await supabase
+  .from("assignments")
+  .insert({
+    class_id,
+    teacher_id,
+    school_id,
+    assignment_title: assignmentTitle.trim() || `Homework for ${homeworkModal.class.class_name}`,
+  })
+  .select("id")
+  .single();
 
     if (assignmentError) {
       console.error("Failed to create assignment:", assignmentError);
@@ -135,15 +146,29 @@ const submitHomework = async () => {
 
   return (
     <>
+    <div className="flex justify-start mb-4">
+  <button
+    onClick={() => navigate("/dashboard/teachhersAsignment")}
+    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+  >
+    View Assignments
+  </button>
+</div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {teacherDashboardSubjects.map((subjectAssignment) => {
           const subject = subjectAssignment.subjects;
+          
+          
           return (
             <div
               key={subjectAssignment.id}
               className="bg-white dark:bg-gray-800 shadow rounded-2xl p-4 flex flex-col justify-between"
             >
+    
               <div>
+
+                
                 <h3 className="text-xl font-semibold text-gray-800 dark:text-white">
                   {subject.subject_name}
                 </h3>
@@ -225,74 +250,84 @@ const submitHomework = async () => {
         </div>
       )}
 
-      {homeworkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
-              Set Homework for {homeworkModal.class.class_name}
-            </h2>
+   {homeworkModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
+        Set Homework for {homeworkModal.class.class_name}
+      </h2>
 
-            {questions.map((q, i) => (
-              <div key={i} className="mb-4">
-                <label className="block text-gray-700 dark:text-white mb-1">Question {i + 1}</label>
-                <textarea
-                  className="w-full p-2 border rounded mb-2 dark:bg-gray-800 dark:text-white"
-                  value={q.question}
-                  onChange={(e) => handleQuestionChange(i, "question", e.target.value)}
-                />
-                {q.options.map((opt, idx) => (
-                  <input
-                    key={idx}
-                    placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                    className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-                    value={opt}
-                    onChange={(e) => {
-                      const opts = [...q.options];
-                      opts[idx] = e.target.value;
-                      handleQuestionChange(i, "options", opts);
-                    }}
-                  />
-                ))}
-                <input
-                  className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-                  placeholder="Correct Answer"
-                  value={q.correct_answer}
-                  onChange={(e) => handleQuestionChange(i, "correct_answer", e.target.value)}
-                />
-                <input
-                  className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-                  type="number"
-                  placeholder="Marks"
-                  value={q.marks}
-                  onChange={(e) => handleQuestionChange(i, "marks", parseInt(e.target.value))}
-                />
-              </div>
-            ))}
+      {/* Assignment Title Input */}
+      <input
+        type="text"
+        placeholder="Assignment Title"
+        value={assignmentTitle}
+        onChange={(e) => setAssignmentTitle(e.target.value)}
+        className="w-full p-2 mb-6 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
+      />
 
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-4"
-              onClick={addQuestion}
-            >
-              + Add Another Question
-            </button>
-
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                onClick={closeHomeworkModal}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                onClick={submitHomework}
-              >
-                Submit Homework
-              </button>
-            </div>
-          </div>
+      {questions.map((q, i) => (
+        <div key={i} className="mb-4">
+          <label className="block text-gray-700 dark:text-white mb-1">Question {i + 1}</label>
+          <textarea
+            className="w-full p-2 border rounded mb-2 dark:bg-gray-800 dark:text-white"
+            value={q.question}
+            onChange={(e) => handleQuestionChange(i, "question", e.target.value)}
+          />
+          {q.options.map((opt, idx) => (
+            <input
+              key={idx}
+              placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+              className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
+              value={opt}
+              onChange={(e) => {
+                const opts = [...q.options];
+                opts[idx] = e.target.value;
+                handleQuestionChange(i, "options", opts);
+              }}
+            />
+          ))}
+          <input
+            className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
+            placeholder="Correct Answer"
+            value={q.correct_answer}
+            onChange={(e) => handleQuestionChange(i, "correct_answer", e.target.value)}
+          />
+          <input
+            className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
+            type="number"
+            placeholder="Marks"
+            value={q.marks}
+            onChange={(e) => handleQuestionChange(i, "marks", parseInt(e.target.value))}
+          />
         </div>
-      )}
+      ))}
+
+      <button
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-4"
+        onClick={addQuestion}
+      >
+        + Add Another Question
+      </button>
+
+      <div className="flex justify-end gap-2">
+        <button
+          className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
+          onClick={closeHomeworkModal}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          onClick={submitHomework}
+        >
+          Submit Homework
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </>
   );
 };

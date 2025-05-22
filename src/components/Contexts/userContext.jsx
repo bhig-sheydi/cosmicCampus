@@ -17,7 +17,7 @@ export const UserProvider = ({ children }) => {
   const [roles, setRoles] = useState([]);
   const [schools, setSchools] = useState([]); // School data
   const [students, setStudents] = useState([]); // Student data
-  const [oneStudent, set1Student] = useState([]); // 1Student data
+  const [oneStudent, set1Student] = useState(null); // 1Student data
   const [requests, setRequests] = useState(0); // Request count
   const [classes, setClasses] = useState(0); // Request count
   const [userSchools, setUserSchools] = useState([]);
@@ -499,12 +499,8 @@ useEffect(() => {
         .from('students')
         .select(`
           *,
-          schools (
-            name
-          ),
-          class (
-            class_name
-          )
+          schools (name),
+          class (class_name)
         `)
         .eq('id', userData?.user_id);
 
@@ -512,7 +508,7 @@ useEffect(() => {
         console.error('Error fetching student:', error);
       } else {
         console.log('Student fetched:', data);
-        set1Student(data);
+        set1Student(data?.[0] || null);
       }
     };
 
