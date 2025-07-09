@@ -5,7 +5,7 @@ import { ListFilterIcon } from 'lucide-react';
 import AssignClassModal from './AssignClassModal';
 
 const StudentsList = () => {
-  const { students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject , setFetchFlags } = useUser();
+  const {userData, students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject , setFetchFlags } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState(''); 
   const [selectedSchool, setSelectedSchool] = useState('');
@@ -14,7 +14,25 @@ const StudentsList = () => {
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showAssignClassModal, setShowAssignClassModal] = useState(false);
+  
 
+
+const [currentPage, setCurrentPage] = useState(1);
+const studentsPerPage = 20;
+const [totalStudents, setTotalStudents] = useState(0);
+
+
+
+
+const [searchInput, setSearchInput] = useState('');
+useEffect(() => {
+  const delayDebounce = setTimeout(() => {
+    setSearchQuery(searchInput);
+    setCurrentPage(1); // Reset to first page on new search
+  }, 500); // Debounce by 0.5s
+
+  return () => clearTimeout(delayDebounce);
+}, [searchInput]);
 
 
   useEffect(() => {
@@ -23,8 +41,46 @@ const StudentsList = () => {
 
 
 
+
+  const fetchStudents = async (page = 1, search = '') => {
+  const offset = (page - 1) * studentsPerPage;
+
+  let query = supabase
+    .from('students')
+    .select(
+      `
+      *,
+      schools(name),
+      class(class_name)
+    `,
+      { count: 'exact' } // for total count
+    )
+    .eq('proprietor', userData.user_id)
+    .range(offset, offset + studentsPerPage - 1);
+
+  if (search) {
+    query = query.ilike('student_name', `%${search}%`);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error('Error fetching students:', error);
+  } else {
+    setStudents(data);
+    setTotalStudents(count || 0);
+  }
+};
+
+
+
   
-  
+  useEffect(() => {
+  if (userData?.user_id) {
+    fetchStudents(currentPage, searchQuery);
+  }
+}, [currentPage, searchQuery, userData]);
+
   
   const schools = userSchools;
   
@@ -163,13 +219,14 @@ const StudentsList = () => {
   
       {/* Search Bar */}
       <div className="mb-4 sm:mb-6 flex items-center justify-center">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-[80%] px-3 py-2 sm:px-4 sm:py-2 border rounded-md shadow-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-        />
+<input
+  type="text"
+  placeholder="Search by name..."
+  value={searchInput}
+  onChange={(e) => setSearchInput(e.target.value)}
+  className="w-[80%] px-3 py-2 sm:px-4 sm:py-2 border rounded-md shadow-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
+/>
+
       </div>
   
       {/* Filter and Dropdown */}
@@ -471,7 +528,26 @@ const StudentsList = () => {
                  )
                }
              </div>
+
+                   <div className="flex justify-center mt-4">
+  <button
+    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+    disabled={currentPage === 1}
+    className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
+  >
+    Previous
+  </button>
+  <span className="mx-2">{currentPage}</span>
+  <button
+    onClick={() => setCurrentPage((prev) => prev + 1)}
+    disabled={currentPage * studentsPerPage >= totalStudents}
+    className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
+  >
+    Next
+  </button>
+</div>
       </div>
+
 
      
     </div>

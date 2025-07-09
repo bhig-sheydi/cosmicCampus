@@ -18,6 +18,8 @@ const TeacherSubjectsCard = () => {
 
   useEffect(() => {
     setFetchFlags(prev => ({ ...prev, teacherDashboardSubjects: true , teacher: true }));
+
+ 
   }, [setFetchFlags]);
 
   useEffect(() => {
@@ -43,7 +45,11 @@ const TeacherSubjectsCard = () => {
       }
     };
     fetchClasses();
+
   }, [selectedSubjectId]);
+
+  
+       console.log("teacher", teacher)
 
   const openModal = (subjectAssignment) => {
     setModalSubject(subjectAssignment);
@@ -99,17 +105,24 @@ const submitHomework = async () => {
     return;
   }
 
+  // ✅ Step 1: Calculate total marks
+  const totalMarks = questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0);
+
   try {
- const { data: assignmentData, error: assignmentError } = await supabase
-  .from("assignments")
-  .insert({
-    class_id,
-    teacher_id,
-    school_id,
-    assignment_title: assignmentTitle.trim() || `Homework for ${homeworkModal.class.class_name}`,
-  })
-  .select("id")
-  .single();
+    // ✅ Step 2: Create assignment with total_marks
+    const { data: assignmentData, error: assignmentError } = await supabase
+      .from("assignments")
+      .insert({
+        class_id,
+        teacher_id,
+        school_id,
+        subject_id: selectedSubjectId,
+        assignment_title: assignmentTitle.trim() || `Homework for ${homeworkModal.class.class_name}`,
+        proprietor_id: teacher[0]?.teacher_proprietor || "Unknown",
+        total_marks: totalMarks, // ✅ Include total_marks here
+      })
+      .select("id")
+      .single();
 
     if (assignmentError) {
       console.error("Failed to create assignment:", assignmentError);
@@ -118,7 +131,7 @@ const submitHomework = async () => {
 
     const assignment_id = assignmentData.id;
 
-    // Step 2: Prepare and insert questions
+    // ✅ Step 3: Prepare and insert questions
     const questionPayload = questions.map(q => ({
       assignment_id,
       question: q.question,
@@ -135,7 +148,7 @@ const submitHomework = async () => {
       console.error("Failed to insert questions:", questionInsertError);
     } else {
       console.log("Assignment and questions successfully created!");
-      closeHomeworkModal(); // optionally close the modal here
+      closeHomeworkModal();
     }
   } catch (err) {
     console.error("Unexpected error submitting homework:", err);

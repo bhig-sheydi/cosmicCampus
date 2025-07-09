@@ -192,18 +192,28 @@ useEffect(() => {
       <div>
       <div className="flex-1 rounded-lg p-3 text-center bg-white dark:bg-black">
         <div className="w-full h-[300px] overflow-hidden bg-black">
-          <img
-            src={ userData?.role_id == 3 ?  teacher[0]?.teacher_pic : oneStudent[0]?.student_picture||  Logo || Logo}
-            alt="Profile Background"
-            className="w-full h-[600px] opacity-80"
-          />
+      <img
+  src={
+    previewPic ||
+    (userData?.role_id == 3 && Array.isArray(teacher) && teacher[0]?.teacher_pic) ||
+    (userData?.role_id == 2 && Array.isArray(oneStudent) && oneStudent[0]?.student_picture) ||
+    Logo
+  }
+/>
+
         </div>
         <div className="absolute top-80 rounded-full text-muted-foreground w-80% md:w-full sm:w-full">
-          <img
-            src={previewPic || userData?.role_id == 3 ?  teacher[0]?.teacher_pic : oneStudent[0]?.student_picture||  Logo}
-            alt="Profile"
-            className="sm:h-48 sm:w-48 w-28 h-28 rounded-full border-4 border-gray-300"
-          />
+  <img 
+  src={
+    previewPic ||
+    (userData?.role_id === 3 && Array.isArray(teacher) && teacher[0]?.teacher_pic) ||
+    (userData?.role_id === 2 && Array.isArray(oneStudent) && oneStudent[0]?.student_picture) ||
+    Logo
+  }
+  alt="Profile"
+  className="sm:h-48 sm:w-48 w-28 h-28 rounded-full border-4 border-gray-300"
+/>
+
         </div>
         <div className="flex max-w-[58rem] flex-col mt-6">
           <h2 className="mt-6 text-xl font-semibold text-gray-800 dark:text-white">

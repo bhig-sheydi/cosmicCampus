@@ -16,17 +16,109 @@ const TeacherList = () => {
   const [showClassModal, setShowClassModal] = useState(false); // For class assignment modal
   const [classTeacherId, setClassTeacherId] = useState(null); // For assigning class
   const [selectedClassForAssignment, setSelectedClassForAssignment] = useState(''); // Class selected in modal
-  
+ const [page, setPage] = useState(1);
+const [pageSize] = useState(10);
+const [total, setTotal] = useState(0);
+const [loading, setLoading] = useState(false);
+
+ 
   
   // New states for teacher info modal
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const schools = userSchools;
 
 
+
     useEffect(() => {
-      setFetchFlags(prev => ({ ...prev,userData: true , classes: true  , userSchools: true , teachers: true , subjects: true , teacherSubjectsFull: true})); // Set the flags to true
+      setFetchFlags(prev => ({ ...prev,userData: true , classes: true  , userSchools: true ,  subjects: true , teacherSubjectsFull: true})); // Set the flags to true
     }, []);
 
+
+  const fetchTeachers = async ({
+  page = 1,
+  pageSize = 10,
+  searchQuery = '',
+  selectedClass = '',
+  selectedSchool = '',
+  selectedSubject = '',
+}) => {
+  let query = supabase
+    .from('teachers')
+    .select(`
+      *,
+      schools(name),
+      teacher_subjects:teacher_subjects(subjects(subject_name))
+    `, { count: 'exact' });
+
+  if (searchQuery) {
+    query = query.ilike('teacher_name', `%${searchQuery}%`);
+  }
+
+  if (selectedClass && selectedClass !== 'null') {
+    query = query.eq('teacher_class', selectedClass);
+  } else if (selectedClass === 'null') {
+    query = query.is('teacher_class', null);
+  }
+
+  if (selectedSchool) {
+    query = query.eq('schools.name', selectedSchool);
+  }
+
+  if (selectedSubject) {
+    query = query.contains('teacher_subjects.subjects', { subject_name: selectedSubject });
+  }
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  query = query.range(from, to);
+
+  const { data, count, error } = await query;
+
+  if (error) throw error;
+  return { data, count };
+};
+
+
+useEffect(() => {
+  const loadTeachers = async () => {
+    setLoading(true);
+    try {
+      const { data, count } = await fetchTeachers({
+        page,
+        pageSize,
+        searchQuery,
+        selectedClass,
+        selectedSchool,
+        selectedSubject,
+      });
+      setTeachers(data);
+      setTotal(count);
+    } catch (error) {
+      console.error('Failed to fetch teachers:', error.message);
+    }
+    setLoading(false);
+  };
+
+  loadTeachers();
+}, [page, searchQuery, selectedClass, selectedSchool, selectedSubject]);
+
+
+useEffect(() => {
+  console.log("selected teachersssss", teachers)
+  const timer = setTimeout(() => {
+    // Your existing logic or remove if unnecessary
+  }, 10000);
+  return () => clearTimeout(timer);
+}, [teachers]);
+
+
+
+
+
+
+
+    
 
 
 
@@ -343,6 +435,27 @@ if (ClassError) throw ClassError;
             )}
           </tbody>
         </table>
+
+        <div className="flex justify-center mt-6 space-x-4">
+  <button
+    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+    disabled={page === 1}
+    className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+  >
+    Previous
+  </button>
+  <span className="text-lg font-medium">
+    Page {page} of {Math.ceil(total / pageSize)}
+  </span>
+  <button
+    onClick={() => setPage((prev) => prev + 1)}
+    disabled={page >= Math.ceil(total / pageSize)}
+    className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+  >
+    Next
+  </button>
+</div>
+
       </div>
 
 

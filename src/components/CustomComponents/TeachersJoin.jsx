@@ -1,90 +1,98 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'; 
 import { supabase } from '../../supabaseClient';
 import { Button } from '../ui/button';
 import Logo from '../../assets/cosmic.png';
 import { toast } from "@/components/ui/use-toast";
 import { useUser } from '../Contexts/userContext';
 
+const PAGE_SIZE = 20;
+
 const TeachersJoin = () => {
-  const [searchTerm, setSearchTerm] = useState('');
   const [schools, setSchools] = useState([]);
-  const [currentSchool, setCurrentSchool] = useState(null);
-  const [filteredSchools, setFilteredSchools] = useState([]);
-  const [userRequest, setUserRequest] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [currentSchool, setCurrentSchool] = useState(null);
+  const [userRequest, setUserRequest] = useState(null);
   const { userData } = useUser();
 
-  // Fetch schools and user requests on mount
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [schoolsData, userRequestData] = await Promise.all([
-          fetchSchools(),
-          fetchUserRequest(),
-        ]);
-
-        setSchools(schoolsData);
-        setFilteredSchools(schoolsData);
-
-        if (userRequestData?.status === 'accepted') {
-          setCurrentSchool(userRequestData);
-        } else if (userRequestData?.status === 'pending') {
-          setUserRequest(userRequestData);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    if (userData?.user_id) {
+      fetchUserRequest();
+    }
   }, [userData]);
 
-  // Filter schools whenever searchTerm changes
+  // Debounce the search term
   useEffect(() => {
-    const filtered = schools.filter((school) =>
-      school.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredSchools(filtered);
-  }, [searchTerm, schools]);
+    const delay = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 400); // Adjust delay as needed
 
-  const fetchSchools = async () => {
-    const { data, error } = await supabase
+    return () => clearTimeout(delay);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    fetchSchools(0, debouncedSearchTerm, true);
+  }, [debouncedSearchTerm]);
+
+  const fetchSchools = async (page = 0, search = '', replace = false) => {
+    setLoading(true);
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
       .from('schools')
-      .select('id, name, logo_url, school_owner, is_deleted')
-      .eq('is_deleted', false);
+      .select('id, name, logo_url, school_owner')
+      .eq('is_deleted', false)
+      .order('name')
+      .range(from, to);
+
+    if (search) {
+      query = query.ilike('name', `%${search}%`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching schools:', error);
-      return [];
+    } else {
+      if (replace) {
+        setSchools(data);
+      } else {
+        setSchools(prev => [...prev, ...data]);
+      }
+
+      setHasMore(data.length === PAGE_SIZE);
+      setCurrentPage(page + 1);
     }
-    return data;
+
+    setLoading(false);
   };
 
   const fetchUserRequest = async () => {
-    if (!userData?.user_id) return null;
-
     const { data, error } = await supabase
       .from('requests')
       .select('school_id, status, schools(name, logo_url)')
       .eq('teacher_id', userData.user_id)
       .limit(1)
       .single();
-      
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching user request:', error);
+      console.error('Error fetching request:', error);
+    } else if (data?.status === 'accepted') {
+      setCurrentSchool(data);
+    } else if (data?.status === 'pending') {
+      setUserRequest(data);
     }
-    return data;
   };
 
-  const handleAction = async (actionType, school = null) => {
+  const handleAction = async (type, school = null) => {
     setActionLoading(true);
     try {
-      if (actionType === 'join') {
+      if (type === 'join') {
         const { error } = await supabase.from('requests').insert([{
           teacher_id: userData.user_id,
           school_id: school.id,
@@ -92,140 +100,99 @@ const TeachersJoin = () => {
           status: 'pending',
         }]);
         if (error) throw error;
-  
-        toast({
-          title: "Request sent successfully",
-          description: "Awaiting acceptance",
-          className: "bg-green-500 text-white",
-        });
-  
-        setTimeout(() => window.location.reload(), 1000);
-      } else if (actionType === 'leave') {
-        const schoolIdToDelete = currentSchool?.school_id || currentSchool?.schools?.id || userRequest?.school_id;
-        if (!schoolIdToDelete) throw new Error("Invalid school ID");
-  
-        const { error } = await supabase
-          .from('requests')
-          .delete()
-          .eq('teacher_id', userData.user_id)
-          .eq('school_id', schoolIdToDelete);
 
-          const { error2 } = await supabase
-          .from('teachers')
-          .update({ teacher_school: null,teacher_proprietor: null }) // Set school_id to null
-          .eq('teacher_id', userData.user_id);
-
-
-
-  
-        if (error|| error2) throw error|| error2;
-  
-        toast({
-          title: "You have left the school.",
-          className: "bg-green-500 text-white",
-        });
-  
-        setCurrentSchool(null);
+        toast({ title: "Request Sent", description: "Awaiting Approval", className: "bg-green-600 text-white" });
         setTimeout(() => window.location.reload(), 1000);
       }
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "An error occurred",
-        description: "Please try again.",
-        className: "bg-red-500 text-white",
-      });
+
+      if (type === 'leave') {
+        const schoolId = currentSchool?.school_id || currentSchool?.schools?.id || userRequest?.school_id;
+
+        const { error } = await supabase.from('requests')
+          .delete()
+          .eq('teacher_id', userData.user_id)
+          .eq('school_id', schoolId);
+
+        const { error: err2 } = await supabase
+          .from('teachers')
+          .update({ teacher_school: null, teacher_proprietor: null })
+          .eq('teacher_id', userData.user_id);
+
+        if (error || err2) throw error || err2;
+
+        toast({ title: "Left School", className: "bg-red-600 text-white" });
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.message || "Try again", className: "bg-red-600 text-white" });
     } finally {
       setActionLoading(false);
     }
   };
-  
 
-  const SchoolInfo = ({ school }) => (
-    <div className="mb-4 p-4 border rounded-md shadow-sm">
-      <h3 className="text-lg font-bold">{school?.name}</h3>
-      <img
-        src={school?.logo_url || Logo}
-        alt={`${school?.name} Logo`}
-        className="h-32 w-full object-cover mb-2 border-2 border-gray-300"
-      />
-      <Button
-        onClick={() => handleAction('leave')}
-        disabled={actionLoading}
-        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white"
-      >
-        {actionLoading ? 'Processing...' : 'Leave School'}
+  const SchoolCard = ({ school }) => (
+    <div className="p-4 border rounded-md shadow-sm">
+      <img src={school.logo_url || Logo} alt={school.name} className="h-32 w-full object-cover border mb-2" />
+      <h4 className="text-lg font-bold">{school.name}</h4>
+      <Button onClick={() => handleAction('join', school)} disabled={actionLoading} className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white">
+        {actionLoading ? 'Sending...' : 'Join School'}
       </Button>
     </div>
   );
 
-  const filteredSchoolsUI = filteredSchools.map((school) => (
-    <div key={school.id} className="p-4 border rounded-md shadow-sm">
-      <img
-        src={school.logo_url || Logo}
-        alt={`${school.name} Logo`}
-        className="h-32 w-full object-cover mb-2 border-2 border-gray-300"
-      />
-      <h4 className="text-lg font-bold">{school.name}</h4>
-      <Button
-        onClick={() => handleAction('join', school)}
-        disabled={actionLoading}
-        className="mt-2 w-full bg-blue-500 hover:bg-blue-600 text-white"
-      >
-        {actionLoading ? 'Processing...' : 'Join School'}
-      </Button>
-    </div>
-  ));
-
   return (
-    <div className="join-school-container p-4">
+    <div className="p-4">
       <h2 className="text-2xl font-semibold mb-4">Join a School</h2>
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : currentSchool ? (
-        <SchoolInfo school={currentSchool?.schools} />
+      {currentSchool ? (
+        <div className="mb-4 p-4 border rounded-md shadow-sm">
+          <h3 className="text-lg font-bold">{currentSchool.schools.name}</h3>
+          <img src={currentSchool.schools.logo_url || Logo} className="h-32 w-full object-cover mb-2 border" />
+          <Button onClick={() => handleAction('leave')} disabled={actionLoading} className="w-full bg-red-500 text-white">
+            Leave School
+          </Button>
+        </div>
       ) : userRequest ? (
         <div className="mb-4 p-4 border rounded-md shadow-sm">
           <h3 className="text-lg font-bold">{userRequest.schools?.name}</h3>
           <p className="text-yellow-500">Request Pending...</p>
-          <Button
-            onClick={() => handleAction('leave')}
-            disabled={actionLoading}
-            className="mt-2 w-full bg-yellow-500 hover:bg-yellow-600 text-white"
-          >
-            {actionLoading ? 'Processing...' : 'Withdraw Request'}
+          <Button onClick={() => handleAction('leave')} disabled={actionLoading} className="w-full bg-yellow-500 text-white">
+            Withdraw Request
           </Button>
         </div>
       ) : (
         <>
-          <SearchBar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            onClear={() => setSearchTerm('')}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSchoolsUI}
+          <div className="flex mb-4">
+            <input
+              type="text"
+              placeholder="Search schools..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border p-2 flex-1 rounded-md"
+            />
+            <Button onClick={() => {
+              setSearchTerm('');
+              fetchSchools(0, '', true);
+            }} className="ml-2">Clear</Button>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {schools.map((school) => (
+              <SchoolCard key={school.id} school={school} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="text-center mt-4">
+              <Button onClick={() => fetchSchools(currentPage, debouncedSearchTerm)} className="bg-gray-700 text-white">
+                Load More
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
   );
 };
 
-const SearchBar = ({ searchTerm, onSearchChange, onClear }) => (
-  <div className="flex mb-4">
-    <input
-      type="text"
-      value={searchTerm}
-      onChange={(e) => onSearchChange(e.target.value)}
-      placeholder="Search for schools..."
-      className="border p-2 rounded-md flex-1"
-    />
-    <Button onClick={onClear} className="ml-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-      Clear
-    </Button>
-  </div>
-);
-
-export default TeachersJoin
+export default TeachersJoin;

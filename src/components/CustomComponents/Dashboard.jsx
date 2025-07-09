@@ -66,9 +66,13 @@ export function Dashboard() {
               <img src={Logo} className="rounded-full w-10" />
               <span>Cosmic Campus</span>
             </Link> 
-            <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
-              <Bell className="h-4 w-4" />
+        <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
+
+          <Link to="notifications" className="flex items-center gap-2">
+                   <Bell className="h-4 w-4" />
               <span className="sr-only">Toggle notifications</span>
+          </Link>
+           
             </Button>
           </div>
 
@@ -162,13 +166,14 @@ export function Dashboard() {
         >
           <Sheet >
             <SheetTrigger asChild>
+   
               <Button
                 variant="outline"
                 size="icon"
                 className="shrink-0 md:hidden"
               >
                 <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
+                <span className="sr-only">Toggle navigation menu </span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col w-[100vw] ">
@@ -282,6 +287,15 @@ export function Dashboard() {
               <DropdownMenuItem>Logout</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+        <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
+
+          <Link to="notifications" className="flex items-center gap-2">
+                   <Bell className="h-4 w-4" />
+              <span className="sr-only">Toggle notifications</span>
+          </Link>
+           
+            </Button>
         </header>
 
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 ">

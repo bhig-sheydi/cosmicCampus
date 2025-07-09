@@ -305,26 +305,45 @@ useEffect(() => {
 useEffect(() => {
   if (fetchFlags.teachers === true && userData?.user_id) {
     const fetchTeachers = async () => {
-      console.log('Fetching teachers...');
-      const { data, error } = await supabase
-        .from('teachers')
-        .select(`
-          *,
-          schools (
-            name
-          ),
-          class (
-            class_name
-          )
-        `)
-        .eq('teacher_proprietor', userData.user_id);
+      console.log('Fetching teachers in batches...');
+      const pageSize = 20;
+      let page = 0;
+      let allTeachers = [];
+      let moreData = true;
 
-      if (error) {
-        console.error('Error fetching teachers:', error);
-      } else {
-        console.log('Teachers fetched:', data);
-        setTeachers(data);
+      while (moreData) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error } = await supabase
+          .from('teachers')
+          .select(`
+            *,
+            schools (
+              name
+            ),
+            class (
+              class_name
+            )
+          `)
+          .eq('teacher_proprietor', userData.user_id)
+          .range(from, to);
+
+        if (error) {
+          console.error('Error fetching teachers:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allTeachers = [...allTeachers, ...data];
+          console.log(`Fetched ${data.length} teachers from ${from} to ${to}`);
+          page++;
+        } else {
+          moreData = false;
+        }
       }
+
+      setTeachers(allTeachers);
     };
 
     fetchTeachers();
@@ -461,10 +480,11 @@ useEffect(() => {
 useEffect(() => {
   if (fetchFlags.students === true && userData?.user_id) {
     const fetchStudents = async () => {
-      console.log('Fetching students with school names...');
+      console.log('Fetching up to 20 students with school names...');
       const { data, error } = await supabase
         .from('students')
-        .select(`
+        .select(
+          `
           *,
           schools (
             name
@@ -472,8 +492,10 @@ useEffect(() => {
           class (
             class_name
           )
-        `)
-        .eq('proprietor', userData.user_id);
+        `
+        )
+        .eq('proprietor', userData.user_id)
+        .limit(20); // Only fetch 20 records
 
       if (error) {
         console.error('Error fetching students:', error);
@@ -486,6 +508,7 @@ useEffect(() => {
     fetchStudents();
   }
 }, [fetchFlags.students, userData]);
+
 
 
 

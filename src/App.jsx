@@ -34,6 +34,11 @@ import TeacherSubjectsCard from './components/CustomComponents/TeachersAssingnme
 import StudentAssingnments from './components/CustomComponents/StudentAssingnments';
 import AssignmentPage from './components/CustomComponents/AssignmentPage';
 import AssignmentHistory from './components/CustomComponents/AssignmentHistory';
+import GeneralAssignments from './components/CustomComponents/GeneralAsignments';
+import GuardianAssignment from './components/CustomComponents/GuardianAssignment';
+import Monitor from './components/CustomComponents/Monitor';
+import GuidedLessonEditor from './components/CustomComponents/LesonNote';
+import SaveNoteModal from './components/CustomComponents/SaveModal';
 
 
 
@@ -71,10 +76,17 @@ function App() {
               <Route path="attendanceQR" element={<FixedQRCode />} />
               <Route path="a" element={<GuardianProfile />} />
               <Route path="Assignments" element={<TeacherSubjectsCard/>} />
-              <Route path="dbs" element={<Aray />} />
+              <Route path="notifications" element={<Aray />} />
               <Route path="studentAssignment" element={<StudentAssingnments/>} />
               <Route path="homework" element={<AssignmentPage/>} />
               <Route path="teachhersAsignment" element={<AssignmentHistory/>} />
+              <Route path="GeneralAssignments" element={<GeneralAssignments/>} />
+              <Route path="childshomework" element={<GuardianAssignment/>} />
+              <Route path="monitorHomework" element={<Monitor/>} />
+              <Route path="note-editor" element={<GuidedLessonEditor/>} />
+              <Route path="notesave" element={<SaveNoteModal/>} />
+
+
             </Route>
 
           </Routes>
