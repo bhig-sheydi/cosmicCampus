@@ -4,7 +4,6 @@ export const useStructuredLesson = () => {
   const [chunks, setChunks] = useState([]);
   const [tableOfContents, setTableOfContents] = useState([]);
 
-  // ✅ Load saved chunks (with sectionIds) from localStorage
   const getSavedChunksFromLocalStorage = () => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("structuredChunks");
@@ -13,7 +12,6 @@ export const useStructuredLesson = () => {
     return [];
   };
 
-  // ✅ Parse TipTap JSON into structured chunks
   const parseEditorContent = (json) => {
     const output = [];
     const toc = [];
@@ -23,15 +21,11 @@ export const useStructuredLesson = () => {
     json?.content?.forEach((node) => {
       // ✅ HEADINGS
       if (node.type === "heading") {
-        const text = node.content
-          ?.map((n) => n.text || "")
-          .join("")
-          .trim();
+        const text = node.content?.map((n) => n.text || "").join("").trim();
 
-        const isMeaningful = /[\p{L}\p{N}]/u.test(text); // has letters/numbers
+        const isMeaningful = /[\p{L}\p{N}]/u.test(text);
         if (!isMeaningful) return;
 
-        // ✅ Preserve sectionId if title exists in saved chunks
         const matched = savedChunks.find((s) => s.title === text);
         const sectionId = matched?.sectionId || crypto.randomUUID();
 
@@ -46,6 +40,19 @@ export const useStructuredLesson = () => {
         return;
       }
 
+      // ✅ Ensure every non-heading node belongs to a section
+      if (!currentSection) {
+        // Optionally: auto-wrap in dummy section
+        currentSection = {
+          sectionId: crypto.randomUUID(),
+          title: "Untitled Section",
+          body: [],
+        };
+        output.push(currentSection);
+        toc.push({ id: currentSection.sectionId, title: "Untitled Section" });
+        console.warn("⚠️ Node found outside any section. Auto-wrapping it.");
+      }
+
       // ✅ PARAGRAPH (body or explanation)
       if (node.type === "paragraph" && node.content?.[0]?.text) {
         const text = node.content.map((n) => n.text || "").join("");
@@ -56,11 +63,7 @@ export const useStructuredLesson = () => {
           ? { type: "explanation", content: text }
           : { type: "body", content: text };
 
-        if (currentSection) {
-          currentSection.body.push(data);
-        } else {
-          output.push(data);
-        }
+        currentSection.body.push(data);
         return;
       }
 
@@ -78,39 +81,25 @@ export const useStructuredLesson = () => {
           .filter(Boolean);
 
         const listData = { type: "list", items: listItems };
-
-        if (currentSection) {
-          currentSection.body.push(listData);
-        } else {
-          output.push(listData);
-        }
+        currentSection.body.push(listData);
         return;
       }
 
       // ✅ IMAGE
       if (node.type === "image") {
         const image = { type: "image", src: node.attrs.src };
-        if (currentSection) {
-          currentSection.body.push(image);
-        } else {
-          output.push(image);
-        }
+        currentSection.body.push(image);
         return;
       }
 
       // ✅ TABLE
       if (node.type === "table") {
         const table = { type: "table", raw: node };
-        if (currentSection) {
-          currentSection.body.push(table);
-        } else {
-          output.push(table);
-        }
+        currentSection.body.push(table);
         return;
       }
     });
 
-    // ✅ Save structured chunks with sectionIds to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem("structuredChunks", JSON.stringify(output));
     }

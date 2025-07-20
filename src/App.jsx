@@ -39,6 +39,9 @@ import GuardianAssignment from './components/CustomComponents/GuardianAssignment
 import Monitor from './components/CustomComponents/Monitor';
 import GuidedLessonEditor from './components/CustomComponents/LesonNote';
 import SaveNoteModal from './components/CustomComponents/SaveModal';
+import RecordAssignments from './components/CustomComponents/RecordAssignments';
+
+
 
 
 
@@ -84,6 +87,7 @@ function App() {
               <Route path="childshomework" element={<GuardianAssignment/>} />
               <Route path="monitorHomework" element={<Monitor/>} />
               <Route path="note-editor" element={<GuidedLessonEditor/>} />
+              <Route path="asignmentRecord" element={<RecordAssignments/>} />
               <Route path="notesave" element={<SaveNoteModal/>} />
 
 

@@ -1,7 +1,7 @@
 // RightClickFactCheckMenu.jsx
 import React from "react";
 
-const RightClickFactCheckMenu = ({ position, onFactCheck, onClose }) => {
+const RightClickFactCheckMenu = ({ position, onFactCheck, onGrammarCheck, onClose }) => {
   if (!position) return null;
 
   return (
@@ -20,13 +20,23 @@ const RightClickFactCheckMenu = ({ position, onFactCheck, onClose }) => {
       onClick={onClose}
     >
       <button
-        className="text-sm text-blue-600 font-semibold hover:underline"
+        className="text-sm text-blue-600 font-semibold hover:underline block"
         onClick={(e) => {
           e.stopPropagation();
           onFactCheck();
         }}
       >
         🔍 Fact-check this text
+      </button>
+
+      <button
+        className="text-sm text-purple-600 font-semibold hover:underline mt-2 block"
+        onClick={(e) => {
+          e.stopPropagation();
+          onGrammarCheck(); // new grammar+punctuation check
+        }}
+      >
+        ✍️ Improve Spelling & Punctuation
       </button>
     </div>
   );

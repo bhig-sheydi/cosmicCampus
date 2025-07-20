@@ -3,11 +3,13 @@ import { supabase } from "@/supabaseClient";
 import { useUser } from "../Contexts/userContext";
 import { Search } from "lucide-react";
 import { debounce } from "lodash";
+import { useNavigate } from "react-router-dom";
 
 const ITEMS_PER_PAGE = 10;
 
 const AssignmentHistory = () => {
   const { userData } = useUser();
+  const navigate = useNavigate();
 
   const [assignments, setAssignments] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
@@ -21,6 +23,12 @@ const AssignmentHistory = () => {
   const [classMap, setClassMap] = useState({});
 
   const [loading, setLoading] = useState(true);
+
+  const handleRecordScores = (assignmentId) => {
+  localStorage.setItem("record_assignment_id", assignmentId);
+  window.location.href = "/dashboard/asignmentRecord"; // or use navigate if you're using `react-router-dom`
+};
+
 
   const formatDate = (timestamp) =>
     new Date(timestamp).toLocaleDateString(undefined, {
@@ -266,6 +274,15 @@ const AssignmentHistory = () => {
                     Mark Assignment
                   </button>
                 )}
+
+                <button
+  onClick={() => handleRecordScores(assignment.id)}
+  className="mt-2 px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700
+ transition ml-5"
+>
+  Record Scores
+</button>
+
 
               </div>
             ))}

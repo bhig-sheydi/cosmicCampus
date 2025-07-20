@@ -3,8 +3,6 @@ import { useUser } from "../Contexts/userContext";
 import { supabase } from "@/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
-
-
 const TeacherSubjectsCard = () => {
   const { teacherDashboardSubjects, setFetchFlags, userData , teacher} = useUser();
   const [modalSubject, setModalSubject] = useState(null);
@@ -12,7 +10,13 @@ const TeacherSubjectsCard = () => {
   const [classesForSubject, setClassesForSubject] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [homeworkModal, setHomeworkModal] = useState(null);
-  const [questions, setQuestions] = useState([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+ const [questions, setQuestions] = useState([
+  { type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }
+]);
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [errorModal, setErrorModal] = useState(null);
+
+
    const [assignmentTitle, setAssignmentTitle] = useState("");
  const navigate = useNavigate();
 
@@ -77,39 +81,77 @@ const closeHomeworkModal = () => {
   setAssignmentTitle("");
 };
 
-  const handleQuestionChange = (index, field, value) => {
-    const updated = [...questions];
-    if (field === "options") {
-      updated[index].options = value;
-    } else {
-      updated[index][field] = value;
-    }
-    setQuestions(updated);
-  };
+const handleQuestionChange = (index, field, value) => {
+  const updated = [...questions];
+  if (field === "options") {
+    updated[index].options = value;
+  } else {
+    updated[index][field] = value;
+  }
 
-  const addQuestion = () => {
-    setQuestions([...questions, { question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
-  };
+  // Reset options and correct_answer if user switches to "theory"
+  if (field === "type" && value === "theory") {
+    updated[index].options = [];
+    updated[index].correct_answer = "";
+  }
+
+  setQuestions(updated);
+};
+
+
+ const addQuestion = () => {
+  setQuestions([
+    ...questions,
+    { type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }
+  ]);
+};
+
+const validateQuestions = () => {
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+
+    if (!q.marks || isNaN(q.marks)) {
+      return `Please enter marks for Question ${i + 1}.`;
+    }
+
+    if (!assignmentTitle.trim()) {
+  return "Please enter an assignment title.";
+}
+
+
+    if (q.type === "objective") {
+      const nonEmptyOptions = q.options.filter(opt => opt.trim() !== "");
+      if (nonEmptyOptions.length !== 4) {
+        return `Objective Question ${i + 1} must have exactly 4 non-empty options.`;
+      }
+
+      if (!q.correct_answer || q.correct_answer.trim() === "") {
+        return `Objective Question ${i + 1} must have a correct answer.`;
+      }
+    }
+  }
+
+  return null;
+};
+
 const submitHomework = async () => {
-  if (!homeworkModal || !teacher) {
-    console.error("Missing homeworkModal or teacher data");
+  if (!homeworkModal || !teacher) return;
+
+  const error = validateQuestions();
+  if (error) {
+    setErrorModal(error);
     return;
   }
+
+  setIsSubmitting(true);
 
   const class_id = homeworkModal.class.class_id;
   const school_id = teacher[0]?.teacher_school;
   const teacher_id = userData.user_id;
 
-  if (!school_id) {
-    console.error("Missing teacher_school in teacher data");
-    return;
-  }
-
-  // ✅ Step 1: Calculate total marks
   const totalMarks = questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0);
 
   try {
-    // ✅ Step 2: Create assignment with total_marks
     const { data: assignmentData, error: assignmentError } = await supabase
       .from("assignments")
       .insert({
@@ -119,25 +161,26 @@ const submitHomework = async () => {
         subject_id: selectedSubjectId,
         assignment_title: assignmentTitle.trim() || `Homework for ${homeworkModal.class.class_name}`,
         proprietor_id: teacher[0]?.teacher_proprietor || "Unknown",
-        total_marks: totalMarks, // ✅ Include total_marks here
+        total_marks: totalMarks,
       })
       .select("id")
       .single();
 
     if (assignmentError) {
-      console.error("Failed to create assignment:", assignmentError);
+      setErrorModal("Failed to create assignment.");
+      setIsSubmitting(false);
       return;
     }
 
     const assignment_id = assignmentData.id;
 
-    // ✅ Step 3: Prepare and insert questions
     const questionPayload = questions.map(q => ({
       assignment_id,
       question: q.question,
-      options: q.options,
-      correct_answer: q.correct_answer,
-      marks: q.marks
+      options: q.type === "objective" ? q.options : [],
+      correct_answer: q.type === "objective" ? q.correct_answer : "",
+      marks: q.marks,
+      type: q.type,
     }));
 
     const { error: questionInsertError } = await supabase
@@ -145,15 +188,17 @@ const submitHomework = async () => {
       .insert(questionPayload);
 
     if (questionInsertError) {
-      console.error("Failed to insert questions:", questionInsertError);
+      setErrorModal("Failed to save questions.");
     } else {
-      console.log("Assignment and questions successfully created!");
-      closeHomeworkModal();
+      closeHomeworkModal(); // ✅ Close modal after successful submission
     }
   } catch (err) {
-    console.error("Unexpected error submitting homework:", err);
+    setErrorModal("Unexpected error while submitting.");
+  } finally {
+    setIsSubmitting(false);
   }
 };
+
 
 
 
@@ -278,43 +323,66 @@ const submitHomework = async () => {
         onChange={(e) => setAssignmentTitle(e.target.value)}
         className="w-full p-2 mb-6 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
       />
+{questions.map((q, i) => (
+  <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg">
+    <label className="block text-gray-700 dark:text-white mb-2 font-semibold">
+      Question {i + 1}
+    </label>
 
-      {questions.map((q, i) => (
-        <div key={i} className="mb-4">
-          <label className="block text-gray-700 dark:text-white mb-1">Question {i + 1}</label>
-          <textarea
-            className="w-full p-2 border rounded mb-2 dark:bg-gray-800 dark:text-white"
-            value={q.question}
-            onChange={(e) => handleQuestionChange(i, "question", e.target.value)}
-          />
-          {q.options.map((opt, idx) => (
-            <input
-              key={idx}
-              placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-              className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-              value={opt}
-              onChange={(e) => {
-                const opts = [...q.options];
-                opts[idx] = e.target.value;
-                handleQuestionChange(i, "options", opts);
-              }}
-            />
-          ))}
+    {/* Question Type Selector */}
+    <select
+      className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
+      value={q.type}
+      onChange={(e) => handleQuestionChange(i, "type", e.target.value)}
+    >
+      <option value="objective">Objective</option>
+      <option value="theory">Theory</option>
+    </select>
+
+    {/* Question Input */}
+    <textarea
+      className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
+      placeholder="Enter your question..."
+      value={q.question}
+      onChange={(e) => handleQuestionChange(i, "question", e.target.value)}
+    />
+
+    {/* Conditionally render options for Objective */}
+    {q.type === "objective" && (
+      <>
+        {q.options.map((opt, idx) => (
           <input
+            key={idx}
+            placeholder={`Option ${String.fromCharCode(65 + idx)}`}
             className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-            placeholder="Correct Answer"
-            value={q.correct_answer}
-            onChange={(e) => handleQuestionChange(i, "correct_answer", e.target.value)}
+            value={opt}
+            onChange={(e) => {
+              const opts = [...q.options];
+              opts[idx] = e.target.value;
+              handleQuestionChange(i, "options", opts);
+            }}
           />
-          <input
-            className="w-full p-2 mb-1 border rounded dark:bg-gray-800 dark:text-white"
-            type="number"
-            placeholder="Marks"
-            value={q.marks}
-            onChange={(e) => handleQuestionChange(i, "marks", parseInt(e.target.value))}
-          />
-        </div>
-      ))}
+        ))}
+        <input
+          className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
+          placeholder="Correct Answer"
+          value={q.correct_answer}
+          onChange={(e) => handleQuestionChange(i, "correct_answer", e.target.value)}
+        />
+      </>
+    )}
+
+    {/* Marks Input */}
+    <input
+      type="number"
+      className="w-full p-2 border rounded dark:bg-gray-800 dark:text-white"
+      placeholder="Marks"
+      value={q.marks}
+      onChange={(e) => handleQuestionChange(i, "marks", parseInt(e.target.value))}
+    />
+  </div>
+))}
+
 
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-4"
@@ -330,16 +398,38 @@ const submitHomework = async () => {
         >
           Cancel
         </button>
+ <button
+  className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${
+    isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+  }`}
+  onClick={submitHomework}
+  disabled={isSubmitting}
+>
+  {isSubmitting ? "Submitting..." : "Submit Homework"}
+</button>
+
+      </div>
+    </div>
+  </div>
+)}
+
+{errorModal && (
+  <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
+    <div className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-lg w-full max-w-md">
+      <h2 className="text-lg font-bold text-red-600 mb-2">Submission Error</h2>
+      <p className="text-gray-800 dark:text-gray-200">{errorModal}</p>
+      <div className="flex justify-end mt-4">
         <button
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-          onClick={submitHomework}
+          onClick={() => setErrorModal(null)}
+          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
-          Submit Homework
+          OK
         </button>
       </div>
     </div>
   </div>
 )}
+
 
     </>
   );

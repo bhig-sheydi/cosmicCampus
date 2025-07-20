@@ -54,7 +54,7 @@ const GuidedLessonEditor = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [noteTitle, setNoteTitle] = useState(null);
   const [subjectId, setSubjectId] = useState(null);
-const [rightClickPosition, setRightClickPosition] = useState(null);
+
 
 
 
@@ -291,7 +291,6 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
 
 
 
-
   const handleNewLesson = () => {
     const confirmReset = window.confirm("Start a new lesson? This will clear current content.");
     if (!confirmReset) return;
@@ -359,102 +358,6 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
       setShowFactModal(true);
     }
   };
-
-
-
-const handleGrammarFix = async () => {
-  if (!selectedText) {
-    console.warn("⚠️ No selectedText found.");
-    return;
-  }
-
-  setContextMenuPosition(null);
-  console.log("🔍 Selected text:", selectedText);
-
-  try {
-    const token = await supabase.auth.getSession().then(
-      res => res.data.session?.access_token
-    );
-
-    const res = await fetch("https://sfpgcjkmpqijniyzykau.supabase.co/functions/v1/spellCheck-", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        action: "fix_grammar",
-        selectedText,
-      }),
-    });
-
-    const data = await res.json();
-    const fixedText = data.result;
-
-    if (!fixedText) {
-      alert("❌ No improvement returned.");
-      return;
-    }
-
-    const updatedChunks = [...chunks];
-    let found = false;
-
-    for (const section of updatedChunks) {
-      console.log("🔎 Checking section:", section.title || "[no title]");
-
-      if (!Array.isArray(section.body)) {
-        console.warn("🚫 Skipping section — no body:", section);
-        continue;
-      }
-
-      for (let i = 0; i < section.body.length; i++) {
-        const item = section.body[i];
-
-        if (item.type === "body" || item.type === "explanation") {
-          console.log("   ➤ Checking", item.type, ":", item.content);
-          if (item.content.includes(selectedText)) {
-            console.log("✅ Found match in", item.type, ":", item.content);
-            item.content = fixedText;
-            found = true;
-            break;
-          }
-        }
-
-        if (item.type === "list") {
-          for (let j = 0; j < item.items.length; j++) {
-            const li = item.items[j];
-            console.log("   ➤ Checking list item:", li);
-            if (li.includes(selectedText)) {
-              console.log("✅ Found match in list item:", li);
-              item.items[j] = fixedText;
-              found = true;
-              break;
-            }
-          }
-        }
-
-        if (found) break;
-      }
-
-      if (found) break;
-    }
-
-    if (found) {
-      setChunks(updatedChunks);
-      editor.commands.setContent(convertChunksToTipTapJSON(updatedChunks));
-      alert("✅ Text updated with grammar improvements.");
-    } else {
-      console.warn("🚫 Could not find selectedText in any chunk or list.");
-      alert("⚠️ Couldn't find the selected text.");
-    }
-
-  } catch (err) {
-    console.error("Grammar fix error:", err);
-    alert("❌ Could not connect to grammar service.");
-  }
-};
-
-
 
 
 
@@ -931,13 +834,11 @@ useEffect(() => {
         <LessonChunk key={section.sectionId} section={section} />
       ))}
 
-<RightClickFactCheckMenu
-  position={contextMenuPosition}
-  onFactCheck={handleFactCheck}
-  onGrammarCheck={handleGrammarFix}
-  onClose={() => setContextMenuPosition(null)}
-/>
-
+      <RightClickFactCheckMenu
+        position={contextMenuPosition}
+        onFactCheck={handleFactCheck}
+        onClose={() => setContextMenuPosition(null)}
+      />
 
 
       <SaveNoteModal
