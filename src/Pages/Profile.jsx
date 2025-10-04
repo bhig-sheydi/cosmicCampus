@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "../ui/button";
-import { useUser } from "../Contexts/userContext";
-import Logo from "../../assets/cosmic.png";
-import { CreateSchool } from "./CreateSchool";
-import { UpdateSchool } from "./UpdateSchool";
+import { Button } from "../components/ui/button";
+import { useUser } from "../components/Contexts/userContext";
+import Logo from "../assets/cosmic.png";
+import { CreateSchool } from "../components/CustomComponents/CreateSchool";
+import { UpdateSchool } from "../components/CustomComponents/UpdateSchool";
 import { PlusCircle } from "lucide-react";
 import { Edit3 } from "lucide-react";
 import { Trash } from "lucide-react";
@@ -16,11 +16,11 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogDescription,
-} from "../ui/alert-dialog";
-import { supabase } from "../../supabaseClient";
-import JoinSchool from './JoinSchool'; 
-import TeachersJoin from "./TeachersJoin";
-import GuardiansProfile from "./GuardiansProfile";
+} from "../components/ui/alert-dialog";
+import { supabase } from "../supabaseClient";
+import JoinSchool from '../components/CustomComponents/JoinSchool'; 
+import TeachersJoin from "../components/CustomComponents/TeachersJoin";
+import GuardiansProfile from "../components/CustomComponents/GuardiansProfile";
 
 const Profile = () => {
   const [showCreate, setShowCreate] = useState(false);

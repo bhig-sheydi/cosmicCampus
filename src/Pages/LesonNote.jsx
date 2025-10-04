@@ -13,18 +13,18 @@ import TableHeader from "@tiptap/extension-table-header";
 import OrderedList from "@tiptap/extension-ordered-list";
 import ListItem from "@tiptap/extension-list-item";
 import { Button } from "@/components/ui/button";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 import { v4 as uuidv4 } from "uuid";
-import SmartMenuBar from "./SmartMenue";
-import SearchBar from "./SearchBar";
-import SuggestionDropdown from "./SuggestionDropdown";
-import TableOfContents from "./TableOfContents";
-import LessonChunk from "./LessonChunk";
+import SmartMenuBar from "../components/CustomComponents/SmartMenue";
+import SearchBar from "../components/CustomComponents/SearchBar";
+import SuggestionDropdown from "../components/CustomComponents/SuggestionDropdown";
+import TableOfContents from "../components/CustomComponents/TableOfContents";
+import LessonChunk from "../components/CustomComponents/LessonChunk";
 import { supabase } from "@/supabaseClient";
-import { useStructuredLesson } from "./UseStructureLesson";
-import { useLessonPersistence } from "./useLessonPersistence";
-import RightClickFactCheckMenu from "./RightClickFactCheckMenu";
-import FactCheckModal from "./FactCheckModal";
+import { useStructuredLesson } from "../components/CustomComponents/UseStructureLesson";
+import { useLessonPersistence } from "../components/CustomComponents/useLessonPersistence";
+import RightClickFactCheckMenu from "../components/CustomComponents/RightClickFactCheckMenu";
+import FactCheckModal from "../components/CustomComponents/FactCheckModal";
 import SaveNoteModal from "./SaveModal";
 
 

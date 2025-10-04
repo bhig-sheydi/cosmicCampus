@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';     
-import H1 from '../Typography/H1';
-import H4 from '../Typography/H4';
-import { Button } from '../ui/button';
+import H1 from '../components/Typography/H1';
+import H4 from '../components/Typography/H4';
+import { Button } from '../components/ui/button';
 import { Dialog, DialogTrigger, DialogContent } from '@/components/ui/dialog';
 
 const questions = [

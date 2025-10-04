@@ -13,8 +13,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/use-toast";
 import { Link } from "react-router-dom";
-import Logo from "../../assets/cosmic.png";
-import { supabase } from "../../supabaseClient";
+import Logo from "../assets/cosmic.png";
+import { supabase } from "../supabaseClient";
 import { useEffect, useState } from 'react';
 
 // Define schema for form validation, including the role field

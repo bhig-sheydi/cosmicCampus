@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../supabaseClient';
-import { Button } from '../ui/button';
+import { supabase } from '../supabaseClient';
+import { Button } from '../components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { useUser } from '../Contexts/userContext';
-import AcceptGuardianRequests from './AcceptGuardianRequests';
+import { useUser } from '../components/Contexts/userContext';
+import AcceptGuardianRequests from '../components/CustomComponents/AcceptGuardianRequests';
 import { use } from 'react';
 
 const AcceptRequests = () => {

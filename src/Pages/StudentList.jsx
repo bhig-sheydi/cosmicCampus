@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '@/components/Contexts/userContext';
 import { supabase } from '@/supabaseClient';
 import { ListFilterIcon } from 'lucide-react';
-import AssignClassModal from './AssignClassModal';
+import AssignClassModal from '../components/CustomComponents/AssignClassModal';
 
 const StudentsList = () => {
   const {userData, students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject , setFetchFlags } = useUser();

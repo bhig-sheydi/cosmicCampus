@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/supabaseClient";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import SubmissionTrendChart from "./SubmisionCharts";
+import SubmissionTrendChart from "../components/CustomComponents/SubmisionCharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const Monitor = () => {

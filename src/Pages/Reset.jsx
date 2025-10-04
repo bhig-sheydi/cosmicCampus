@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "../../supabaseClient";
+import { supabase } from "../supabaseClient";
 
 const ResetSchema = z.object({
   email: z.string().email({ message: "Enter a valid email" }),

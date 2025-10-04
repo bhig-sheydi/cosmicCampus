@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/supabaseClient";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 
 const PAGE_SIZE = 10;
 

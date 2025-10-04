@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/supabaseClient";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 
 const SaveNoteModal = ({ open, onClose, onSave }) => {
   const { userData } = useUser();

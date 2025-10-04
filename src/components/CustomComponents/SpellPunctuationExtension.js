@@ -25,7 +25,7 @@ import { useStructuredLesson } from "./UseStructureLesson";
 import { useLessonPersistence } from "./useLessonPersistence";
 import RightClickFactCheckMenu from "./RightClickFactCheckMenu";
 import FactCheckModal from "./FactCheckModal";
-import SaveNoteModal from "./SaveModal";
+import SaveNoteModal from "../../Pages/SaveModal";
 
 
 

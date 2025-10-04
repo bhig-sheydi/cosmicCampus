@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/components/ui/use-toast";
-import Logo from "../../assets/cosmic.png";
-import { supabase } from "../../supabaseClient";
+import Logo from "../assets/cosmic.png";
+import { supabase } from "../supabaseClient";
 
 
 const LoginSchema = z.object({

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 import { supabase } from "@/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";

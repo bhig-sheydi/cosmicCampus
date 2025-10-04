@@ -1,17 +1,17 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/supabaseClient";
-import { useUser } from "../Contexts/userContext";
+import { useUser } from "../components/Contexts/userContext";
 import { Search } from "lucide-react";
 import { debounce } from "lodash";
 import { useNavigate } from "react-router-dom";
 
 const ITEMS_PER_PAGE = 10;
 
-const AssignmentHistory = () => {
+const TeachersTests = () => {
   const { userData } = useUser();
   const navigate = useNavigate();
 
-  const [assignments, setAssignments] = useState([]);
+  const [tests, setTests] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -24,11 +24,10 @@ const AssignmentHistory = () => {
 
   const [loading, setLoading] = useState(true);
 
-  const handleRecordScores = (assignmentId) => {
-  localStorage.setItem("record_assignment_id", assignmentId);
-  window.location.href = "/dashboard/asignmentRecord"; // or use navigate if you're using `react-router-dom`
-};
-
+  const handleRecordScores = (testId) => {
+    localStorage.setItem("record_test_id", testId);
+    window.location.href = "/dashboard/testRecord";
+  };
 
   const formatDate = (timestamp) =>
     new Date(timestamp).toLocaleDateString(undefined, {
@@ -37,7 +36,6 @@ const AssignmentHistory = () => {
       day: "numeric",
     });
 
-  // Fetch class options ONCE
   const fetchClassOptions = useCallback(async () => {
     const { data, error } = await supabase.from("class").select("class_id, class_name");
 
@@ -49,13 +47,11 @@ const AssignmentHistory = () => {
       });
 
       setClassOptions(uniqueNames);
-      setClassMap(nameToIdMap);  // Save mapping
+      setClassMap(nameToIdMap);
     }
   }, []);
 
-
-  // Fetch filtered and paginated assignments
-  const fetchAssignments = useCallback(
+  const fetchTests = useCallback(
     async (currentPage = 1) => {
       if (!userData?.user_id) return;
       setLoading(true);
@@ -64,32 +60,23 @@ const AssignmentHistory = () => {
       if (selectedClass && classMap[selectedClass]) {
         classIdToFilter = classMap[selectedClass];
       } else if (selectedClass) {
-        // Invalid class name (not in map)
-        setAssignments([]);
+        setTests([]);
         setTotalPages(1);
         setLoading(false);
         return;
       }
 
-
       let query = supabase
-        .from("assignments")
+        .from("tests")
         .select(
-          `
-        id,
-        assignment_title,
-        class_id,
-        assignment_date,
-        is_submitted,
-        class:class_id (class_name)
-      `,
+          `id, test_title, class_id, test_date, is_submitted, class:class_id (class_name)`,
           { count: "exact" }
         )
         .eq("teacher_id", userData.user_id)
-        .order("assignment_date", { ascending: false });
+        .order("test_date", { ascending: false });
 
       if (searchTerm) {
-        query = query.ilike("assignment_title", `%${searchTerm}%`);
+        query = query.ilike("test_title", `%${searchTerm}%`);
       }
 
       if (classIdToFilter) {
@@ -102,8 +89,8 @@ const AssignmentHistory = () => {
         endDate.setDate(startDate.getDate() + 1);
 
         query = query
-          .gte("assignment_date", startDate.toISOString())
-          .lt("assignment_date", endDate.toISOString());
+          .gte("test_date", startDate.toISOString())
+          .lt("test_date", endDate.toISOString());
       }
 
       if (selectedStatus === "submitted") {
@@ -118,10 +105,10 @@ const AssignmentHistory = () => {
       const { data, count, error } = await query.range(from, to);
 
       if (error || !data || data.length === 0) {
-        setAssignments([]);
+        setTests([]);
         setTotalPages(1);
       } else {
-        setAssignments(data);
+        setTests(data);
         setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
       }
 
@@ -130,37 +117,31 @@ const AssignmentHistory = () => {
     [userData, searchTerm, selectedClass, selectedDate, selectedStatus]
   );
 
-
-  // Debounce filter triggers
   useEffect(() => {
     const debouncedFetch = debounce(() => {
       setPage(1);
-      fetchAssignments(1);
+      fetchTests(1);
     }, 500);
     debouncedFetch();
     return () => debouncedFetch.cancel();
-  }, [fetchAssignments]);
+  }, [fetchTests]);
 
-  // Page change effect
   useEffect(() => {
-    fetchAssignments(page);
+    fetchTests(page);
   }, [page]);
 
-  // Fetch class options on mount
   useEffect(() => {
     fetchClassOptions();
   }, [fetchClassOptions]);
 
-
-  const markAsSubmitted = async (assignmentId) => {
+  const markAsSubmitted = async (testId) => {
     const { error } = await supabase
-      .from("assignments")
+      .from("tests")
       .update({ is_submitted: true })
-      .eq("id", assignmentId);
+      .eq("id", testId);
 
     if (!error) {
-      // Refresh assignments after update
-      fetchAssignments(page);
+      fetchTests(page);
     } else {
       console.error("Failed to mark as submitted:", error);
     }
@@ -168,10 +149,9 @@ const AssignmentHistory = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      {/* Header and Filters */}
       <div className="bg-gradient-to-br from-[#d8c2ff] via-[#d5cbff] to-white dark:from-[#1f1b2e] dark:via-[#2a233a] dark:to-[#1a1728] p-6 rounded-2xl shadow-md mb-10">
         <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-6">
-          Assignment History
+          Test History
         </h1>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
@@ -234,56 +214,50 @@ const AssignmentHistory = () => {
         </div>
       </div>
 
-      {/* Assignments display */}
       {loading ? (
         <p className="text-center text-gray-600 dark:text-gray-300">Loading...</p>
-      ) : assignments.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">No assignments found.</p>
+      ) : tests.length === 0 ? (
+        <p className="text-center text-gray-500 dark:text-gray-400">No tests found.</p>
       ) : (
         <>
           <div className="grid gap-6 sm:grid-cols-2">
-            {assignments.map((assignment) => (
+            {tests.map((test) => (
               <div
-                key={assignment.id}
+                key={test.id}
                 className="p-5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
               >
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
-                  {assignment.assignment_title}
+                  {test.test_title}
                 </h2>
                 <p className="text-gray-700 dark:text-gray-300">
-                  <strong>Class:</strong> {assignment.class?.class_name || "Unknown"}
+                  <strong>Class:</strong> {test.class?.class_name || "Unknown"}
                 </p>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  <strong>Date:</strong> {formatDate(assignment.assignment_date)}
+                  <strong>Date:</strong> {formatDate(test.test_date)}
                 </p>
                 <p className="text-sm mt-2">
                   <strong>Status:</strong>{" "}
-                  {assignment.is_submitted ? (
+                  {test.is_submitted ? (
                     <span className="text-green-600 dark:text-green-400 font-medium">Submitted</span>
                   ) : (
                     <span className="text-red-600 dark:text-red-400 font-medium">Not Submitted</span>
                   )}
-
-
                 </p>
-                {!assignment.is_submitted && (
+                {!test.is_submitted && (
                   <button
-                    onClick={() => markAsSubmitted(assignment.id)}
+                    onClick={() => markAsSubmitted(test.id)}
                     className="mt-3 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition"
                   >
-                    Mark Assignment
+                    Mark Test
                   </button>
                 )}
 
                 <button
-  onClick={() => handleRecordScores(assignment.id)}
-  className="mt-2 px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700
- transition ml-5"
->
-  Record Scores
-</button>
-
-
+                  onClick={() => handleRecordScores(test.id)}
+                  className="mt-2 px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700 transition ml-5"
+                >
+                  Record Scores
+                </button>
               </div>
             ))}
           </div>
@@ -315,4 +289,4 @@ const AssignmentHistory = () => {
   );
 };
 
-export default AssignmentHistory;
+export default TeachersTests;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useUser } from "../Contexts/userContext";
-import { CosmicCarouselPlugin } from "./RerquestTs&Cs";
-import { supabase } from "../../supabaseClient";
+import { useUser } from "../components/Contexts/userContext";
+import { CosmicCarouselPlugin } from "../components/CustomComponents/RerquestTs&Cs";
+import { supabase } from "../supabaseClient";
 
 const GuardianProfile = () => {
   const { allStudents, userData, setFetchFlags } = useUser();

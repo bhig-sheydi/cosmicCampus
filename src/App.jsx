@@ -1,45 +1,45 @@
-// src/App.js
-
 import React from 'react';
 import { Routes, Route, BrowserRouter as Router } from 'react-router-dom';
 import { ThemeProvider } from './components/Contexts/ThemeProvider';
 import { AuthProvider } from './components/Contexts/AuthContext'; // Import the AuthProvider
 import Home from './Pages/Home';
-
-import WebsiteDesign from './Pages/WebsiteDesign';
-import DigitalMarketing from './Pages/DigitalMarketing';
-import GraphicDesign from './Pages/GraphicDesign';
-import GrowthTools from './Pages/GrowthTools';
-import DashboardTest from './Pages/DashboardTest';
 import Footer from './components/CustomComponents/Footer';
 import NavContainer from './components/CustomComponents/NavContainer';
-import { SignUp } from './components/CustomComponents/SignupForm';
-import Auth from './components/Auth';
+import { SignUp } from './Pages/SignupForm';
 import { Toaster } from "@/components/ui/toaster";
-import { Login } from './components/CustomComponents/LogIn';
+import { Login } from './Pages/LogIn';
 import { Dashboard } from './components/CustomComponents/Dashboard';
-import AcceptRequests from './components/CustomComponents/AcceptRequest';
-import Profile from './components/CustomComponents/Profile';
-import StudentsList from './components/CustomComponents/StudentList';
-import TeacherList from './components/CustomComponents/TeacherList';
-import Aray from './components/CustomComponents/Aray';
-import TeacherAssign from './components/CustomComponents/TeacherAsign';
-import TeacherAttendance from './components/CustomComponents/TeacherAttendance';
-import FixedQRCode from './components/CustomComponents/FixedQrCode';
-import GuardianProfile from './components/CustomComponents/GuardianProfile';
-import { ResetPassword } from './components/CustomComponents/Reset';
-import { UpdatePassword } from './components/CustomComponents/updatepassword';
-import CBTExam from './components/CustomComponents/CBTEXAMS'
-import TeacherSubjectsCard from './components/CustomComponents/TeachersAssingnmentDashboard';
-import StudentAssingnments from './components/CustomComponents/StudentAssingnments';
-import AssignmentPage from './components/CustomComponents/AssignmentPage';
-import AssignmentHistory from './components/CustomComponents/AssignmentHistory';
-import GeneralAssignments from './components/CustomComponents/GeneralAsignments';
-import GuardianAssignment from './components/CustomComponents/GuardianAssignment';
-import Monitor from './components/CustomComponents/Monitor';
-import GuidedLessonEditor from './components/CustomComponents/LesonNote';
-import SaveNoteModal from './components/CustomComponents/SaveModal';
-import RecordAssignments from './components/CustomComponents/RecordAssignments';
+import AcceptRequests from './Pages/AcceptRequest';
+import Profile from './Pages/Profile';
+import StudentsList from './Pages/StudentList';
+import TeacherList from './Pages/TeacherList';
+import Aray from './Pages/Notifications';
+import TeacherAssign from './Pages/TeacherAsign';
+import TeacherAttendance from './Pages/TeacherAttendance';
+import FixedQRCode from './Pages/FixedQrCode';
+import GuardianProfile from './Pages/GuardianProfile';
+import { ResetPassword } from './Pages/Reset';
+import { UpdatePassword } from './Pages/updatepassword';
+import CBTExam from './Pages/CBTEXAMS'
+import TeacherSubjectsCard from './Pages/TeachersAssingnmentDashboard';
+import StudentAssingnments from './Pages/StudentAssingnments';
+import AssignmentPage from './Pages/AssignmentPage';
+import AssignmentHistory from './Pages/AssignmentHistory';
+import GeneralAssignments from './Pages/GeneralAsignments';
+import GuardianAssignment from './Pages/GuardianAssignment';
+import Monitor from './Pages/Monitor';
+import GuidedLessonEditor from './Pages/LesonNote';
+import SaveNoteModal from './Pages/SaveModal';
+import RecordAssignments from './Pages/RecordAssignments';
+import TeachersTests from './Pages/TestHistory';
+import TeachersExams from './Pages/ExamHistory';
+import SchoolsInventory from './Pages/SchoolsInventory';
+import SchoolDashboard from './Pages/SchoolDashboard';
+import AddInventoryPage from './Pages/AddInventory';
+import RestockPage from './Pages/Restock';
+import PlaceOrder from './Pages/PlaceOrder';
+import CartPage from './Pages/CartPage';
+import ReceiptPage from './Pages/ReceiptPage';
 
 
 
@@ -58,15 +58,9 @@ function App() {
           <NavContainer />
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/website-design" element={<WebsiteDesign />} />
-            <Route path="/digital-marketing" element={<DigitalMarketing />} />
-            <Route path="/graphic-design" element={<GraphicDesign />} />
-            <Route path="/growth-tools" element={<GrowthTools />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/otp" element={<Auth />} />
-            <Route path="/db" element={<DashboardTest />} />
-             <Route path="/exams" element={<CBTExam />} />
+            <Route path="/exams" element={<CBTExam />} />
             <Route path="/reset" element={<ResetPassword />} />
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/dashboard" element={<Dashboard />}>
@@ -78,19 +72,29 @@ function App() {
               <Route path="attendance" element={<TeacherAttendance />} />
               <Route path="attendanceQR" element={<FixedQRCode />} />
               <Route path="a" element={<GuardianProfile />} />
-              <Route path="Assignments" element={<TeacherSubjectsCard/>} />
+              <Route path="Assignments" element={<TeacherSubjectsCard />} />
               <Route path="notifications" element={<Aray />} />
-              <Route path="studentAssignment" element={<StudentAssingnments/>} />
-              <Route path="homework" element={<AssignmentPage/>} />
-              <Route path="teachhersAsignment" element={<AssignmentHistory/>} />
-              <Route path="GeneralAssignments" element={<GeneralAssignments/>} />
-              <Route path="childshomework" element={<GuardianAssignment/>} />
-              <Route path="monitorHomework" element={<Monitor/>} />
-              <Route path="note-editor" element={<GuidedLessonEditor/>} />
-              <Route path="asignmentRecord" element={<RecordAssignments/>} />
-              <Route path="notesave" element={<SaveNoteModal/>} />
+              <Route path="studentAssignment" element={<StudentAssingnments />} />
+              <Route path="homework" element={<AssignmentPage />} />
+              <Route path="teachersExams" element={<TeachersExams />} />
+              <Route path="teachhersAsignment" element={<AssignmentHistory />} />
+              <Route path="teachersTests" element={<TeachersTests />} />
+              <Route path="GeneralAssignments" element={<GeneralAssignments />} />
+              <Route path="childshomework" element={<GuardianAssignment />} />
+              <Route path="monitorHomework" element={<Monitor />} />
+              <Route path="note-editor" element={<GuidedLessonEditor />} />
+              <Route path="asignmentRecord" element={<RecordAssignments />} />
+              <Route path="notesave" element={<SaveNoteModal />} />
+              <Route path="school-inventory" element={<SchoolsInventory />} />
+              <Route path="school-dashboard" element={<SchoolDashboard />} />
+              <Route path="add-product" element={<AddInventoryPage />} />
+               <Route path="restock" element={<RestockPage/>} />
+               <Route path="place-order" element={<PlaceOrder/>} />
+                <Route path="cart" element={<CartPage/>}/>
+                <Route path=":userId/:orderId"element={<ReceiptPage/>}
+/>
 
-
+              
             </Route>
 
           </Routes>

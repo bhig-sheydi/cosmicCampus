@@ -1,7 +1,7 @@
 import React, { useState , useEffect } from "react"; 
 import { useUser } from "@/components/Contexts/userContext";
-import WifiAttendance from "./SignInOutButtons";
-import SetLocation from "./SetLocation";
+import WifiAttendance from "../components/CustomComponents/SignInOutButtons";
+import SetLocation from "../components/CustomComponents/SetLocation";
 import { supabase } from "@/supabaseClient";
 
 const TeachersAttendance = () => {

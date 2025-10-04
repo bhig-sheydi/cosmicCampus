@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useUser } from '../Contexts/userContext';
+import { useUser } from '../components/Contexts/userContext';
 import { toast } from "@/components/ui/use-toast";
 import 'react-toastify/dist/ReactToastify.css';
 import { supabase } from '@/supabaseClient';
