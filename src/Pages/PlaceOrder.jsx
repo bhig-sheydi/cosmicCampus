@@ -132,7 +132,7 @@ const PlaceOrder = () => {
   }, [selectedSchool]);
 
   // ---------------------------
-  // Helper: create order(s) for child items (used when confirming add)
+  // Helper: create order(s) for child items
   // ---------------------------
   const createOrderForChildItems = async (childId, childItems) => {
     if (!userData?.user_id) {
@@ -144,13 +144,11 @@ const PlaceOrder = () => {
     }
 
     try {
-      // compute total amount
       const totalAmount = childItems.reduce(
         (sum, item) => sum + (parseFloat(item.price) || 0) * (item.quantity || 1),
         0
       );
 
-      // insert order
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert([
@@ -173,7 +171,6 @@ const PlaceOrder = () => {
 
       const orderId = orderData.id;
 
-      // build order_items payload
       const orderItemsPayload = childItems.map((item) => ({
         order_id: orderId,
         product_id: item.id,
@@ -190,7 +187,6 @@ const PlaceOrder = () => {
         return { success: false, message: itemsError.message || "Order items insert failed" };
       }
 
-      // NOTE: we DO NOT clear localStorage/cart here per your request
       return { success: true, orderId };
     } catch (err) {
       console.error("createOrderForChildItems caught error:", err?.message || err);
@@ -199,39 +195,41 @@ const PlaceOrder = () => {
   };
 
   // ---------------------------
-  // Add to cart modal (unchanged UX): open modal for selection
+  // Add to cart modal
   // ---------------------------
   const handleAddToCart = (product) => {
+    if (product.stock_quantity <= 0) return; // stop opening modal for out-of-stock
     setModalProduct(product);
     setShowModal(true);
   };
 
-  // When Confirm is clicked in modal:
-  // 1) Add item to local cart & localStorage (existing behaviour)
-  // 2) ALSO create order and order_items in Supabase for the confirmed child/items
-  //    (this moves the old checkout DB behavior into the Confirm flow)
   const confirmAddToCart = async () => {
     if (!selectedChild) {
       alert("Please select a child");
       return;
     }
 
-    // assemble item to add
+    if (quantity <= 0) {
+      alert("Quantity must be at least 1.");
+      return;
+    }
+
+    if (quantity > modalProduct.stock_quantity) {
+      alert(`Only ${modalProduct.stock_quantity} items are available in stock.`);
+      return;
+    }
+
     const newItem = {
       ...modalProduct,
       child_id: selectedChild,
       quantity,
     };
 
-    // 1) update local cart (so /cart page can still read it)
     setCart((prev) => {
       const next = [...prev, newItem];
-      // localStorage will be updated by effect
       return next;
     });
 
-    // 2) create order record(s) in DB for this confirmed child item
-    //    createOrderForChildItems expects an array of items for the child
     try {
       const { success, orderId, message } = await createOrderForChildItems(
         selectedChild,
@@ -239,29 +237,22 @@ const PlaceOrder = () => {
       );
 
       if (success) {
-        // Inform user that DB order was created — but DO NOT clear the local cart
-        // (you asked that localStorage remain)
-        console.log("Order created for added item, orderId:", orderId);
-        // Optionally you can show a toast instead of alert
-        alert("Item added to cart and order created (cart still saved locally).");
+        console.log("Order created:", orderId);
+        alert("Item added to cart and order created.");
       } else {
         console.warn("Order creation failed:", message);
-        alert("Item added to cart locally, but creating the order failed. Try again later.");
+        alert("Item added locally, but order creation failed.");
       }
     } catch (err) {
       console.error("confirmAddToCart create order error:", err?.message || err);
-      alert("Item added to cart locally, but creating the order failed.");
+      alert("Item added locally, but creating the order failed.");
     } finally {
-      // close modal and reset selection
       setShowModal(false);
       setSelectedChild("");
       setQuantity(1);
     }
   };
 
-  // ---------------------------
-  // Checkout button: only route to /dashboard/carts (no DB action)
-  // ---------------------------
   const handleCheckout = () => {
     if (cart.length === 0) {
       alert("Cart is empty!");
@@ -277,7 +268,6 @@ const PlaceOrder = () => {
     <div className="p-6 relative">
       <h2 className="text-2xl font-bold mb-4">Place Order</h2>
 
-      {/* Floating cart icon */}
       <motion.div
         className="fixed top-6 right-6 bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg cursor-pointer"
         whileHover={{ scale: 1.1 }}
@@ -291,7 +281,6 @@ const PlaceOrder = () => {
         )}
       </motion.div>
 
-      {/* Schools as squares */}
       {!selectedSchool ? (
         <div className="grid grid-cols-2 gap-4">
           {schools.map((school) => (
@@ -306,7 +295,6 @@ const PlaceOrder = () => {
         </div>
       ) : (
         <>
-          {/* Products grid */}
           {loading && page === 0 ? (
             <p>Loading inventory...</p>
           ) : products.length === 0 ? (
@@ -314,33 +302,43 @@ const PlaceOrder = () => {
           ) : (
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => (
-                  <div
-                    key={product.id}
-                    className="p-4 border rounded-lg shadow bg-white"
-                  >
-                    <img
-                      src={product.product_image || "/placeholder.png"}
-                      alt={product.name}
-                      className="w-full h-32 object-cover mb-2 rounded"
-                    />
-                    <h3 className="font-semibold">{product.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {product.description}
-                    </p>
-                    <p className="font-bold">₦{product.price}</p>
-                    <p className="text-sm">Stock: {product.stock_quantity}</p>
-                    <button
-                      onClick={() => handleAddToCart(product)}
-                      className="mt-2 bg-green-600 text-white px-3 py-1 rounded w-full"
+                {products.map((product) => {
+                  const outOfStock = product.stock_quantity <= 0;
+                  return (
+                    <div
+                      key={product.id}
+                      className={`p-4 border rounded-lg shadow ${
+                        outOfStock ? "bg-gray-300 opacity-75" : "bg-white"
+                      }`}
                     >
-                      Add to Cart
-                    </button>
-                  </div>
-                ))}
+                      <img
+                        src={product.product_image || "/placeholder.png"}
+                        alt={product.name}
+                        className="w-full h-32 object-cover mb-2 rounded"
+                      />
+                      <h3 className="font-semibold">{product.name}</h3>
+                      <p className="text-sm text-gray-600">{product.description}</p>
+                      <p className="font-bold">₦{product.price}</p>
+                      <p className="text-sm">
+                        Stock: {product.stock_quantity}
+                      </p>
+                      {outOfStock ? (
+                        <div className="mt-2 text-center text-red-700 font-bold uppercase">
+                          OUT OF STOCK
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          className="mt-2 bg-green-600 text-white px-3 py-1 rounded w-full"
+                        >
+                          Add to Cart
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Load More */}
               {hasMore && (
                 <div className="flex justify-center mt-4">
                   <button
@@ -372,7 +370,6 @@ const PlaceOrder = () => {
         </>
       )}
 
-      {/* Modal for child + quantity selection */}
       {showModal && modalProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-96">

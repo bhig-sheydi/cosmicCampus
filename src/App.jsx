@@ -40,6 +40,10 @@ import RestockPage from './Pages/Restock';
 import PlaceOrder from './Pages/PlaceOrder';
 import CartPage from './Pages/CartPage';
 import ReceiptPage from './Pages/ReceiptPage';
+import SchoolAccountSetup from './Pages/AddAccounts';
+import SchoolFees from './Pages/SchoolFees';
+import GuardianFees from './Pages/GuardianFees';
+import TeamWhosoeverSVG from './Pages/svg';
 
 
 
@@ -91,8 +95,14 @@ function App() {
                <Route path="restock" element={<RestockPage/>} />
                <Route path="place-order" element={<PlaceOrder/>} />
                 <Route path="cart" element={<CartPage/>}/>
-                <Route path=":userId/:orderId"element={<ReceiptPage/>}
-/>
+                <Route path="b427824287ww93u28y773e273g7gd73137g643824g7"element={<ReceiptPage/>}/>
+                <Route path="account-setup" element={<SchoolAccountSetup/>}/>
+                 <Route path="fee-payments-structure" element={<SchoolFees/>}/>
+                 <Route path="fee-payments" element={<GuardianFees/>}/>
+                <Route path="svg" element={<TeamWhosoeverSVG/>}/>
+
+
+                
 
               
             </Route>

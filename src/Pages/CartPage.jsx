@@ -11,6 +11,13 @@ import { useUser } from "@/components/Contexts/userContext";
  * - The function URL should be in REACT_APP_PAYSTACK_INIT_URL or it will use a sensible default.
  * - The front-end sends an Authorization bearer token (current session access token) to the edge function.
  * - The payload sent includes order_id and items (client-side values used only for cross-check; server MUST validate).
+ *
+ * CHANGE LOG (safe / minimal):
+ * - Added `school_id` to the orders select so we can group orders by school on the client.
+ * - Implemented client-side splitting: when multiple schools are present we initialize a Paystack transaction
+ *   per school. If a single school exists, behavior is unchanged (redirect to Paystack).
+ * - When multiple schools return authorization URLs, each URL is opened in a new tab (so the user can complete each payment).
+ *   This keeps UX simple and avoids interrupting other initializations.
  */
 
 const CartPage = () => {
@@ -46,6 +53,7 @@ const CartPage = () => {
           status,
           total_amount,
           created_at,
+          school_id,
           order_items (
             id,
             product_id,
@@ -55,10 +63,9 @@ const CartPage = () => {
           )
         `
         )
-        .eq("parent_id", userData.user_id, )
-        .eq("status", "pending")   // ✅ Only fetch pending orders
+        .eq("parent_id", userData.user_id)
+        .eq("status", "pending") // ✅ Only fetch pending orders
         .order("created_at", { ascending: false });
-        
 
       if (error) throw error;
       setOrders(data || []);
@@ -141,7 +148,18 @@ const CartPage = () => {
     }
   };
 
-  // -------------------- Payment initiation --------------------
+  // -------------------- Helpers --------------------
+  const groupOrdersBySchool = (ordersArray) => {
+    const map = new Map();
+    for (const o of ordersArray) {
+      const sid = o.school_id ?? "unknown_school";
+      if (!map.has(sid)) map.set(sid, []);
+      map.get(sid).push(o);
+    }
+    return map; // Map<school_id, orders[]>
+  };
+
+  // -------------------- Payment initiation (split client-side) --------------------
   const startPayment = async () => {
     if (!userData?.user_id) {
       setMessage({ type: "error", text: "You must be signed in to pay." });
@@ -161,22 +179,6 @@ const CartPage = () => {
     setMessage(null);
 
     try {
-      // compute total in kobo (Paystack expects smallest currency unit)
-      const amountNaira = grandTotal;
-      const amountKobo = Math.round(amountNaira * 100);
-
-      // Build metadata — we'll include order ids and minimal items info
-      const metadata = {
-        orders: orders.map((o) => ({
-          order_id: o.id,
-          items: (o.order_items || []).map((it) => ({
-            product_id: it.product_id,
-            qty: it.quantity,
-            price: it.price,
-          })),
-        })),
-      };
-
       // Get the current user's access token from Supabase client
       const {
         data: { session },
@@ -193,83 +195,198 @@ const CartPage = () => {
         throw new Error("Missing auth token. Please re-login and try again.");
       }
 
-      // Prepare body: we include a single order_id if you prefer one-transaction-per-order,
-      // but here we send the full metadata. Your server is the final authority.
-      const bodyPayload = {
-        amount: amountKobo,
-        email: billingEmail,
-        name: billingName,
-        // send the client-side items too (server must validate using DB)
-        metadata,
-        // include an explicit list of order ids (helps server)
-        order_ids: orders.map((o) => o.id),
-      };
+      // Group orders by school
+      const grouped = groupOrdersBySchool(orders);
+      const schoolCount = grouped.size;
 
-      // Call backend to initialize transaction (Edge Function)
-      const resp = await fetch(PAYSTACK_INIT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // vital: the edge function validates user
-        },
-        body: JSON.stringify(bodyPayload),
-      });
+      // If only one school -> preserve existing single-call behavior (redirect)
+      if (schoolCount === 1) {
+        const [, singleOrders] = grouped.entries().next().value;
+        const amountNaira = singleOrders.reduce((sum, o) => sum + computeOrderTotal(o), 0);
+        const amountKobo = Math.round(amountNaira * 100);
 
-      // If network-level failure
-      if (!resp) {
-        throw new Error("No response from payment server.");
-      }
+        const metadata = {
+          orders: singleOrders.map((o) => ({
+            order_id: o.id,
+            items: (o.order_items || []).map((it) => ({
+              product_id: it.product_id,
+              qty: it.quantity,
+              price: it.price,
+            })),
+          })),
+        };
 
-      // If server responded with non-OK, read details and fail gracefully.
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => null);
-        console.warn("Paystack init failed:", resp.status, txt);
-        setMessage({
-          type: "error",
-          text: `Payment initiation failed (backend ${resp.status}): ${
-            txt || "no detail"
-          }`,
+        const bodyPayload = {
+          amount: amountKobo,
+          email: billingEmail,
+          name: billingName,
+          metadata,
+          order_ids: singleOrders.map((o) => o.id),
+        };
+
+        const resp = await fetch(PAYSTACK_INIT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(bodyPayload),
         });
 
-        // Do not auto-fallback to dummy in production errors that look real.
-        // But during development, simulate as convenience if CORS/edge not ready.
-        // We decide based on status: 500/502 -> try simulate; 401/403 -> do NOT simulate.
-        if (resp.status >= 500 || resp.status === 0) {
-          await simulateDummyPayment();
+        if (!resp) throw new Error("No response from payment server.");
+
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => null);
+          console.warn("Paystack init failed:", resp.status, txt);
+          setMessage({
+            type: "error",
+            text: `Payment initiation failed (backend ${resp.status}): ${txt || "no detail"}`,
+          });
+          if (resp.status >= 500 || resp.status === 0) {
+            await simulateDummyPayment();
+          }
+          return;
         }
 
+        const payload = await resp.json().catch(() => null);
+
+        const authorizationUrl =
+          payload?.data?.authorization_url ||
+          payload?.authorization_url ||
+          payload?.url ||
+          payload?.data?.authorizationUrl ||
+          payload?.data?.url;
+
+        if (authorizationUrl) {
+          // Redirect user to Paystack checkout page (existing behavior)
+          window.location.href = authorizationUrl;
+          return;
+        }
+
+        const reference = payload?.data?.reference || payload?.reference || payload?.data?.reference;
+        if (reference) {
+          setMessage({
+            type: "info",
+            text: `Payment initiated. Reference: ${reference}. Use verify endpoint to confirm.`,
+          });
+          return;
+        }
+
+        console.warn("Paystack init response missing url/reference:", payload);
+        await simulateDummyPayment();
         return;
       }
 
-      const payload = await resp.json().catch(() => null);
+      // If multiple schools -> initialize one request per school
+      // We'll open each returned authorization_url in a new tab (so the user can pay each school's checkout)
+      const results = [];
+      for (const [schoolId, schoolOrders] of grouped.entries()) {
+        const amountNaira = schoolOrders.reduce((sum, o) => sum + computeOrderTotal(o), 0);
+        const amountKobo = Math.round(amountNaira * 100);
 
-      // The Edge Function returns { success: true, data: { authorization_url, reference, ... } }
-      const authorizationUrl =
-        payload?.data?.authorization_url ||
-        payload?.authorization_url ||
-        payload?.url ||
-        payload?.data?.authorizationUrl ||
-        payload?.data?.url;
+        const metadata = {
+          orders: schoolOrders.map((o) => ({
+            order_id: o.id,
+            items: (o.order_items || []).map((it) => ({
+              product_id: it.product_id,
+              qty: it.quantity,
+              price: it.price,
+            })),
+          })),
+        };
 
-      if (authorizationUrl) {
-        // Redirect user to Paystack checkout page
-        window.location.href = authorizationUrl;
-        return;
-      }
+        const bodyPayload = {
+          amount: amountKobo,
+          email: billingEmail,
+          name: billingName,
+          metadata,
+          order_ids: schoolOrders.map((o) => o.id),
+        };
 
-      // maybe server returned a reference (inline preferred)
-      const reference = payload?.data?.reference || payload?.reference || payload?.data?.reference;
-      if (reference) {
+        try {
+          const resp = await fetch(PAYSTACK_INIT_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(bodyPayload),
+          });
+
+          if (!resp) {
+            results.push({ schoolId, ok: false, reason: "No response from payment server" });
+            continue;
+          }
+
+          if (!resp.ok) {
+            const txt = await resp.text().catch(() => null);
+            console.warn(`Paystack init failed for school ${schoolId}:`, resp.status, txt);
+            results.push({ schoolId, ok: false, status: resp.status, detail: txt });
+            continue;
+          }
+
+          const payload = await resp.json().catch(() => null);
+          const authorizationUrl =
+            payload?.data?.authorization_url ||
+            payload?.authorization_url ||
+            payload?.url ||
+            payload?.data?.authorizationUrl ||
+            payload?.data?.url;
+
+          const reference = payload?.data?.reference || payload?.reference || payload?.data?.reference;
+
+          if (authorizationUrl) {
+            // open in new tab so user can complete each school's payment separately
+            try {
+              window.open(authorizationUrl, "_blank");
+              results.push({ schoolId, ok: true, authorizationUrl, reference });
+            } catch (openErr) {
+              // If popup blocked, still record the url and show to user
+              results.push({ schoolId, ok: true, authorizationUrl, reference, opened: false });
+            }
+          } else if (reference) {
+            results.push({ schoolId, ok: true, reference });
+          } else {
+            results.push({ schoolId, ok: false, reason: "No url/reference returned", payload });
+          }
+        } catch (err) {
+          console.error(`Error initiating payment for school ${schoolId}:`, err);
+          results.push({ schoolId, ok: false, reason: String(err) });
+        }
+      } // end for
+
+      // Summarize results to user
+      const successes = results.filter((r) => r.ok);
+      const failures = results.filter((r) => !r.ok);
+
+      if (successes.length > 0 && failures.length === 0) {
+        // If all succeeded and at least one had a url opened in new tab, inform user
+        setMessage({
+          type: "success",
+          text:
+            successes.length === 1
+              ? `Payment initialized for 1 school. Complete checkout in the opened tab.`
+              : `Payment initialized for ${successes.length} schools. Checkout pages opened in new tabs (or available as references).`,
+        });
+      } else if (successes.length > 0 && failures.length > 0) {
         setMessage({
           type: "info",
-          text: `Payment initiated. Reference: ${reference}. Use verify endpoint to confirm.`,
+          text: `Initialized ${successes.length} school(s), but ${failures.length} failed. Check console for details.`,
         });
-        return;
+        console.warn("Payment init mixed results:", { results });
+      } else {
+        // All failed
+        setMessage({
+          type: "error",
+          text: `Failed to initialize payments for all schools. Check console for details.`,
+        });
+        console.warn("Payment init failures:", { results });
+        // Consider a safe dummy fallback if server errors are present
+        const hasServerError = failures.some((f) => f.status >= 500 || f.status === 0 || /server/i.test(String(f.detail || f.reason || "")));
+        if (hasServerError) {
+          await simulateDummyPayment();
+        }
       }
-
-      // Nothing useful returned -> fallback to dummy for dev
-      console.warn("Paystack init response missing url/reference:", payload);
-      await simulateDummyPayment();
     } catch (err) {
       console.error("Payment error:", err?.message || err);
       setMessage({
