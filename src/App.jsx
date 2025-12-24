@@ -99,7 +99,7 @@ function App() {
                 <Route path="account-setup" element={<SchoolAccountSetup/>}/>
                  <Route path="fee-payments-structure" element={<SchoolFees/>}/>
                  <Route path="fee-payments" element={<GuardianFees/>}/>
-                <Route path="svg" element={<TeamWhosoeverSVG/>}/>
+                
 
 
                 

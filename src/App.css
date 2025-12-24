@@ -1,7 +1,4 @@
-/* TeamWhosoever.css
-   Pure CSS construction of the Team Whosoever logo.
-   Scale the whole logo by changing --logo-size (px).
-*/
+
 
 :root {
   --logo-size: 480px;      /* base width of the whole composition (adjust) */
@@ -9,7 +6,14 @@
   --cutout-color: #fff;    /* book/figures color (appears as cutout) */
   --text-color: #222;
 }
-
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 0 0% 100%;
+  --card: 222 47% 15%;
+  --card-foreground: 0 0% 100%;
+  --input: 222 47% 20%;
+  --border: 222 47% 40%;
+}
 /* Root container: controls scale and centering */
 .tw-logo-root {
   width: var(--logo-size);

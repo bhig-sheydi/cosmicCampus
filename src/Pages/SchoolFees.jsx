@@ -168,7 +168,7 @@ export default function SchoolFeesV2() {
         description: s.description,
         classes: (svcClasses
           .filter((sc) => sc.fee_service_id === s.id)
-          .reduce((acc, cur) => ({ ...acc, [String(cur.class_id)]: cur.amount }), {}) ) || {},
+          .reduce((acc, cur) => ({ ...acc, [String(cur.class_id)]: cur.amount }), {})) || {},
       }));
 
       setEditor({
@@ -388,7 +388,7 @@ export default function SchoolFeesV2() {
 
   // render
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/70 py-8 px-6">
+    <div className="min-h-screen bg-gradient-to-br dark:text-purple-400 from-gray-50 to-gray-100/70 py-8 px-6 dark:bg-gradient-to-br from-black to-gray-900">
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="max-w-6xl mx-auto">
         <header className="mb-6 text-center">
           <h1 className="text-3xl font-semibold bg-gradient-to-r from-blue-600 to-violet-500 text-transparent bg-clip-text">School Fee Manager</h1>
@@ -396,7 +396,7 @@ export default function SchoolFeesV2() {
         </header>
 
         <div className="flex gap-6 items-start">
-          <div className="w-1/3 bg-white/70 backdrop-blur-md border border-gray-200 rounded-2xl p-4 shadow-md">
+          <div className="w-1/3 bg-white/70 backdrop-blur-md border border-gray-200 rounded-2xl p-4 shadow-md ">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-violet-50"><List size={18} className="text-blue-600" /></div>
@@ -480,8 +480,8 @@ export default function SchoolFeesV2() {
                 {success && <div className="text-sm text-emerald-600">{success}</div>}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <select value={editor.school_id} onChange={(e) => handleEditorChange("school_id", e.target.value)} className="rounded-xl border px-3 py-2">
-                    <option value="">-- Select School --</option>
+                  <select value={editor.school_id} onChange={(e) => handleEditorChange("school_id", e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-600">
+                    <option value="" className="dark:bg-black">-- Select School --</option>
                     {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
 
@@ -491,14 +491,14 @@ export default function SchoolFeesV2() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <select value={editor.term} onChange={(e) => handleEditorChange("term", e.target.value)} className="rounded-xl border px-3 py-2">
+                  <select value={editor.term} onChange={(e) => handleEditorChange("term", e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-600">
                     <option value="">-- Select Term --</option>
                     <option>First Term</option>
                     <option>Second Term</option>
                     <option>Third Term</option>
                   </select>
 
-                  <input name="description" value={editor.description} onChange={(e) => handleEditorChange("description", e.target.value)} placeholder="Optional description" className="rounded-xl border px-3 py-2" />
+                  <input name="description" value={editor.description} onChange={(e) => handleEditorChange("description", e.target.value)} placeholder="Optional description" className="rounded-xl border px-3 py-2 " />
                 </div>
 
                 <div>
@@ -506,9 +506,9 @@ export default function SchoolFeesV2() {
                     <div className="flex items-center gap-2 text-sm text-gray-700"><Percent size={16} /> Payment Plan</div>
                     <div className="text-xs text-gray-400">{editor.plan_type}</div>
                   </div>
-                  <div className="flex gap-3 mb-3">
-                    {["full","twice","thrice"].map((t) => (
-                      <button key={t} type="button" onClick={() => { handleEditorChange("plan_type", t); setPlanCount(t); }} className={`px-3 py-2 rounded-xl ${editor.plan_type===t?"bg-gradient-to-r from-blue-600 to-violet-500 text-white":"bg-white/60"}`}>
+                  <div className="flex gap-3 mb-3 ">
+                    {["full", "twice", "thrice"].map((t) => (
+                      <button key={t} type="button" onClick={() => { handleEditorChange("plan_type", t); setPlanCount(t); }} className={`dark:bg-gray-600 px-3 py-2 rounded-xl ${editor.plan_type === t ? "bg-gradient-to-r from-blue-600 to-violet-500 text-white" : "bg-white/60"}`}>
                         {t}
                       </button>
                     ))}
@@ -516,9 +516,9 @@ export default function SchoolFeesV2() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     {editor.payment_plans.map((p, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <input type="number" value={p.percentage} onChange={(e) => updatePlanField(idx, "percentage", e.target.value)} className="rounded-xl border px-3 py-2 w-full" />
-                        <input type="date" value={p.due_date} onChange={(e) => updatePlanField(idx, "due_date", e.target.value)} className="rounded-xl border px-3 py-2" />
+                      <div key={idx} className="flex gap-2 ">
+                        <input type="number" value={p.percentage} onChange={(e) => updatePlanField(idx, "percentage", e.target.value)} className="rounded-xl border px-3 py-2 w-full " />
+                        <input type="date" value={p.due_date} onChange={(e) => updatePlanField(idx, "due_date", e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-900" />
                       </div>
                     ))}
                   </div>
@@ -532,60 +532,113 @@ export default function SchoolFeesV2() {
 
                   <div className="space-y-4">
                     {editor.services.map((svc, sIdx) => (
-                      <motion.div key={sIdx} initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} className="border rounded-xl p-4 bg-white/60">
+                      <motion.div
+                        key={sIdx}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="border rounded-xl p-4 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm"
+                      >
                         <div className="flex items-center justify-between mb-3">
-                          <input value={svc.name} onChange={(e) => setServiceName(sIdx, e.target.value)} placeholder="Service name e.g. Tuition" className="flex-1 rounded-xl border px-3 py-2" />
+                          <input
+                            value={svc.name}
+                            onChange={(e) => setServiceName(sIdx, e.target.value)}
+                            placeholder="Service name e.g. Tuition"
+                            className="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 px-3 py-2 
+                     dark:bg-gradient-to-r dark:from-black dark:via-purple-950 dark:to-black 
+                     dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                          />
+
                           <div className="flex items-center gap-2 ml-3">
-                            <button type="button" onClick={() => removeService(sIdx)} className="text-red-500"><Trash2 size={16} /></button>
+                            <button type="button" onClick={() => removeService(sIdx)} className="text-red-500">
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {classes.map((c) => (
-                            <div key={c.class_id} className="border rounded-lg p-2">
+                            <div key={c.class_id} className="border rounded-lg p-2 dark:border-gray-700">
                               <label className="flex items-center gap-2 mb-2">
-                                <input type="checkbox" checked={svc.classes?.[String(c.class_id)] !== undefined} onChange={() => toggleClassForService(sIdx, c)} className="accent-blue-500" />
+                                <input
+                                  type="checkbox"
+                                  checked={svc.classes?.[String(c.class_id)] !== undefined}
+                                  onChange={() => toggleClassForService(sIdx, c)}
+                                  className="accent-blue-500"
+                                />
                                 <div className="text-sm font-medium">{c.class_name}</div>
                               </label>
                               {svc.classes?.[String(c.class_id)] !== undefined && (
-                                <input type="number" value={svc.classes[String(c.class_id)]} onChange={(e) => setServiceClassAmount(sIdx, c.class_id, e.target.value)} placeholder="Amount" className="rounded-lg border px-2 py-1 w-full" />
+                                <input
+                                  type="number"
+                                  value={svc.classes[String(c.class_id)]}
+                                  onChange={(e) => setServiceClassAmount(sIdx, c.class_id, e.target.value)}
+                                  placeholder="Amount"
+                                  className="rounded-lg border px-2 py-1 w-full dark:border-gray-700 dark:bg-black/70 dark:text-white"
+                                />
                               )}
                             </div>
                           ))}
                         </div>
-
                       </motion.div>
                     ))}
 
                     <div>
-                      <button type="button" onClick={addService} className="inline-flex items-center gap-2 text-blue-600"><PlusCircle size={16} /> Add service</button>
+                      <button type="button" onClick={addService} className="inline-flex items-center gap-2 text-blue-600">
+                        <PlusCircle size={16} /> Add service
+                      </button>
                     </div>
-
                   </div>
+
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="border rounded-xl p-3">
-                    <div className="text-sm text-gray-600 mb-2">Per-class totals (computed client-side)</div>
-                    <div className="space-y-2">
-                      {classes.map((c) => (
-                        <div key={c.class_id} className="flex items-center justify-between text-sm">
-                          <div>{c.class_name}</div>
-                          <div className="font-semibold">{formatCurrency(classTotals[String(c.class_id)] || 0)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  {/* Per-class totals card */}
+  <div className="border rounded-xl p-3 bg-white/60 dark:bg-gray-900/60 dark:border-gray-700 backdrop-blur-sm">
+    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+      Per-class totals (computed client-side)
+    </div>
+    <div className="space-y-2">
+      {classes.map((c) => (
+        <div
+          key={c.class_id}
+          className="flex items-center justify-between text-sm text-gray-800 dark:text-gray-200"
+        >
+          <div>{c.class_name}</div>
+          <div className="font-semibold">{formatCurrency(classTotals[String(c.class_id)] || 0)}</div>
+        </div>
+      ))}
+    </div>
+  </div>
 
-                  <div className="rounded-xl p-3 border">
-                    <div className="text-sm text-gray-600 mb-2">Actions</div>
-                    <div className="flex gap-2">
-                      <button type="submit" disabled={loadingSave} className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-violet-500 text-white py-2 rounded-xl">{loadingSave ? <Loader2 className="animate-spin" /> : <Save size={16} />} {loadingSave ? 'Saving...' : 'Save fee'}</button>
-                      <button type="button" onClick={closeEditor} className="px-3 py-2 rounded-xl border">Cancel</button>
-                    </div>
-                    <div className="text-xs text-red-800 mt-3">Note:  this fee template is to be reused, too many fee templates can cause systematic failure always ensure that creation of payments structures are with good reasons.</div>
-                  </div>
-                </div>
+  {/* Actions card */}
+  <div className="rounded-xl p-3 border bg-white/60 dark:bg-gray-900/60 dark:border-gray-700 backdrop-blur-sm">
+    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Actions</div>
+    <div className="flex gap-2">
+      <button
+        type="submit"
+        disabled={loadingSave}
+        className="flex-1 inline-flex items-center justify-center gap-2 
+                   bg-gradient-to-r from-blue-600 to-purple-800 text-white py-2 rounded-xl
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loadingSave ? <Loader2 className="animate-spin" /> : <Save size={16} />} 
+        {loadingSave ? "Saving..." : "Save fee"}
+      </button>
+      <button
+        type="button"
+        onClick={closeEditor}
+        className="px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 
+                   bg-white/50 dark:bg-black/40 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+      >
+        Cancel
+      </button>
+    </div>
+    <div className="text-xs text-red-800 dark:text-red-400 mt-3">
+      Note: this fee template is to be reused. Too many fee templates can cause systematic failures. Always ensure payment structures are created for good reasons.
+    </div>
+  </div>
+</div>
+
 
               </motion.form>
             )}

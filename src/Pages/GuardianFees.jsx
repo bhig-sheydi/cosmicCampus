@@ -317,28 +317,39 @@ export default function GuardianFees() {
   };
 
   // choose allowed plan options based on payments
-  const allowedPlanOptions = (studentId, fee) => {
-    const feePlans = plans.filter((p) => p.fee_id === fee.id && p.plan_type !== "micro-payments");
-    const { maxPaidInst, fullPaid } = analyzePayments(studentId, fee.id);
+ const allowedPlanOptions = (studentId, fee) => {
+  const feePlans = plans
+    .filter(p => p.fee_id === fee.id && p.plan_type !== "micro-payments")
+    .sort((a, b) => (a.installment_no ?? 0) - (b.installment_no ?? 0));
 
-    if (fullPaid) return { allowed: [], reason: "full_paid" };
+  const { maxPaidInst, fullPaid } = analyzePayments(studentId, fee.id);
 
-    // if none paid, allow installment_no === 1 only
-    const nextInst = maxPaidInst + 1; // 1 if none paid
-    // build allowed: 'full' always allowed, plus the next installment (if exists)
-    const allowed = [
-      { label: "Full Payment (100%)", value: "full" }
-    ];
-    const nextPlan = feePlans.find((p) => Number(p.installment_no) === nextInst);
-    if (nextPlan) {
-      allowed.push({
-        label: `${nextPlan.installment_no} Installment (${nextPlan.percentage}%)`,
-        value: String(nextPlan.id),
-        installment_no: nextPlan.installment_no
-      });
-    }
-    return { allowed, reason: null };
-  };
+  // Fully paid → nothing allowed
+  if (fullPaid) {
+    return { allowed: [], reason: "full_paid" };
+  }
+
+  const nextInstallment = maxPaidInst + 1;
+
+  const allowed = [
+    { label: "Full Payment (100%)", value: "full" }
+  ];
+
+  const nextPlan = feePlans.find(
+    p => Number(p.installment_no) === nextInstallment
+  );
+
+  if (nextPlan) {
+    allowed.push({
+      label: `Installment ${nextPlan.installment_no} (${nextPlan.percentage}%)`,
+      value: String(nextPlan.id),
+      installment_no: nextPlan.installment_no,
+    });
+  }
+
+  return { allowed, reason: null };
+};
+
 
   const studentMap = useMemo(() => {
     const map = {};
