@@ -28,24 +28,44 @@ const GuardianProfile = () => {
     setTimeout(() => handleParentRequest(studentId), 1000);
   };
 
-  const handleParentRequest = async (studentId) => {
-    const guardianId = userData?.user_id;
-    if (!guardianId) {
-      return setMessage({ type: "error", text: "User is not authenticated." });
+const handleParentRequest = async (studentId) => {
+  const guardianId = userData?.user_id;
+  if (!guardianId) {
+    return setMessage({
+      type: "error",
+      text: "User is not authenticated.",
+    });
+  }
+
+  const { data, error } = await supabase
+    .from("guardianrequest")
+    .insert({ guardian_id: guardianId, child_id: studentId });
+
+  if (error) {
+    console.error("Insert error:", error);
+
+    // ✅ Child already has a guardian
+    if (error.code === "23505") {
+      return setMessage({
+        type: "error",
+        text:
+          "This child already has a guardian attached. Please ask the child to detach from their current guardian before sending a new request.",
+      });
     }
 
-    const { data, error } = await supabase
-      .from("guardianrequest")
-      .insert({ guardian_id: guardianId, child_id: studentId });
+    // ❌ Other errors
+    return setMessage({
+      type: "error",
+      text: "Unable to send the parent request. Please try again later.",
+    });
+  }
 
-    if (error) {
-      console.error("Insert error:", error);
-      setMessage({ type: "error", text: "Failed to send the request. Please try again." });
-    } else {
-      setMessage({ type: "success", text: "Parent request successfully sent!" });
-      console.log("Insert success:", data);
-    }
-  };
+  setMessage({
+    type: "success",
+    text: "Parent request sent successfully.",
+  });
+};
+
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">

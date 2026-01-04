@@ -43,7 +43,10 @@ import ReceiptPage from './Pages/ReceiptPage';
 import SchoolAccountSetup from './Pages/AddAccounts';
 import SchoolFees from './Pages/SchoolFees';
 import GuardianFees from './Pages/GuardianFees';
-import TeamWhosoeverSVG from './Pages/svg';
+import CreateDependentChild from './components/CustomComponents/CreateDependentChild';
+import UpgradeManagedStudent from './components/CustomComponents/UpgradeManagedStudent';
+import GuardianClassRanking from './components/CustomComponents/ClassLeaderBoard';
+import DuplicateClassToArm from './components/CustomComponents/DuplicateClassToArm';
 
 
 
@@ -76,8 +79,11 @@ function App() {
               <Route path="attendance" element={<TeacherAttendance />} />
               <Route path="attendanceQR" element={<FixedQRCode />} />
               <Route path="a" element={<GuardianProfile />} />
-              <Route path="Assignments" element={<TeacherSubjectsCard />} />
+              <Route path="dependent" element={<CreateDependentChild/>}/>
+             <Route path="upgradestudent" element={<UpgradeManagedStudent/>}/> 
+             <Route path="Assignments" element={<TeacherSubjectsCard />} />
               <Route path="notifications" element={<Aray />} />
+               <Route path="leaders" element={<GuardianClassRanking/>}/>
               <Route path="studentAssignment" element={<StudentAssingnments />} />
               <Route path="homework" element={<AssignmentPage />} />
               <Route path="teachersExams" element={<TeachersExams />} />
@@ -88,6 +94,7 @@ function App() {
               <Route path="monitorHomework" element={<Monitor />} />
               <Route path="note-editor" element={<GuidedLessonEditor />} />
               <Route path="asignmentRecord" element={<RecordAssignments />} />
+              <Route path="createArm" element={<DuplicateClassToArm/>} />
               <Route path="notesave" element={<SaveNoteModal />} />
               <Route path="school-inventory" element={<SchoolsInventory />} />
               <Route path="school-dashboard" element={<SchoolDashboard />} />
@@ -99,10 +106,7 @@ function App() {
                 <Route path="account-setup" element={<SchoolAccountSetup/>}/>
                  <Route path="fee-payments-structure" element={<SchoolFees/>}/>
                  <Route path="fee-payments" element={<GuardianFees/>}/>
-                
-
-
-                
+                 
 
               
             </Route>
