@@ -1,325 +1,325 @@
 
 
-:root {
-  --logo-size: 480px;      /* base width of the whole composition (adjust) */
-  --outer-color: #222;     /* dark circle color */
-  --cutout-color: #fff;    /* book/figures color (appears as cutout) */
-  --text-color: #222;
-}
-.dark {
-  --background: 222 47% 11%;
-  --foreground: 0 0% 100%;
-  --card: 222 47% 15%;
-  --card-foreground: 0 0% 100%;
-  --input: 222 47% 20%;
-  --border: 222 47% 40%;
-}
-/* Root container: controls scale and centering */
-.tw-logo-root {
-  width: var(--logo-size);
-  margin: 0 auto;
-  font-family: "Arial Black", "Impact", "Helvetica", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  :root {
+    --logo-size: 480px;      /* base width of the whole composition (adjust) */
+    --outer-color: #222;     /* dark circle color */
+    --cutout-color: #fff;    /* book/figures color (appears as cutout) */
+    --text-color: #222;
+  }
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 0 0% 100%;
+    --card: 222 47% 15%;
+    --card-foreground: 0 0% 100%;
+    --input: 222 47% 20%;
+    --border: 222 47% 40%;
+  }
+  /* Root container: controls scale and centering */
+  .tw-logo-root {
+    width: var(--logo-size);
+    margin: 0 auto;
+    font-family: "Arial Black", "Impact", "Helvetica", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-/* Top text (TEAM) */
-.tw-text.top {
-  font-size: calc(var(--logo-size) * 0.115); /* proportional sizing */
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  text-align: center;
-  color: var(--text-color);
-  margin-top: calc(var(--logo-size) * 0.03);
-}
+  /* Top text (TEAM) */
+  .tw-text.top {
+    font-size: calc(var(--logo-size) * 0.115); /* proportional sizing */
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-align: center;
+    color: var(--text-color);
+    margin-top: calc(var(--logo-size) * 0.03);
+  }
 
-/* Middle text (WHOSOEVER) — we render every char so O/E can be stretched */
-.tw-text.mid {
-  display: inline-block;
-  font-size: calc(var(--logo-size) * 0.095);
-  font-weight: 900;
-  text-align: center;
-  color: var(--text-color);
-  width: 100%;
-  margin: calc(var(--logo-size) * 0.015) 0 calc(var(--logo-size) * 0.03);
-}
+  /* Middle text (WHOSOEVER) — we render every char so O/E can be stretched */
+  .tw-text.mid {
+    display: inline-block;
+    font-size: calc(var(--logo-size) * 0.095);
+    font-weight: 900;
+    text-align: center;
+    color: var(--text-color);
+    width: 100%;
+    margin: calc(var(--logo-size) * 0.015) 0 calc(var(--logo-size) * 0.03);
+  }
 
-/* letters inline */
-.tw-text.mid .char {
-  display: inline-block;
-  transform-origin: center;
-  margin: 0 0.08em;
-  line-height: 1;
-}
+  /* letters inline */
+  .tw-text.mid .char {
+    display: inline-block;
+    transform-origin: center;
+    margin: 0 0.08em;
+    line-height: 1;
+  }
 
-/* stretched O and E */
-.tw-text.mid .char.stretch {
-  display: inline-block;
-  transform-origin: 50% 50%;
-}
+  /* stretched O and E */
+  .tw-text.mid .char.stretch {
+    display: inline-block;
+    transform-origin: 50% 50%;
+  }
 
-/* tune the stretch values */
-.tw-text.mid .char.stretch[data-char="O"],
-.tw-text.mid .char.stretch[data-char="o"] {
-  transform: scaleX(1.4);
-  margin: 0 0.02em;
-}
+  /* tune the stretch values */
+  .tw-text.mid .char.stretch[data-char="O"],
+  .tw-text.mid .char.stretch[data-char="o"] {
+    transform: scaleX(1.4);
+    margin: 0 0.02em;
+  }
 
-.tw-text.mid .char.stretch[data-char="E"],
-.tw-text.mid .char.stretch[data-char="e"] {
-  transform: scaleX(1.35);
-  margin: 0 0.02em;
-}
+  .tw-text.mid .char.stretch[data-char="E"],
+  .tw-text.mid .char.stretch[data-char="e"] {
+    transform: scaleX(1.35);
+    margin: 0 0.02em;
+  }
 
-/* circle wrapper keeps aspect ratio */
-.tw-circle-wrap {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
+  /* circle wrapper keeps aspect ratio */
+  .tw-circle-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
 
-/* the big circle area */
-.tw-circle {
-  width: calc(var(--logo-size) * 0.9);
-  height: calc(var(--logo-size) * 0.9);
-  background: var(--outer-color);
-  border-radius: 50%;
-  position: relative;
-  overflow: visible;
-  box-sizing: border-box;
-  /* create internal padding for cutouts */
-  margin-bottom: calc(var(--logo-size) * 0.02);
-}
+  /* the big circle area */
+  .tw-circle {
+    width: calc(var(--logo-size) * 0.9);
+    height: calc(var(--logo-size) * 0.9);
+    background: var(--outer-color);
+    border-radius: 50%;
+    position: relative;
+    overflow: visible;
+    box-sizing: border-box;
+    /* create internal padding for cutouts */
+    margin-bottom: calc(var(--logo-size) * 0.02);
+  }
 
-/* CROSS: built from blocks positioned inside circle */
-.tw-cross {
-  position: absolute;
-  left: 50%;
-  top: 10%;
-  transform: translateX(-50%);
-  width: 160px;
-  height: 300px;
-  pointer-events: none;
-}
+  /* CROSS: built from blocks positioned inside circle */
+  .tw-cross {
+    position: absolute;
+    left: 50%;
+    top: 10%;
+    transform: translateX(-50%);
+    width: 160px;
+    height: 300px;
+    pointer-events: none;
+  }
 
-/* vertical bar */
-.cross-vertical {
-  position: absolute;
-  left: 50%;
-  top: 18%;
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.035);
-  height: calc(var(--logo-size) * 0.38);
-  background: var(--cutout-color);
-  z-index: 3;
-  border-radius: 0;
-}
+  /* vertical bar */
+  .cross-vertical {
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.035);
+    height: calc(var(--logo-size) * 0.38);
+    background: var(--cutout-color);
+    z-index: 3;
+    border-radius: 0;
+  }
 
-/* horizontal bar across */
-.cross-horiz {
-  position: absolute;
-  left: 50%;
-  top: calc(18% + calc(var(--logo-size) * 0.09));
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.2);
-  height: calc(var(--logo-size) * 0.06);
-  background: var(--cutout-color);
-  z-index: 3;
-}
+  /* horizontal bar across */
+  .cross-horiz {
+    position: absolute;
+    left: 50%;
+    top: calc(18% + calc(var(--logo-size) * 0.09));
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.2);
+    height: calc(var(--logo-size) * 0.06);
+    background: var(--cutout-color);
+    z-index: 3;
+  }
 
-/* small top cap for the '3' block */
-.cross-cap {
-  position: absolute;
-  left: 50%;
-  top: calc(18% - calc(var(--logo-size) * 0.055));
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.06);
-  height: calc(var(--logo-size) * 0.06);
-  background: var(--cutout-color);
-  z-index: 3;
-}
+  /* small top cap for the '3' block */
+  .cross-cap {
+    position: absolute;
+    left: 50%;
+    top: calc(18% - calc(var(--logo-size) * 0.055));
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.06);
+    height: calc(var(--logo-size) * 0.06);
+    background: var(--cutout-color);
+    z-index: 3;
+  }
 
-/* verse text placed on top of cross (use dark color: outer color) */
-.verse {
-  font-family: "Arial", "Helvetica", sans-serif;
-  color: var(--outer-color);
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
-  text-align: center;
-  letter-spacing: 0.03em;
-}
+  /* verse text placed on top of cross (use dark color: outer color) */
+  .verse {
+    font-family: "Arial", "Helvetica", sans-serif;
+    color: var(--outer-color);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
 
-/* positions tuned to layout */
-.verse-top {
-  top: calc(18% - calc(var(--logo-size) * 0.04));
-  font-size: calc(var(--logo-size) * 0.04);
-  font-weight: 700;
-}
+  /* positions tuned to layout */
+  .verse-top {
+    top: calc(18% - calc(var(--logo-size) * 0.04));
+    font-size: calc(var(--logo-size) * 0.04);
+    font-weight: 700;
+  }
 
-.verse-mid {
-  top: calc(18% + calc(var(--logo-size) * 0.045));
-  font-size: calc(var(--logo-size) * 0.055);
-  font-weight: 800;
-}
+  .verse-mid {
+    top: calc(18% + calc(var(--logo-size) * 0.045));
+    font-size: calc(var(--logo-size) * 0.055);
+    font-weight: 800;
+  }
 
-.verse-v1 {
-  top: calc(18% + calc(var(--logo-size) * 0.115));
-  font-size: calc(var(--logo-size) * 0.04);
-  font-weight: 700;
-}
+  .verse-v1 {
+    top: calc(18% + calc(var(--logo-size) * 0.115));
+    font-size: calc(var(--logo-size) * 0.04);
+    font-weight: 700;
+  }
 
-.verse-v2 {
-  top: calc(18% + calc(var(--logo-size) * 0.155));
-  font-size: calc(var(--logo-size) * 0.04);
-  font-weight: 700;
-}
+  .verse-v2 {
+    top: calc(18% + calc(var(--logo-size) * 0.155));
+    font-size: calc(var(--logo-size) * 0.04);
+    font-weight: 700;
+  }
 
-/* WAVES: we simulate the two curved book waves using pseudo-elements with clip-paths */
-.tw-waves {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(18% + calc(var(--logo-size) * 0.18));
-  height: calc(var(--logo-size) * 0.16);
-  pointer-events: none;
-}
+  /* WAVES: we simulate the two curved book waves using pseudo-elements with clip-paths */
+  .tw-waves {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(18% + calc(var(--logo-size) * 0.18));
+    height: calc(var(--logo-size) * 0.16);
+    pointer-events: none;
+  }
 
-.wave {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--cutout-color);
-  width: calc(var(--logo-size) * 0.86);
-  height: 100%;
-  z-index: 2;
-}
+  .wave {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--cutout-color);
+    width: calc(var(--logo-size) * 0.86);
+    height: 100%;
+    z-index: 2;
+  }
 
-/* curved masks using clip-path polygons approximating the smooth curves */
-.wave-top {
-  top: -12%;
-  clip-path: path("M0.0 0.48 C 0.18 0.28, 0.34 0.25, 0.50 0.40 C 0.66 0.25, 0.82 0.28, 1.0 0.48 L 1.0 1.0 L 0.0 1.0 Z");
-  /* fallback polygon for browsers without path() */
-  /* polygon roughly approximate curve */
-  clip-path: polygon(0% 48%, 12% 36%, 24% 34%, 50% 40%, 76% 34%, 88% 36%, 100% 48%, 100% 100%, 0% 100%);
-}
+  /* curved masks using clip-path polygons approximating the smooth curves */
+  .wave-top {
+    top: -12%;
+    clip-path: path("M0.0 0.48 C 0.18 0.28, 0.34 0.25, 0.50 0.40 C 0.66 0.25, 0.82 0.28, 1.0 0.48 L 1.0 1.0 L 0.0 1.0 Z");
+    /* fallback polygon for browsers without path() */
+    /* polygon roughly approximate curve */
+    clip-path: polygon(0% 48%, 12% 36%, 24% 34%, 50% 40%, 76% 34%, 88% 36%, 100% 48%, 100% 100%, 0% 100%);
+  }
 
-.wave-mid {
-  top: 8%;
-  height: 84%;
-  clip-path: polygon(0% 52%, 12% 44%, 24% 42%, 50% 46%, 76% 42%, 88% 44%, 100% 52%, 100% 100%, 0% 100%);
-  transform-origin: center;
-  transform: translateX(-50%) scaleY(0.95);
-}
+  .wave-mid {
+    top: 8%;
+    height: 84%;
+    clip-path: polygon(0% 52%, 12% 44%, 24% 42%, 50% 46%, 76% 42%, 88% 44%, 100% 52%, 100% 100%, 0% 100%);
+    transform-origin: center;
+    transform: translateX(-50%) scaleY(0.95);
+  }
 
-/* FIGURES group - each figure is made from head circle and body shapes using clip-path and pseudo-elements */
-.tw-figures {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--logo-size) * 0.06);
-  height: calc(var(--logo-size) * 0.46);
-  display: flex;
-  justify-content: space-between;
-  padding: 0 calc(var(--logo-size) * 0.06);
-  box-sizing: border-box;
-  z-index: 2;
-}
+  /* FIGURES group - each figure is made from head circle and body shapes using clip-path and pseudo-elements */
+  .tw-figures {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--logo-size) * 0.06);
+    height: calc(var(--logo-size) * 0.46);
+    display: flex;
+    justify-content: space-between;
+    padding: 0 calc(var(--logo-size) * 0.06);
+    box-sizing: border-box;
+    z-index: 2;
+  }
 
-/* each figure is a container with pseudo-elements */
-.figure {
-  position: relative;
-  width: calc(var(--logo-size) * 0.14);
-  height: 100%;
-  display: block;
-  box-sizing: border-box;
-}
+  /* each figure is a container with pseudo-elements */
+  .figure {
+    position: relative;
+    width: calc(var(--logo-size) * 0.14);
+    height: 100%;
+    display: block;
+    box-sizing: border-box;
+  }
 
-/* head */
-.figure .head {
-  position: absolute;
-  top: 6%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.045);
-  height: calc(var(--logo-size) * 0.045);
-  background: var(--cutout-color);
-  border-radius: 50%;
-  z-index: 6;
-  box-shadow: 0 0 0 0 rgba(0,0,0,0);
-}
+  /* head */
+  .figure .head {
+    position: absolute;
+    top: 6%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.045);
+    height: calc(var(--logo-size) * 0.045);
+    background: var(--cutout-color);
+    border-radius: 50%;
+    z-index: 6;
+    box-shadow: 0 0 0 0 rgba(0,0,0,0);
+  }
 
-/* body — tall curved petal shapes using clip-path */
-.figure .body {
-  position: absolute;
-  bottom: 6%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.12);
-  height: calc(var(--logo-size) * 0.86);
-  background: var(--cutout-color);
-  clip-path: polygon(50% 0%, 85% 12%, 66% 100%, 34% 100%, 15% 12%);
-  z-index: 5;
-  /* make body thinner for center figures */
-}
+  /* body — tall curved petal shapes using clip-path */
+  .figure .body {
+    position: absolute;
+    bottom: 6%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.12);
+    height: calc(var(--logo-size) * 0.86);
+    background: var(--cutout-color);
+    clip-path: polygon(50% 0%, 85% 12%, 66% 100%, 34% 100%, 15% 12%);
+    z-index: 5;
+    /* make body thinner for center figures */
+  }
 
-/* arms (left & right triangles to simulate raised arms) */
-.figure .arm-left,
-.figure .arm-right {
-  position: absolute;
-  top: calc(var(--logo-size) * 0.10);
-  width: calc(var(--logo-size) * 0.06);
-  height: calc(var(--logo-size) * 0.4);
-  background: var(--cutout-color);
-  z-index: 5;
-  transform-origin: top center;
-  border-radius: 40% 40% 0 0;
-}
+  /* arms (left & right triangles to simulate raised arms) */
+  .figure .arm-left,
+  .figure .arm-right {
+    position: absolute;
+    top: calc(var(--logo-size) * 0.10);
+    width: calc(var(--logo-size) * 0.06);
+    height: calc(var(--logo-size) * 0.4);
+    background: var(--cutout-color);
+    z-index: 5;
+    transform-origin: top center;
+    border-radius: 40% 40% 0 0;
+  }
 
-/* left arm rotated outward */
-.figure .arm-left {
-  left: 12%;
-  transform: rotate(-26deg);
-  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-}
+  /* left arm rotated outward */
+  .figure .arm-left {
+    left: 12%;
+    transform: rotate(-26deg);
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  }
 
-/* right arm rotated outward */
-.figure .arm-right {
-  right: 12%;
-  transform: rotate(26deg);
-  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-}
+  /* right arm rotated outward */
+  .figure .arm-right {
+    right: 12%;
+    transform: rotate(26deg);
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  }
 
-/* Slight per-figure tuning to match original spacing */
-.figure.f1 .body { transform: translateX(-50%) scaleX(0.95); }
-.figure.f2 .body { transform: translateX(-50%) scaleX(0.98); }
-.figure.f3 .body { transform: translateX(-50%) scaleX(1.02); }
-.figure.f4 .body { transform: translateX(-50%) scaleX(0.98); }
-.figure.f5 .body { transform: translateX(-50%) scaleX(0.95); }
+  /* Slight per-figure tuning to match original spacing */
+  .figure.f1 .body { transform: translateX(-50%) scaleX(0.95); }
+  .figure.f2 .body { transform: translateX(-50%) scaleX(0.98); }
+  .figure.f3 .body { transform: translateX(-50%) scaleX(1.02); }
+  .figure.f4 .body { transform: translateX(-50%) scaleX(0.98); }
+  .figure.f5 .body { transform: translateX(-50%) scaleX(0.95); }
 
-.figure.f1 .head { left: 50%; }
-.figure.f5 .head { left: 50%; }
+  .figure.f1 .head { left: 50%; }
+  .figure.f5 .head { left: 50%; }
 
-/* center dividing petal / seam between bodies */
-.tw-petal {
-  position: absolute;
-  bottom: -2%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(var(--logo-size) * 0.12);
-  height: calc(var(--logo-size) * 0.72);
-  background: var(--cutout-color);
-  clip-path: polygon(50% 0%, 70% 6%, 62% 100%, 38% 100%, 30% 6%);
-  z-index: 6;
-}
+  /* center dividing petal / seam between bodies */
+  .tw-petal {
+    position: absolute;
+    bottom: -2%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(var(--logo-size) * 0.12);
+    height: calc(var(--logo-size) * 0.72);
+    background: var(--cutout-color);
+    clip-path: polygon(50% 0%, 70% 6%, 62% 100%, 38% 100%, 30% 6%);
+    z-index: 6;
+  }
 
-/* styling notes so the cutout appears inside the dark circle:
-   we keep the circle background dark and draw white shapes on top that align inside it.
-   Because everything is placed within the circle container, visually it appears as cutouts.
-*/
+  /* styling notes so the cutout appears inside the dark circle:
+    we keep the circle background dark and draw white shapes on top that align inside it.
+    Because everything is placed within the circle container, visually it appears as cutouts.
+  */
 
-/* Responsive: allow scaling of logo by changing --logo-size on container */
-@media (max-width: 480px) {
-  :root { --logo-size: 320px; }
-}
+  /* Responsive: allow scaling of logo by changing --logo-size on container */
+  @media (max-width: 480px) {
+    :root { --logo-size: 320px; }
+  }

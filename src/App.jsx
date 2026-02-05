@@ -69,46 +69,60 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/exams" element={<CBTExam />} />
             <Route path="/reset" element={<ResetPassword />} />
-            <Route path="/update-password" element={<UpdatePassword />} />
+            <Route path="/update" element={<UpdatePassword />} />
             <Route path="/dashboard" element={<Dashboard />}>
+
+            {/* general navigation */}
+             <Route path="profile" element={<Profile />} />
+             {/* general navigatio end */}
+
+             {/* school navigation */}
               <Route path="accept-requests" element={<AcceptRequests />} />
-              <Route path="profile" element={<Profile />} />
               <Route path="students" element={<StudentsList />} />
               <Route path="teachers" element={<TeacherList />} />
               <Route path="classsubject" element={<TeacherAssign />} />
-              <Route path="attendance" element={<TeacherAttendance />} />
               <Route path="attendanceQR" element={<FixedQRCode />} />
-              <Route path="a" element={<GuardianProfile />} />
-              <Route path="dependent" element={<CreateDependentChild/>}/>
-             <Route path="upgradestudent" element={<UpgradeManagedStudent/>}/> 
-             <Route path="Assignments" element={<TeacherSubjectsCard />} />
-              <Route path="notifications" element={<Aray />} />
-               <Route path="leaders" element={<GuardianClassRanking/>}/>
-              <Route path="studentAssignment" element={<StudentAssingnments />} />
-              <Route path="homework" element={<AssignmentPage />} />
-              <Route path="teachersExams" element={<TeachersExams />} />
-              <Route path="teachhersAsignment" element={<AssignmentHistory />} />
-              <Route path="teachersTests" element={<TeachersTests />} />
-              <Route path="GeneralAssignments" element={<GeneralAssignments />} />
-              <Route path="childshomework" element={<GuardianAssignment />} />
-              <Route path="monitorHomework" element={<Monitor />} />
-              <Route path="note-editor" element={<GuidedLessonEditor />} />
-              <Route path="asignmentRecord" element={<RecordAssignments />} />
-              <Route path="createArm" element={<DuplicateClassToArm/>} />
-              <Route path="notesave" element={<SaveNoteModal />} />
-              <Route path="school-inventory" element={<SchoolsInventory />} />
+               <Route path="bank-account-setup" element={<SchoolAccountSetup/>}/>
+               <Route path="fee-payments-structure" element={<SchoolFees/>}/>
               <Route path="school-dashboard" element={<SchoolDashboard />} />
-              <Route path="add-product" element={<AddInventoryPage />} />
-               <Route path="restock" element={<RestockPage/>} />
-               <Route path="place-order" element={<PlaceOrder/>} />
-                <Route path="cart" element={<CartPage/>}/>
-                <Route path="b427824287ww93u28y773e273g7gd73137g643824g7"element={<ReceiptPage/>}/>
-                <Route path="account-setup" element={<SchoolAccountSetup/>}/>
-                 <Route path="fee-payments-structure" element={<SchoolFees/>}/>
-                 <Route path="fee-payments" element={<GuardianFees/>}/>
-                 
+               <Route path="GeneralAssignments" element={<GeneralAssignments />} />
+              {/* teacher navigation end */}
 
-              
+              {/* teacher navigation */}
+              <Route path="attendance" element={<TeacherAttendance />} />
+              <Route path="assessment" element={<TeacherSubjectsCard />} />
+               <Route path="note-editor" element={<GuidedLessonEditor />} />
+              {/* teacher navigation end */}
+
+              {/* parents navigation */}
+               
+                <Route path="dependent" element={<CreateDependentChild/>}/>
+                 <Route path="leaders" element={<GuardianClassRanking/>}/>
+                 <Route path="monitorHomework" element={<Monitor />} />
+                  <Route path="fee-payments" element={<GuardianFees/>}/>
+                  <Route path="place-order" element={<PlaceOrder/>} />
+              {/* parent navigation end */}
+
+              {/* not for dashboard navigation */}
+              <Route path="notifications" element={<Aray />} />
+              <Route path="notifications" element={<Aray />} />
+               <Route path="teachhersAsignment" element={<AssignmentHistory />} />
+               <Route path="teachersExams" element={<TeachersExams />} />
+               <Route path="b427824287ww93u28y773e273g7gd73137g643824g7"element={<ReceiptPage/>}/>
+                 <Route path="cart" element={<CartPage/>}/>
+               <Route path="restock" element={<RestockPage/>} />
+                <Route path="add-product" element={<AddInventoryPage />} />
+                <Route path="createArm" element={<DuplicateClassToArm/>} />
+                <Route path="asignmentRecord" element={<RecordAssignments />} />
+              {/* not for dashboard navigation end */}
+ 
+             {/* hidden features  */}
+             <Route path="upgradestudent" element={<UpgradeManagedStudent/>}/> 
+             <Route path="studentAssignment" element={<StudentAssingnments />} />
+              <Route path="homework" element={<AssignmentPage />} />
+              <Route path="childshomework" element={<GuardianAssignment />} />
+               <Route path="a" element={<GuardianProfile />} />
+              {/* hidden features  end*/}  
             </Route>
 
           </Routes>

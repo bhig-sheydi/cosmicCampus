@@ -5,85 +5,81 @@ import { ListFilterIcon } from 'lucide-react';
 import AssignClassModal from '../components/CustomComponents/AssignClassModal';
 
 const StudentsList = () => {
-  const {userData, students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent  ,classSubject, setClassSubject , setFetchFlags } = useUser();
+  const { userData, students, setStudents, classes, userSchools, selectedStudent, setSelectedStudent, classSubject, setClassSubject, setFetchFlags } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClass, setSelectedClass] = useState(''); 
+  const [selectedClass, setSelectedClass] = useState('');
   const [selectedSchool, setSelectedSchool] = useState('');
   const [ageFilter, setAgeFilter] = useState({ operator: '', value: '' });
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
   const [currentStudentId, setCurrentStudentId] = useState(null);
   const [showAssignClassModal, setShowAssignClassModal] = useState(false);
-  
+  const [currentPage, setCurrentPage] = useState(1);
+  const studentsPerPage = 20;
+  const [totalStudents, setTotalStudents] = useState(0);
 
+  const [searchInput, setSearchInput] = useState('');
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 500); // Debounce by 0.5s
 
-const [currentPage, setCurrentPage] = useState(1);
-const studentsPerPage = 20;
-const [totalStudents, setTotalStudents] = useState(0);
-
-
-
-
-const [searchInput, setSearchInput] = useState('');
-useEffect(() => {
-  const delayDebounce = setTimeout(() => {
-    setSearchQuery(searchInput);
-    setCurrentPage(1); // Reset to first page on new search
-  }, 500); // Debounce by 0.5s
-
-  return () => clearTimeout(delayDebounce);
-}, [searchInput]);
+    return () => clearTimeout(delayDebounce);
+  }, [searchInput]);
 
 
   useEffect(() => {
-    setFetchFlags(prev => ({ ...prev, oneStudent: true ,userData: true , classes: true , students: true , userSchools: true ,classSubject: true})); // Set the flags to true
+    setFetchFlags(prev => ({ ...prev, oneStudent: true, userData: true, classes: true, students: true, userSchools: true, classSubject: true })); // Set the flags to true
   }, []);
 
 
 
 
   const fetchStudents = async (page = 1, search = '') => {
-  const offset = (page - 1) * studentsPerPage;
+    const offset = (page - 1) * studentsPerPage;
 
-  let query = supabase
-    .from('students')
-    .select(
-      `
-      *,
-      schools(name),
-      class(class_name)
-    `,
-      { count: 'exact' } // for total count
-    )
-    .eq('proprietor', userData.user_id)
-    .range(offset, offset + studentsPerPage - 1);
+    let query = supabase
+      .from('students')
+      .select(
+        `
+          *,
+          schools(name),
+          class(class_name),
+          arms(arm_name)
+          `,
+        { count: 'exact' }
+      )
 
-  if (search) {
-    query = query.ilike('student_name', `%${search}%`);
-  }
+      .eq('proprietor', userData.user_id)
+      .range(offset, offset + studentsPerPage - 1);
 
-  const { data, error, count } = await query;
+    if (search) {
+      query = query.ilike('student_name', `%${search}%`);
+    }
 
-  if (error) {
-    console.error('Error fetching students:', error);
-  } else {
-    setStudents(data);
-    setTotalStudents(count || 0);
-  }
-};
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching students:', error);
+    } else {
+      setStudents(data);
+      setTotalStudents(count || 0);
+    }
+  };
 
 
 
-  
+
   useEffect(() => {
-  if (userData?.user_id) {
-    fetchStudents(currentPage, searchQuery);
-  }
-}, [currentPage, searchQuery, userData]);
+    if (userData?.user_id) {
+      fetchStudents(currentPage, searchQuery);
+    }
+  }, [currentPage, searchQuery, userData]);
 
-  
+
   const schools = userSchools;
-  
+
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
   };
@@ -111,7 +107,7 @@ useEffect(() => {
   };
 
 
-  
+
   const updateStudentClass = async (studentId, newClassId) => {
     try {
       const { data, error } = await supabase
@@ -133,32 +129,30 @@ useEffect(() => {
     }
   };
 
-  const assignClassToStudent = async (studentId, newClassId) => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .update({ class_id: newClassId })
-        .eq('id', studentId);
+  const assignClassToStudent = async (studentId, classId, armId) => {
+    const { error } = await supabase
+      .from("students")
+      .update({
+        class_id: classId,
+        arm_id: armId
+      })
+      .eq("id", studentId);
 
-      if (error) throw error;
-
-      const updatedStudents = students.map((student) =>
-        student.id === studentId ? { ...student, class_id: newClassId } : student
-      );
-
-      setStudents(updatedStudents);
-      alert('Class assigned successfully!');
-      setShowAssignClassModal(false);
-    } catch (error) {
-      console.error('Error assigning class:', error);
-      alert('Failed to assign class. Please try again.');
+    if (error) {
+      alert(error.message);
+      return;
     }
+
+    alert("Class & arm assigned successfully!");
+    fetchStudents(currentPage, searchQuery);
+    setShowAssignClassModal(false);
   };
+
 
   const handleAssignClass = (studentId) => {
     setCurrentStudentId(studentId);
     setShowAssignClassModal(true);
-  
+
   };
 
 
@@ -192,7 +186,7 @@ useEffect(() => {
       (selectedSchool === '' || student.schools?.name === selectedSchool) &&
       applyAgeFilter(student.age)
   );
-  
+
 
   const deleteStudent = async (studentId) => {
     try {
@@ -215,20 +209,20 @@ useEffect(() => {
     <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-[100%]">
       <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-8 sm:mb-10 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
         Students List
-      </h1>    
-  
+      </h1>
+
       {/* Search Bar */}
       <div className="mb-4 sm:mb-6 flex items-center justify-center">
-<input
-  type="text"
-  placeholder="Search by name..."
-  value={searchInput}
-  onChange={(e) => setSearchInput(e.target.value)}
-  className="w-[80%] px-3 py-2 sm:px-4 sm:py-2 border rounded-md shadow-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-/>
+        <input
+          type="text"
+          placeholder="Search by name..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="w-[80%] px-3 py-2 sm:px-4 sm:py-2 border rounded-md shadow-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
+        />
 
       </div>
-  
+
       {/* Filter and Dropdown */}
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4 sm:mb-6  pl-32">
         <div className="relative">
@@ -271,7 +265,7 @@ useEffect(() => {
                   </select>
                 )}
               </div>
-  
+
               {/* School Filter */}
               <div className="mb-4">
                 <label className="block font-semibold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
@@ -293,7 +287,7 @@ useEffect(() => {
                   ))}
                 </select>
               </div>
-  
+
               {/* Age Filter */}
               <div>
                 <label className="block font-semibold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
@@ -327,7 +321,7 @@ useEffect(() => {
           )}
         </div>
       </div>
-  
+
       {/* Table */}
       <div className=" sm:w-100px overflow-hidden xl:w-full lg-w-full">
         <table className="min-w-full border-collapse border rounded-lg shadow-lg dark:border-gray-700 overflow-x-scroll">
@@ -340,8 +334,12 @@ useEffect(() => {
                 School
               </th>
               <th className="border px-4 py-2 text-left dark:border-gray-700">
-                Class ID
+                Class
               </th>
+              <th className="border px-4 py-2 text-left dark:border-gray-700">
+                Arm
+              </th>
+
               <th className="border px-4 py-2 text-left dark:border-gray-700">
                 Payment Status
               </th>
@@ -357,25 +355,28 @@ useEffect(() => {
             {filteredStudents.length > 0 ? (
               filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 dark:hover:bg-gray-700">
-                <td
-                  className="border px-4 py-2 cursor-pointer"
-                  onClick={() => handleStudentClick(student)}
-                >
-                  {student.student_name}
-                </td>
-                
+                  <td
+                    className="border px-4 py-2 cursor-pointer"
+                    onClick={() => handleStudentClick(student)}
+                  >
+                    {student.student_name}
+                  </td>
+
                   <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
                     {student.schools?.name || 'N/A'}
                   </td>
                   <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
                     {student?.class?.class_name || 'N/A'}
                   </td>
+                  <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
+                    {student.arms?.arm_name || 'N/A'}
+                  </td>
+
                   <td
-                    className={`border px-4 py-2 font-semibold dark:border-gray-700 ${
-                      student.is_paid
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-500 dark:text-red-400'
-                    }`}
+                    className={`border px-4 py-2 font-semibold dark:border-gray-700 ${student.is_paid
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-500 dark:text-red-400'
+                      }`}
                   >
                     {student.is_paid ? 'Paid' : 'Not Paid'}
                   </td>
@@ -383,24 +384,24 @@ useEffect(() => {
                     {student.age}
                   </td>
                   <td className="border px-4 py-2 dark:border-gray-700">
-                  <button
-                    onClick={() => promoteStudent(student)}
-                    className="bg-green-500 text-white px-2 py-1 rounded-md shadow hover:bg-green-600"
-                  >
-                    Promote
-                  </button>
-                  <button
-                    onClick={() => demoteStudent(student)}
-                    className="bg-yellow-500 text-white px-2 py-1 rounded-md shadow hover:bg-yellow-600 mx-2"
-                  >
-                    Demote
-                  </button>
-                  <button
-                    onClick={() => handleAssignClass(student?.id)}
-                    className="bg-blue-500 text-white px-2 py-1 rounded-md shadow hover:bg-blue-600"
-                  >
-                    Assign Class
-                  </button>
+                    <button
+                      onClick={() => promoteStudent(student)}
+                      className="bg-green-500 text-white px-2 py-1 rounded-md shadow hover:bg-green-600"
+                    >
+                      Promote
+                    </button>
+                    <button
+                      onClick={() => demoteStudent(student)}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded-md shadow hover:bg-yellow-600 mx-2"
+                    >
+                      Demote
+                    </button>
+                    <button
+                      onClick={() => handleAssignClass(student?.id)}
+                      className="bg-blue-500 text-white px-2 py-1 rounded-md shadow hover:bg-blue-600"
+                    >
+                      Assign Class
+                    </button>
                     <button
                       onClick={() => deleteStudent(student.id)}
                       className="bg-red-500 ml-2 text-white px-2 py-1 rounded-md shadow-lg hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
@@ -411,8 +412,8 @@ useEffect(() => {
 
 
 
-                    
-                    
+
+
                   </td>
                 </tr>
               ))
@@ -426,135 +427,134 @@ useEffect(() => {
           </tbody>
         </table>
 
-              {/* Assign Class Modal */}
-       {/* Info Card */}
-    {selectedStudent && (
-      <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-[90%] max-w-md">
-          {/* Profile Picture */}
-          <div className="flex justify-center mb-4">
-            <img
-              src={selectedStudent.student_picture|| '/default-avatar.png'}
-              alt={`${selectedStudent.student_name}'s profile`}
-              className="w-24 h-24 rounded-full object-cover border-2 border-purple-500"
-            />
-          </div>
-          {/* Student Details */}
-          <h2 className="text-lg font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-            {selectedStudent.student_name}
-          </h2>
-          <p className="mb-2">
-            <strong>School:</strong> {selectedStudent.schools?.name || 'N/A'}
-          </p>
-          <p className="mb-2">
-            <strong>Class:</strong> {selectedStudent.class?.class_name || 'N/A'}
-          </p>
-          <p className="mb-2">
-            <strong>Age:</strong> {selectedStudent.age}
-          </p>
-          <p className="mb-4">
-            <strong>Subjects:</strong>
-            <ul className="list-disc list-inside mt-2">
-  {Array.isArray(classSubject) && selectedStudent?.class_id && (
-  <ul className="list-disc list-inside mt-2">
-    {classSubject
-      .filter((subject) => subject?.class_id === selectedStudent?.class_id)
-      .map((subject, index) => (
-        <li key={index}>{subject?.subjects?.subject_name}</li>
-      ))}
-  </ul>
-)}
-
-            </ul>
-          </p>
-          {/* Close Button */}
-          <div className="flex justify-end gap-4">
-            <button
-              onClick={closeInfoCard}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 rounded-lg"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-       
-        {/* Student Info Card */}
+        {/* Assign Class Modal */}
+        {/* Info Card */}
         {selectedStudent && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
-            <button
-              onClick={() => setSelectedStudent(null)}
-              className="text-red-500 absolute top-4 right-4 text-xl font-bold"
-            >
-              &times;
-            </button>
-            <div className="text-center">
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-[90%] max-w-md">
               {/* Profile Picture */}
-              <img
-                src={selectedStudent.student_picture || '/default-profile.png'}
-                alt={`${selectedStudent.student_name}'s profile`}
-                className="w-32 h-32 rounded-full mx-auto mb-4"
-              />
-              {/* Student Information */}
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+              <div className="flex justify-center mb-4">
+                <img
+                  src={selectedStudent.student_picture || '/default-avatar.png'}
+                  alt={`${selectedStudent.student_name}'s profile`}
+                  className="w-24 h-24 rounded-full object-cover border-2 border-purple-500"
+                />
+              </div>
+              {/* Student Details */}
+              <h2 className="text-lg font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
                 {selectedStudent.student_name}
               </h2>
-              <p className="text-gray-600 dark:text-gray-300">{selectedStudent.schools?.name || 'N/A'}</p>
-              <p className="text-gray-600 dark:text-gray-300">Class: {selectedStudent.class?.class_name || 'N/A'}</p>
-              <p className="text-gray-600 dark:text-gray-300">Age: {selectedStudent.age}</p>
-              <p
-                className={`font-semibold ${
-                  selectedStudent.is_paid ? 'text-green-500' : 'text-red-500'
-                }`}
-              >
-                {selectedStudent.is_paid ? 'Paid' : 'Not Paid'}
+              <p className="mb-2">
+                <strong>School:</strong> {selectedStudent.schools?.name || 'N/A'}
               </p>
+              <p className="mb-2">
+                <strong>Class:</strong> {selectedStudent.class?.class_name || 'N/A'}
+              </p>
+              <p className="mb-2">
+                <strong>Age:</strong> {selectedStudent.age}
+              </p>
+              <p className="mb-4">
+                <strong>Subjects:</strong>
+                <ul className="list-disc list-inside mt-2">
+                  {Array.isArray(classSubject) && selectedStudent?.class_id && (
+                    <ul className="list-disc list-inside mt-2">
+                      {classSubject
+                        .filter((subject) => subject?.class_id === selectedStudent?.class_id)
+                        .map((subject, index) => (
+                          <li key={index}>{subject?.subjects?.subject_name}</li>
+                        ))}
+                    </ul>
+                  )}
+
+                </ul>
+              </p>
+              {/* Close Button */}
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={closeInfoCard}
+                  className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
+        )}
+
+
+        {/* Student Info Card */}
+        {selectedStudent && (
+          <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
+              <button
+                onClick={() => setSelectedStudent(null)}
+                className="text-red-500 absolute top-4 right-4 text-xl font-bold"
+              >
+                &times;
+              </button>
+              <div className="text-center">
+                {/* Profile Picture */}
+                <img
+                  src={selectedStudent.student_picture || '/default-profile.png'}
+                  alt={`${selectedStudent.student_name}'s profile`}
+                  className="w-32 h-32 rounded-full mx-auto mb-4"
+                />
+                {/* Student Information */}
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  {selectedStudent.student_name}
+                </h2>
+                <p className="text-gray-600 dark:text-gray-300">{selectedStudent.schools?.name || 'N/A'}</p>
+                <p className="text-gray-600 dark:text-gray-300">Class: {selectedStudent.class?.class_name || 'N/A'}</p>
+                <p className="text-gray-600 dark:text-gray-300">Age: {selectedStudent.age}</p>
+                <p
+                  className={`font-semibold ${selectedStudent.is_paid ? 'text-green-500' : 'text-red-500'
+                    }`}
+                >
+                  {selectedStudent.is_paid ? 'Paid' : 'Not Paid'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        <div>
+          {
+            showAssignClassModal && (
+              <>
+                <AssignClassModal classes={classes} assignClassToStudent={assignClassToStudent} currentStudentId={currentStudentId} />
+
+
+
+              </>
+            )
+          }
         </div>
-      )}
-             <div>
-               {
-                 showAssignClassModal && (
-                  <>
-                    <AssignClassModal classes={classes} assignClassToStudent={assignClassToStudent} currentStudentId={currentStudentId}/>
 
-                    
-                  
-                  </>
-                 )
-               }
-             </div>
-
-                   <div className="flex justify-center mt-4">
-  <button
-    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-    disabled={currentPage === 1}
-    className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
-  >
-    Previous
-  </button>
-  <span className="mx-2">{currentPage}</span>
-  <button
-    onClick={() => setCurrentPage((prev) => prev + 1)}
-    disabled={currentPage * studentsPerPage >= totalStudents}
-    className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
-  >
-    Next
-  </button>
-</div>
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
+          >
+            Previous
+          </button>
+          <span className="mx-2">{currentPage}</span>
+          <button
+            onClick={() => setCurrentPage((prev) => prev + 1)}
+            disabled={currentPage * studentsPerPage >= totalStudents}
+            className="mx-2 px-4 py-2 border rounded bg-blue-500 text-white"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
 
-     
+
     </div>
   );
-  
-  
-  
+
+
+
 };
 
 export default StudentsList;

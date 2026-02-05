@@ -249,25 +249,65 @@ useEffect(() => {
 
   fetchRoles();
 }, []);
-
-  // Fetch schools from the 'schools' table
+// fetch school start
 useEffect(() => {
-  if (fetchFlags.schools === true) {
-    const fetchSchools = async () => {
-      console.log('Fetching schools...');
-      const { data, error } = await supabase.from('schools').select('*');
-      if (error) {
-        console.error('Error fetching schools:', error);
-      } else {
-        console.log('Schools fetched:', data);
-        setSchools(data);
+  if (!fetchFlags.schools) return;
+
+  // 1) Fetch schools once
+  const fetchSchools = async () => {
+    console.log('Fetching schools...');
+    const { data, error } = await supabase
+      .from('schools')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching schools:', error);
+    } else {
+      console.log('Schools fetched:', data);
+      setSchools(data);
+    }
+  };
+
+  fetchSchools();
+
+  // 2) Realtime subscription for schools table
+  const channel = supabase
+    .channel('realtime-schools')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'schools',
+      },
+      (payload) => {
+        setSchools(prev => {
+          if (payload.eventType === 'INSERT') {
+            return [...prev, payload.new];
+          }
+
+          if (payload.eventType === 'UPDATE') {
+            return prev.map(s =>
+              s.id === payload.new.id ? { ...s, ...payload.new } : s
+            );
+          }
+
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(s => s.id !== payload.old.id);
+          }
+
+          return prev;
+        });
       }
-    };
+    )
+    .subscribe();
 
-    fetchSchools();
-  }
+  // 3) Cleanup subscription
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }, [fetchFlags.schools]);
-
+// fetch school  end
 
 
 useEffect(() => {
@@ -352,42 +392,85 @@ useEffect(() => {
 
   
 
- useEffect(() => {
-  if (fetchFlags.classSubject === true) {
-    const fetchClassSubs = async () => {
-      if (!userData?.user_id || !selectedStudent?.class_id) {
-        console.warn('Missing userData or selectedStudent, skipping fetch.');
-        return;
-      }
+useEffect(() => {
+  if (!fetchFlags.classSubject) return;
+  if (!userData?.user_id || !selectedStudent?.class_id) return;
 
-      console.log('Fetching class subjects...');
-      const { data, error } = await supabase
-        .from('class_subjects')
-        .select(`
-          *,
-          subjects (
-            subject_name
-          ),
-          profiles (
-            user_id
-          )
-        `)
-        .match({
-          proprietor_id: userData.user_id,
-          class_id: selectedStudent.class_id,
+  // 1) Fetch class subjects for selected class
+  const fetchClassSubs = async () => {
+    console.log('Fetching class subjects...');
+    const { data, error } = await supabase
+      .from('class_subjects')
+      .select(`
+        id,
+        class_id,
+        subject_id,
+        proprietor_id,
+        subjects ( subject_name ),
+        profiles ( user_id )
+      `)
+      .match({
+        proprietor_id: userData.user_id,
+        class_id: selectedStudent.class_id,
+      });
+
+    if (error) {
+      console.error('Error fetching class subjects:', error);
+    } else {
+      setClassSubject(data);
+    }
+  };
+
+  fetchClassSubs();
+
+  // 2) Scoped realtime subscription (VERY IMPORTANT)
+  const channel = supabase
+    .channel(
+      `class-subjects-${userData.user_id}-${selectedStudent.class_id}`
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'class_subjects',
+        filter: `proprietor_id=eq.${userData.user_id},class_id=eq.${selectedStudent.class_id}`,
+      },
+      (payload) => {
+        setClassSubject(prev => {
+          // INSERT
+          if (payload.eventType === 'INSERT') {
+            return [...prev, payload.new];
+          }
+
+          // UPDATE
+          if (payload.eventType === 'UPDATE') {
+            return prev.map(cs =>
+              cs.id === payload.new.id ? { ...cs, ...payload.new } : cs
+            );
+          }
+
+          // DELETE
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(cs => cs.id !== payload.old.id);
+          }
+
+          return prev;
         });
-
-      if (error) {
-        console.error('Error fetching class subjects:', error);
-      } else {
-        console.log('Class subjects fetched:', data);
-        setClassSubject(data);
       }
-    };
+    )
+    .subscribe();
 
-    fetchClassSubs();
-  }
-}, [fetchFlags.classSubject, userData, selectedStudent]);
+  // 3) Cleanup when class changes
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [
+  fetchFlags.classSubject,
+  userData?.user_id,
+  selectedStudent?.class_id,
+]);
+
 
   
 
@@ -475,39 +558,73 @@ useEffect(() => {
   }
 }, [fetchFlags.userSchools , userData]);
 
+// Fetch students with a join on the 'schools' table to get school names
+const fetchStudents = async () => {
+  const { data, error } = await supabase
+    .from('students')
+    .select(`
+      id,
+      student_name,
+      age,
+      is_paid,
+      class_id,
+      school_id,
+      schools ( name ),
+      class ( class_name )
+    `)
+    .eq('proprietor', userData.user_id)
+    .order('created_at', { ascending: false })
+    .limit(20);
 
-  // Fetch students with a join on the 'schools' table to get school names
+  if (!error) setStudents(data);
+};
 useEffect(() => {
-  if (fetchFlags.students === true && userData?.user_id) {
-    const fetchStudents = async () => {
-      console.log('Fetching up to 20 students with school names...');
-      const { data, error } = await supabase
-        .from('students')
-        .select(
-          `
-          *,
-          schools (
-            name
-          ),
-          class (
-            class_name
-          )
-        `
-        )
-        .eq('proprietor', userData.user_id)
-        .limit(20); // Only fetch 20 records
+  if (!userData?.user_id || !fetchFlags.students) return;
 
-      if (error) {
-        console.error('Error fetching students:', error);
-      } else {
-        console.log('Students fetched:', data);
-        setStudents(data);
+  fetchStudents();
+
+  const channel = supabase
+    .channel(`students-${userData.user_id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'students',
+        filter: `proprietor=eq.${userData.user_id}`,
+      },
+      async payload => {
+        setStudents(prev => {
+          // INSERT
+          if (payload.eventType === 'INSERT') {
+            if (prev.length >= 20) return prev;
+            return [payload.new, ...prev];
+          }
+
+          // UPDATE
+          if (payload.eventType === 'UPDATE') {
+            return prev.map(s =>
+              s.id === payload.new.id ? { ...s, ...payload.new } : s
+            );
+          }
+
+          // DELETE
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(s => s.id !== payload.old.id);
+          }
+
+          return prev;
+        });
       }
-    };
+    )
+    .subscribe();
 
-    fetchStudents();
-  }
-}, [fetchFlags.students, userData]);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userData?.user_id, fetchFlags.students]);
+// fetch student  end 
+
 
 
 
@@ -561,26 +678,65 @@ useEffect(() => {
   }
 }, [fetchFlags.requests, userData]);
 
-
-  // Fetch classes from the 'class' table
+// fetch class starts here 
 useEffect(() => {
-  if (fetchFlags.classes === true) {
-    const fetchClasses = async () => {
-      console.log('Fetching classes...');
-      const { data, error } = await supabase
-        .from('class')
-        .select('*');
-      if (error) {
-        console.error('Error fetching classes:', error);
-      } else {
-        console.log('Classes fetched:', data);
-        setClasses(data);
-      }
-    };
+  if (!fetchFlags.classes) return;
 
-    fetchClasses();
-  }
+  // 1) Fetch classes once
+  const fetchClasses = async () => {
+    console.log('Fetching classes...');
+    const { data, error } = await supabase
+      .from('class')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching classes:', error);
+    } else {
+      console.log('Classes fetched:', data);
+      setClasses(data);
+    }
+  };
+
+  fetchClasses();
+
+  // 2) Subscribe to realtime changes on the 'class' table
+  const channel = supabase
+    .channel('realtime-classes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'class',
+      },
+      (payload) => {
+        setClasses(prev => {
+          if (payload.eventType === 'INSERT') {
+            return [...prev, payload.new];
+          }
+
+          if (payload.eventType === 'UPDATE') {
+            return prev.map(c =>
+              c.id === payload.new.id ? { ...c, ...payload.new } : c
+            );
+          }
+
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(c => c.id !== payload.old.id);
+          }
+
+          return prev;
+        });
+      }
+    )
+    .subscribe();
+
+  // 3) Clean up subscription
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }, [fetchFlags.classes]);
+// fetchclas ends 
 
 
 

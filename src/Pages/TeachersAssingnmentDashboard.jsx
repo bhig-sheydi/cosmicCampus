@@ -216,31 +216,58 @@ const TeacherSubjectsCard = () => {
   }, []);
 
 
-  useEffect(() => {
-    const fetchClasses = async () => {
-      if (selectedSubjectId) {
-        const { data, error } = await supabase
-          .from("class_subjects")
-          .select(`
-            id,
-            class:class_id (
-              class_id,
-              class_name
-            )
-          `)
-          .eq("subject_id", selectedSubjectId);
+useEffect(() => {
+  const fetchClassArms = async () => {
+    if (!selectedSubjectId) return;
 
-        if (!error) {
-          setClassesForSubject(data);
-        } else {
-          console.error("Error fetching classes:", error);
-          setClassesForSubject([]);
-        }
-      }
-    };
-    fetchClasses();
+    const { data, error } = await supabase
+  .from("class_subjects")
+  .select(`
+    id,
+    class:class_id (
+      class_id,
+      class_name
+    ),
+    arm:arm_id (
+      arm_id,
+      arm_name
+    )
+  `)
+  .eq("subject_id", selectedSubjectId)
+  .eq("proprietor_id", teacher[0]?.teacher_proprietor) // ✅ limit to teacher's proprietor
+  .not("arm_id", "is", null);
 
-  }, [selectedSubjectId]);
+    if (error) {
+      console.error("❌ Error fetching class arms:", error);
+      setClassesForSubject([]);
+      return;
+    }
+
+    // Map only the arms that actually have this subject
+    const flattened = data.map(item => ({
+      id: item.id,
+      class_id: item.class.class_id,
+      class_name: item.class.class_name,
+      arm_id: item.arm.arm_id,
+      arm_name: item.arm.arm_name,
+    }));
+
+    // Optional: dedupe in case the same arm shows twice for some reason
+    const uniqueFlattened = flattened.filter(
+      (v, i, a) =>
+        a.findIndex(
+          t => t.class_id === v.class_id && t.arm_id === v.arm_id
+        ) === i
+    );
+
+    setClassesForSubject(uniqueFlattened);
+  };
+
+  fetchClassArms();
+}, [selectedSubjectId]);
+
+
+
 
 
 
@@ -257,8 +284,10 @@ const TeacherSubjectsCard = () => {
     setSearchTerm("");
   };
 
-  const filteredClasses = classesForSubject.filter(({ class: cls }) =>
-    cls.class_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredClasses = classesForSubject.filter(item =>
+    `${item.class_name} ${item.arm_name}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   const openHomeworkModal = (cls) => {
@@ -344,7 +373,9 @@ const TeacherSubjectsCard = () => {
 
     setIsSubmitting(true);
 
-    const class_id = homeworkModal.class.class_id;
+    const class_id = homeworkModal.class_id;
+    const arm_id = homeworkModal.arm_id;
+
     const school_id = teacher[0]?.teacher_school;
     const teacher_id = userData.user_id;
 
@@ -491,31 +522,35 @@ const TeacherSubjectsCard = () => {
 
             <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {filteredClasses.length > 0 ? (
-                filteredClasses.map(({ class: cls }, index) => (
+                filteredClasses.map((item, index) => (
                   <li
                     key={index}
                     className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 p-3 rounded-md"
                   >
                     <div className="flex flex-col gap-2">
-                      <span className="font-semibold">{cls.class_name}</span>
+                      {/* Show Class + Arm */}
+                      <span className="font-semibold">
+                        {item.class_name} — {item.arm_name}
+                      </span>
+
                       <div className="flex gap-2 flex-wrap">
                         <button
                           className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
-                          onClick={() => openTestModal(cls)}
+                          onClick={() => openTestModal(item)}
                         >
                           Set Test
                         </button>
 
                         <button
                           className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-                          onClick={() => openExamModal(cls)}
+                          onClick={() => openExamModal(item)}
                         >
                           Set Exam
                         </button>
 
                         <button
                           className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
-                          onClick={() => openHomeworkModal(cls)}
+                          onClick={() => openHomeworkModal(item)}
                         >
                           Set Homework
                         </button>
@@ -527,6 +562,7 @@ const TeacherSubjectsCard = () => {
                 <p className="text-gray-500 dark:text-gray-400">No classes found.</p>
               )}
             </ul>
+
 
             <div className="flex justify-end mt-6">
               <button
