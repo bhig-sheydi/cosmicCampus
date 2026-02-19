@@ -8,6 +8,12 @@ import {
   Search,
   Users,
   CheckCheckIcon,
+  Wallet,
+  Trophy,
+  Eye,
+  BookOpen,
+  ShoppingCart,
+  User
 } from "lucide-react";
 import { BookUserIcon } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
@@ -119,44 +125,88 @@ export function Dashboard() {
             {/* ---- Teacher (role_id === 3) ---- */}
             {roleId === 3 && (
 
-              
-              <Link
-                to="/dashboard/attendance"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
-              >
-                <CheckCheckIcon />
-                Attendance
-              </Link>,
+              <>
+                <Link
+                  to="/dashboard/attendance"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <CheckCheckIcon />
+                  Attendance
+                </Link>
 
-                  <Link
-                to="/dashboard/assessment"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
-              >
-                <CheckCheckIcon />
-                Create Assessment
-              </Link>
+                <Link
+                  to="/dashboard/assessment"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <CheckCheckIcon />
+                  Create Assessment
+                </Link>
+
+
+                <Link
+                  to="/dashboard/note-editor"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <CheckCheckIcon />
+                  Create note
+                </Link>
+              </>
             )}
 
             {/* ---- Guardian (role_id === 4) ---- */}
             {roleId === 4 && (
               <>
+                {/* Dependents */}
                 <Link
                   to="/dashboard/dependent"
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
                 >
                   <Users className="h-4 w-4" />
-                  Dependents
+                  Create child account
                 </Link>
 
+                {/* Fee Payments */}
                 <Link
                   to="/dashboard/fee-payments"
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
                 >
-                  <LineChart className="h-4 w-4" />
-                  Fees
+                  <Wallet className="h-4 w-4" />
+                  Fee Payments
                 </Link>
+
+                {/* Class Ranking / Leaders */}
+                <Link
+                  to="/dashboard/leaders"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Class Ranking
+                </Link>
+
+                {/* Monitor Homework */}
+
+                {/* Child Assignments */}
+                <Link
+                  to="/dashboard/childshomework"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <Eye className="h-4 w-4" />
+                  Monitor Homework
+                </Link>
+
+                {/* Place Order */}
+                <Link
+                  to="/dashboard/place-order"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  Place Order
+                </Link>
+
+
               </>
             )}
+
           </div>
 
           {/* Upgrade */}
@@ -201,11 +251,88 @@ export function Dashboard() {
                       <Link to="/dashboard/teachers">Teachers</Link>
                     </>
                   )}
-                  {roleId === 3 && <Link to="/dashboard/attendance">Attendance</Link>}
+                  {roleId === 3 && (
+                    <>
+                      <Link to="/dashboard/attendance"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+
+
+                      >
+                        <CheckCheckIcon />
+                        Attendance
+
+                      </Link>
+
+                      <Link
+                        to="/dashboard/assessment"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <CheckCheckIcon />
+                        Create Assessment
+                      </Link>
+
+
+                      <Link
+                        to="/dashboard/note-editor"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <CheckCheckIcon />
+                        Create note
+                      </Link>
+
+                    </>
+
+                  )}
                   {roleId === 4 && (
                     <>
-                      <Link to="/dashboard/dependent">Dependents</Link>
-                      <Link to="/dashboard/fee-payments">Fees</Link>
+                      {/* Dependents */}
+                      <Link
+                        to="/dashboard/dependent"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <Users className="h-4 w-4" />
+                        Create child account
+                      </Link>
+
+                      {/* Fee Payments */}
+                      <Link
+                        to="/dashboard/fee-payments"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <Wallet className="h-4 w-4" />
+                        Fee Payments
+                      </Link>
+
+                      {/* Class Ranking / Leaders */}
+                      <Link
+                        to="/dashboard/leaders"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <Trophy className="h-4 w-4" />
+                        Class Ranking
+                      </Link>
+
+                      {/* Monitor Homework */}
+
+                      {/* Child Assignments */}
+                      <Link
+                        to="/dashboard/childshomework"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Monitor Homework
+                      </Link>
+
+                      {/* Place Order */}
+                      <Link
+                        to="/dashboard/place-order"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        Place Order
+                      </Link>
+
+
                     </>
                   )}
                 </>

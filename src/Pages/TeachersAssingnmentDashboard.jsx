@@ -11,9 +11,13 @@ const TeacherSubjectsCard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [homeworkModal, setHomeworkModal] = useState(null);
   const [subjectClassesCache, setSubjectClassesCache] = useState({});
-  const [questions, setQuestions] = useState([
+  const [selectedArms, setSelectedArms] = useState([]);
+
+  const defaultQuestion = [
     { type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }
-  ]);
+  ];
+  const [questions, setQuestions] = useState(defaultQuestion);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorModal, setErrorModal] = useState(null);
   const [examModal, setExamModal] = useState(null);
@@ -23,23 +27,18 @@ const TeacherSubjectsCard = () => {
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const navigate = useNavigate();
 
-
-
   const submitTest = async () => {
     if (!testModal || !teacher) return;
-
     const error = validateTest();
     if (error) {
       setErrorModal(error);
       return;
     }
-
     setIsSubmitting(true);
 
-    const class_id = testModal.class.class_id;
+    const class_id = testModal.class_id;
     const school_id = teacher[0]?.teacher_school;
     const teacher_id = userData.user_id;
-
     const totalMarks = questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0);
 
     try {
@@ -51,8 +50,9 @@ const TeacherSubjectsCard = () => {
           teacher_id,
           school_id,
           subject_id: selectedSubjectId,
-          test_title: testTitle.trim() || `Test for ${testModal.class.class_name}`,
-          proprietor_id: teacher[0]?.teacher_proprietor || "Unknown",
+          test_title: testTitle.trim() || `Test for ${testModal.class_name}`,
+          proprietor_id: teacher[0]?.teacher_proprietor ?? null,
+
           total_marks: totalMarks,
         })
         .select("id")
@@ -66,6 +66,19 @@ const TeacherSubjectsCard = () => {
 
       const test_id = testData.id;
 
+      const armPayload = selectedArms.map(armId => ({
+        test_id,
+        arm_id: armId
+      }));
+
+      const { error: armInsertError } = await supabase.from("test_arms").insert(armPayload);
+
+
+      if (armInsertError) {
+        setErrorModal("Failed to link test to arm.");
+        setIsSubmitting(false);
+        return;
+      }
       // Prepare test question payload
       const questionPayload = questions.map(q => ({
         test_id,
@@ -94,15 +107,21 @@ const TeacherSubjectsCard = () => {
   };
 
   const openTestModal = (cls) => {
-    setTestModal({ class: cls });
+    setQuestions([{ type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+    setTestModal(cls);
+    setSelectedArms([cls.arm_id])
   };
+
 
   const closeTestModal = () => {
     setTestModal(null);
-    setQuestions([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+    setQuestions([
+      { type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }
+    ]);
     setTestTitle("");
-  };
+    setSelectedArms([]);
 
+  };
 
   const validateTest = () => {
     for (let i = 0; i < questions.length; i++) {
@@ -119,6 +138,15 @@ const TeacherSubjectsCard = () => {
   };
 
 
+  const deleteQuestion = (index) => {
+    // Prevent deleting the last remaining question
+    if (questions.length === 1) return;
+
+    const updated = questions.filter((_, i) => i !== index);
+    setQuestions(updated);
+  };
+
+
   const submitExam = async () => {
     if (!examModal || !teacher) return;
 
@@ -127,13 +155,11 @@ const TeacherSubjectsCard = () => {
       setErrorModal(error);
       return;
     }
-
     setIsSubmitting(true);
 
-    const class_id = examModal.class.class_id;
+    const class_id = examModal.class_id;
     const school_id = teacher[0]?.teacher_school;
     const teacher_id = userData.user_id;
-
     const totalMarks = questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0);
 
     try {
@@ -145,8 +171,8 @@ const TeacherSubjectsCard = () => {
           teacher_id,
           school_id,
           subject_id: selectedSubjectId,
-          exam_title: examTitle.trim() || `Exam for ${examModal.class.class_name}`,
-          proprietor_id: teacher[0]?.teacher_proprietor || "Unknown",
+          exam_title: examTitle.trim() || `Exam for ${examModal.class_name}`,
+          proprietor_id: teacher[0]?.teacher_proprietor ?? null,
           total_marks: totalMarks,
         })
         .select("id")
@@ -157,9 +183,23 @@ const TeacherSubjectsCard = () => {
         setIsSubmitting(false);
         return;
       }
-
       const exam_id = examData.id;
+      const armPayload = selectedArms.map(armId => ({
+        exam_id,
+        arm_id: armId
+      }));
 
+      const { error: armInsertError } = await supabase
+        .from("exam_arms")
+        .insert(armPayload);
+
+
+
+      if (armInsertError) {
+        setErrorModal("Failed to link exam to arm.");
+        setIsSubmitting(false);
+        return;
+      }
       // Prepare question payload
       const questionPayload = questions.map(q => ({
         exam_id,
@@ -187,24 +227,29 @@ const TeacherSubjectsCard = () => {
     }
   };
 
-
-
-
-
-
-
-
-
   const openExamModal = (cls) => {
-    setExamModal({ class: cls });
+    setQuestions([{ type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+    setExamModal(cls);
+    setSelectedArms([cls.arm_id]);
   };
+
 
   const closeExamModal = () => {
     setExamModal(null);
-    setQuestions([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
-    setExamTitle("");
-  };
+    setQuestions([
+      {
+        type: "objective",
+        question: "",
+        options: ["", "", "", ""],
+        correct_answer: "",
+        marks: 1
+      }
+    ]);
 
+    setExamTitle("");
+    setSelectedArms([]);
+
+  };
 
   useEffect(() => {
     setFetchFlags(prev => {
@@ -215,14 +260,13 @@ const TeacherSubjectsCard = () => {
     });
   }, []);
 
+  useEffect(() => {
+    const fetchClassArms = async () => {
+      if (!selectedSubjectId) return;
 
-useEffect(() => {
-  const fetchClassArms = async () => {
-    if (!selectedSubjectId) return;
-
-    const { data, error } = await supabase
-  .from("class_subjects")
-  .select(`
+      const { data, error } = await supabase
+        .from("class_subjects")
+        .select(`
     id,
     class:class_id (
       class_id,
@@ -233,44 +277,38 @@ useEffect(() => {
       arm_name
     )
   `)
-  .eq("subject_id", selectedSubjectId)
-  .eq("proprietor_id", teacher[0]?.teacher_proprietor) // ✅ limit to teacher's proprietor
-  .not("arm_id", "is", null);
+        .eq("subject_id", selectedSubjectId)
+        .eq("proprietor_id", teacher[0]?.teacher_proprietor) // ✅ limit to teacher's proprietor
+        .not("arm_id", "is", null);
 
-    if (error) {
-      console.error("❌ Error fetching class arms:", error);
-      setClassesForSubject([]);
-      return;
-    }
+      if (error) {
+        console.error("❌ Error fetching class arms:", error);
+        setClassesForSubject([]);
+        return;
+      }
 
-    // Map only the arms that actually have this subject
-    const flattened = data.map(item => ({
-      id: item.id,
-      class_id: item.class.class_id,
-      class_name: item.class.class_name,
-      arm_id: item.arm.arm_id,
-      arm_name: item.arm.arm_name,
-    }));
+      // Map only the arms that actually have this subject
+      const flattened = data.map(item => ({
+        id: item.id,
+        class_id: item.class.class_id,
+        class_name: item.class.class_name,
+        arm_id: item.arm.arm_id,
+        arm_name: item.arm.arm_name,
+      }));
 
-    // Optional: dedupe in case the same arm shows twice for some reason
-    const uniqueFlattened = flattened.filter(
-      (v, i, a) =>
-        a.findIndex(
-          t => t.class_id === v.class_id && t.arm_id === v.arm_id
-        ) === i
-    );
+      // Optional: dedupe in case the same arm shows twice for some reason
+      const uniqueFlattened = flattened.filter(
+        (v, i, a) =>
+          a.findIndex(
+            t => t.class_id === v.class_id && t.arm_id === v.arm_id
+          ) === i
+      );
 
-    setClassesForSubject(uniqueFlattened);
-  };
+      setClassesForSubject(uniqueFlattened);
+    };
 
-  fetchClassArms();
-}, [selectedSubjectId]);
-
-
-
-
-
-
+    fetchClassArms();
+  }, [selectedSubjectId]);
 
   const openModal = (subjectAssignment) => {
     setModalSubject(subjectAssignment);
@@ -291,27 +329,44 @@ useEffect(() => {
   );
 
   const openHomeworkModal = (cls) => {
-    setHomeworkModal({ class: cls });
+    setQuestions([{ type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+    setHomeworkModal(cls);
+    setSelectedArms([cls.arm_id]);
   };
+
+
+
 
   const closeHomeworkModal = () => {
     setHomeworkModal(null);
-    setQuestions([{ question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }]);
+    setQuestions([
+      { type: "objective", question: "", options: ["", "", "", ""], correct_answer: "", marks: 1 }
+    ]);
     setAssignmentTitle("");
+    setSelectedArms([]);
+
   };
+
 
   const handleQuestionChange = (index, field, value) => {
     const updated = [...questions];
-    if (field === "options") {
+
+    if (field === "type") {
+      updated[index].type = value;
+
+      if (value === "objective") {
+        updated[index].options = ["", "", "", ""];
+        updated[index].correct_answer = "";
+      }
+
+      if (value === "theory") {
+        updated[index].options = [];
+        updated[index].correct_answer = "";
+      }
+    } else if (field === "options") {
       updated[index].options = value;
     } else {
       updated[index][field] = value;
-    }
-
-    // Reset options and correct_answer if user switches to "theory"
-    if (field === "type" && value === "theory") {
-      updated[index].options = [];
-      updated[index].correct_answer = "";
     }
 
     setQuestions(updated);
@@ -345,6 +400,7 @@ useEffect(() => {
   };
 
   const validateExam = () => {
+    if (!examTitle.trim()) return "Please enter an exam title.";
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
 
@@ -375,7 +431,6 @@ useEffect(() => {
 
     const class_id = homeworkModal.class_id;
     const arm_id = homeworkModal.arm_id;
-
     const school_id = teacher[0]?.teacher_school;
     const teacher_id = userData.user_id;
 
@@ -391,7 +446,7 @@ useEffect(() => {
           school_id,
           subject_id: selectedSubjectId,
           assignment_title:
-            assignmentTitle.trim() || `Homework for ${homeworkModal.class.class_name}`,
+            assignmentTitle.trim() || `Homework for ${homeworkModal.class_name}`,
           proprietor_id: teacher[0]?.teacher_proprietor ?? null,
           total_marks: totalMarks,
         })
@@ -406,13 +461,31 @@ useEffect(() => {
 
       const assignment_id = assignmentData.id;
 
+      // Insert into assignment_arms
+      const armPayload = selectedArms.map(armId => ({
+        assignment_id,
+        arm_id: armId
+      }));
+
+      const { error: armInsertError } = await supabase
+        .from("assignment_arms")
+        .insert(armPayload);
+
+
+      if (armInsertError) {
+        setErrorModal("Failed to link assignment to arm.");
+        setIsSubmitting(false);
+        return;
+      }
+
+
       // Build questions payload
       // Build questions payload
       const questionPayload = questions.map(q => ({
-        assignment_id, // ✅ correct
+        assignment_id,
         question: q.question,
-        options: q.options, // plain array
-        correct_answer: q.type === "objective" ? q.correct_answer : null,
+        options: q.type === "objective" ? q.options : [],
+        correct_answer: q.type === "objective" ? q.correct_answer : "",
         marks: q.marks,
       }));
 
@@ -433,11 +506,7 @@ useEffect(() => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-
-
-
+  }; //lol
 
   return (
     <>
@@ -580,7 +649,7 @@ useEffect(() => {
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
-              Set Homework for {homeworkModal.class.class_name}
+              Set Homework for {homeworkModal.class_name} — {homeworkModal.arm_name}
             </h2>
 
             {/* Assignment Title Input */}
@@ -592,11 +661,25 @@ useEffect(() => {
               className="w-full p-2 mb-6 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
             />
             {questions.map((q, i) => (
-              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg">
+              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg relative">
+
                 <label className="block text-gray-700 dark:text-white mb-2 font-semibold">
                   Question {i + 1}
                 </label>
 
+                {questions.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => deleteQuestion(i)}
+                    className="absolute top-3 right-3 text-xs px-2 py-1 rounded-md 
+               bg-red-100 text-red-600 
+               hover:bg-red-200 
+               dark:bg-red-900 dark:text-red-300 
+               dark:hover:bg-red-800 transition"
+                  >
+                    Delete
+                  </button>
+                )}
                 {/* Question Type Selector */}
                 <select
                   className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
@@ -659,23 +742,68 @@ useEffect(() => {
               + Add Another Question
             </button>
 
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                onClick={closeHomeworkModal}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                onClick={submitHomework}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Homework"}
-              </button>
+            {/* Arm Selection Section */}
+            <div className="mt-6">
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                Apply To Additional Arms
+              </label>
 
+              <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                {classesForSubject
+                  .filter(c => c.class_id === homeworkModal.class_id)
+                  .map((arm) => (
+                    <label
+                      key={arm.arm_id}
+                      className="flex items-center gap-2 text-sm mb-1 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-green-600"
+                        checked={selectedArms.includes(arm.arm_id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedArms(prev => [...prev, arm.arm_id]);
+                          } else {
+                            setSelectedArms(prev =>
+                              prev.filter(id => id !== arm.arm_id)
+                            );
+                          }
+                        }}
+                      />
+                      {arm.arm_name}
+                    </label>
+                  ))}
+              </div>
             </div>
+
+            {/* Divider */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={closeHomeworkModal}
+                  className="px-3 py-1.5 text-sm rounded-lg font-medium
+                 bg-gray-100 text-gray-700
+                 hover:bg-gray-200
+                 dark:bg-gray-700 dark:text-gray-200
+                 dark:hover:bg-gray-600 transition"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={submitHomework}
+                  disabled={isSubmitting}
+                  className={`px-4 py-1.5 text-sm rounded-lg font-medium text-white transition
+        ${isSubmitting
+                      ? "bg-green-400 cursor-not-allowed opacity-70"
+                      : "bg-green-600 hover:bg-green-700"
+                    }`}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Homework"}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -685,7 +813,8 @@ useEffect(() => {
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
-              Set Exam for {examModal.class.class_name}
+              Set Exam for {examModal.class_name} — {examModal.arm_name}
+
             </h2>
 
             <input
@@ -697,10 +826,26 @@ useEffect(() => {
             />
 
             {questions.map((q, i) => (
-              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg">
+              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg relative">
+
                 <label className="block text-gray-700 dark:text-white mb-2 font-semibold">
                   Question {i + 1}
                 </label>
+
+                {questions.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => deleteQuestion(i)}
+                    className="absolute top-3 right-3 text-xs px-2 py-1 rounded-md 
+               bg-red-100 text-red-600 
+               hover:bg-red-200 
+               dark:bg-red-900 dark:text-red-300 
+               dark:hover:bg-red-800 transition"
+                  >
+                    Delete
+                  </button>
+                )}
+
 
                 <select
                   className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
@@ -759,23 +904,68 @@ useEffect(() => {
               + Add Another Question
             </button>
 
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                onClick={closeExamModal}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                onClick={() => submitExam(examModal?.class)} // ✅ Correctly pass the selected class
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Exam"}
-              </button>
+            {/* Arm Selection Section */}
+            <div className="mt-6">
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                Apply To Additional Arms
+              </label>
 
+              <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                {classesForSubject
+                  .filter(c => c.class_id === examModal.class_id)
+                  .map((arm) => (
+                    <label
+                      key={arm.arm_id}
+                      className="flex items-center gap-2 text-sm mb-1 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-green-600"
+                        checked={selectedArms.includes(arm.arm_id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedArms(prev => [...prev, arm.arm_id]);
+                          } else {
+                            setSelectedArms(prev =>
+                              prev.filter(id => id !== arm.arm_id)
+                            );
+                          }
+                        }}
+                      />
+                      {arm.arm_name}
+                    </label>
+                  ))}
+              </div>
             </div>
+
+            {/* Divider + Buttons */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={closeExamModal}
+                  className="px-3 py-1.5 text-sm rounded-lg font-medium
+                 bg-gray-100 text-gray-700
+                 hover:bg-gray-200
+                 dark:bg-gray-700 dark:text-gray-200
+                 dark:hover:bg-gray-600 transition"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={submitExam}
+                  disabled={isSubmitting}
+                  className={`px-4 py-1.5 text-sm rounded-lg font-medium text-white transition
+                  ${isSubmitting
+                      ? "bg-green-400 cursor-not-allowed opacity-70"
+                      : "bg-green-600 hover:bg-green-700"
+                    }`}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Exam"}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -785,7 +975,7 @@ useEffect(() => {
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
-              Set Test for {testModal.class.class_name}
+              Set Test for {testModal.class_name} — {testModal.arm_name}
             </h2>
 
             <input
@@ -797,11 +987,25 @@ useEffect(() => {
             />
 
             {questions.map((q, i) => (
-              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg">
+              <div key={i} className="mb-6 border border-gray-300 dark:border-gray-700 p-4 rounded-lg relative">
+
                 <label className="block text-gray-700 dark:text-white mb-2 font-semibold">
                   Question {i + 1}
                 </label>
 
+                {questions.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => deleteQuestion(i)}
+                    className="absolute top-3 right-3 text-xs px-2 py-1 rounded-md 
+               bg-red-100 text-red-600 
+               hover:bg-red-200 
+               dark:bg-red-900 dark:text-red-300 
+               dark:hover:bg-red-800 transition"
+                  >
+                    Delete
+                  </button>
+                )}
                 <select
                   className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white"
                   value={q.type}
@@ -858,34 +1062,77 @@ useEffect(() => {
             >
               + Add Another Question
             </button>
+            {/* Arm Selection Section */}
+            <div className="mt-6">
+              <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-200">
+                Apply To Additional Arms
+              </label>
 
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                onClick={closeTestModal}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                onClick={submitTest}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Test"}
-              </button>
+              <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                {classesForSubject
+                  .filter(c => c.class_id === testModal.class_id)
+                  .map((arm) => (
+                    <label
+                      key={arm.arm_id}
+                      className="flex items-center gap-2 text-sm mb-1 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-green-600"
+                        checked={selectedArms.includes(arm.arm_id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedArms(prev => [...prev, arm.arm_id]);
+                          } else {
+                            setSelectedArms(prev =>
+                              prev.filter(id => id !== arm.arm_id)
+                            );
+                          }
+                        }}
+                      />
+                      {arm.arm_name}
+                    </label>
+                  ))}
+              </div>
             </div>
+
+            {/* Divider + Buttons */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={closeTestModal}
+                  className="px-3 py-1.5 text-sm rounded-lg font-medium
+                 bg-gray-100 text-gray-700
+                 hover:bg-gray-200
+                 dark:bg-gray-700 dark:text-gray-200
+                 dark:hover:bg-gray-600 transition"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={submitTest}
+                  disabled={isSubmitting}
+                  className={`px-4 py-1.5 text-sm rounded-lg font-medium text-white transition
+        ${isSubmitting
+                      ? "bg-green-400 cursor-not-allowed opacity-70"
+                      : "bg-green-600 hover:bg-green-700"
+                    }`}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Test"}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
 
-
-
       {errorModal && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center">
           <div className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-lg w-full max-w-md">
-            <h2 className="text-lg font-bold text-red-600 mb-2">Submission Error</h2>
-            <p className="text-gray-800 dark:text-gray-200">{errorModal}</p>
+            <h2 className="text-lg font-bold text-red-600 mb-2">Submission Error</h2
+            >            <p className="text-gray-800 dark:text-gray-200">{errorModal}</p>
             <div className="flex justify-end mt-4">
               <button
                 onClick={() => setErrorModal(null)}

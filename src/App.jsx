@@ -98,9 +98,9 @@ function App() {
                
                 <Route path="dependent" element={<CreateDependentChild/>}/>
                  <Route path="leaders" element={<GuardianClassRanking/>}/>
-                 <Route path="monitorHomework" element={<Monitor />} />
                   <Route path="fee-payments" element={<GuardianFees/>}/>
                   <Route path="place-order" element={<PlaceOrder/>} />
+                   <Route path="childshomework" element={<GuardianAssignment />} />
               {/* parent navigation end */}
 
               {/* not for dashboard navigation */}
@@ -108,19 +108,20 @@ function App() {
               <Route path="notifications" element={<Aray />} />
                <Route path="teachhersAsignment" element={<AssignmentHistory />} />
                <Route path="teachersExams" element={<TeachersExams />} />
+               <Route path="teachersTests" element={<TeachersTests/> } />
                <Route path="b427824287ww93u28y773e273g7gd73137g643824g7"element={<ReceiptPage/>}/>
                  <Route path="cart" element={<CartPage/>}/>
                <Route path="restock" element={<RestockPage/>} />
                 <Route path="add-product" element={<AddInventoryPage />} />
                 <Route path="createArm" element={<DuplicateClassToArm/>} />
                 <Route path="asignmentRecord" element={<RecordAssignments />} />
+                 <Route path="monitorHomework" element={<Monitor />} />
               {/* not for dashboard navigation end */}
- 
+ 8
              {/* hidden features  */}
              <Route path="upgradestudent" element={<UpgradeManagedStudent/>}/> 
              <Route path="studentAssignment" element={<StudentAssingnments />} />
               <Route path="homework" element={<AssignmentPage />} />
-              <Route path="childshomework" element={<GuardianAssignment />} />
                <Route path="a" element={<GuardianProfile />} />
               {/* hidden features  end*/}  
             </Route>

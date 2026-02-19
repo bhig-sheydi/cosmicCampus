@@ -13,21 +13,14 @@ const TeachersTests = () => {
 
   const [tests, setTests] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
-
+  const [classMap, setClassMap] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [classMap, setClassMap] = useState({});
-
   const [loading, setLoading] = useState(true);
-
-  const handleRecordScores = (testId) => {
-    localStorage.setItem("record_test_id", testId);
-    window.location.href = "/dashboard/testRecord";
-  };
 
   const formatDate = (timestamp) =>
     new Date(timestamp).toLocaleDateString(undefined, {
@@ -36,25 +29,32 @@ const TeachersTests = () => {
       day: "numeric",
     });
 
+  const handleRecordScores = (testId) => {
+    navigate("/dashboard/testRecord", { state: { testId } });
+  };
+
+  /* ---------------- FETCH CLASS OPTIONS ---------------- */
   const fetchClassOptions = useCallback(async () => {
-    const { data, error } = await supabase.from("class").select("class_id, class_name");
+    const { data, error } = await supabase
+      .from("class")
+      .select("class_id, class_name");
 
     if (!error && data) {
       const uniqueNames = [...new Set(data.map((c) => c.class_name))];
-      const nameToIdMap = {};
-      data.forEach((c) => {
-        nameToIdMap[c.class_name] = c.class_id;
-      });
+      const map = {};
+      data.forEach((c) => (map[c.class_name] = c.class_id));
 
       setClassOptions(uniqueNames);
-      setClassMap(nameToIdMap);
+      setClassMap(map);
     }
   }, []);
 
+  /* ---------------- FETCH TESTS WITH ARMS ---------------- */
   const fetchTests = useCallback(
     async (currentPage = 1) => {
       if (!userData?.user_id) return;
       setLoading(true);
+
       let classIdToFilter = null;
 
       if (selectedClass && classMap[selectedClass]) {
@@ -69,86 +69,102 @@ const TeachersTests = () => {
       let query = supabase
         .from("tests")
         .select(
-          `id, test_title, class_id, test_date, is_submitted, class:class_id (class_name)`,
+          `
+            id,
+            test_title,
+            class_id,
+            test_date,
+            is_submitted,
+            class:class_id(class_name),
+            test_arms:test_arms!inner(
+              arm_id,
+              arm:arm_id(arm_name)
+            )
+          `,
           { count: "exact" }
         )
         .eq("teacher_id", userData.user_id)
         .order("test_date", { ascending: false });
 
-      if (searchTerm) {
-        query = query.ilike("test_title", `%${searchTerm}%`);
-      }
-
-      if (classIdToFilter) {
-        query = query.eq("class_id", classIdToFilter);
-      }
+      if (searchTerm) query = query.ilike("test_title", `%${searchTerm}%`);
+      if (classIdToFilter) query = query.eq("class_id", classIdToFilter);
 
       if (selectedDate) {
-        const startDate = new Date(selectedDate);
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 1);
+        const start = new Date(selectedDate);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 1);
 
         query = query
-          .gte("test_date", startDate.toISOString())
-          .lt("test_date", endDate.toISOString());
+          .gte("test_date", start.toISOString())
+          .lt("test_date", end.toISOString());
       }
 
-      if (selectedStatus === "submitted") {
+      if (selectedStatus === "submitted")
         query = query.eq("is_submitted", true);
-      } else if (selectedStatus === "not_submitted") {
+
+      if (selectedStatus === "not_submitted")
         query = query.eq("is_submitted", false);
-      }
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
       const { data, count, error } = await query.range(from, to);
 
-      if (error || !data || data.length === 0) {
+      if (error || !data) {
         setTests([]);
         setTotalPages(1);
       } else {
         setTests(data);
-        setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+        setTotalPages(Math.max(1, Math.ceil((count || 0) / ITEMS_PER_PAGE)));
       }
 
       setLoading(false);
     },
-    [userData, searchTerm, selectedClass, selectedDate, selectedStatus]
+    [userData, searchTerm, selectedClass, selectedDate, selectedStatus, classMap]
   );
 
+  /* ---------------- RESET PAGE ON FILTER CHANGE ---------------- */
   useEffect(() => {
-    const debouncedFetch = debounce(() => {
-      setPage(1);
-      fetchTests(1);
-    }, 500);
-    debouncedFetch();
-    return () => debouncedFetch.cancel();
-  }, [fetchTests]);
+    setPage(1);
+  }, [searchTerm, selectedClass, selectedDate, selectedStatus]);
 
+  /* ---------------- DEBOUNCED FETCH (EXACT SAME AS EXAMS) ---------------- */
   useEffect(() => {
-    fetchTests(page);
-  }, [page]);
+    if (!userData?.user_id) return;
 
+    const debounced = debounce(() => fetchTests(page), 500);
+    debounced();
+
+    return () => debounced.cancel();
+  }, [
+    page,
+    userData,
+    searchTerm,
+    selectedClass,
+    selectedDate,
+    selectedStatus,
+    classMap,
+    fetchTests,
+  ]);
+
+  /* ---------------- INITIAL CLASS LOAD ---------------- */
   useEffect(() => {
     fetchClassOptions();
   }, [fetchClassOptions]);
 
+  /* ---------------- MARK AS SUBMITTED ---------------- */
   const markAsSubmitted = async (testId) => {
     const { error } = await supabase
       .from("tests")
       .update({ is_submitted: true })
       .eq("id", testId);
 
-    if (!error) {
-      fetchTests(page);
-    } else {
-      console.error("Failed to mark as submitted:", error);
-    }
+    if (!error) fetchTests(page);
   };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
+      {/* Header and Filters */}
       <div className="bg-gradient-to-br from-[#d8c2ff] via-[#d5cbff] to-white dark:from-[#1f1b2e] dark:via-[#2a233a] dark:to-[#1a1728] p-6 rounded-2xl shadow-md mb-10">
         <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white mb-6">
           Test History
@@ -172,9 +188,9 @@ const TeachersTests = () => {
             className="border px-3 py-2 rounded-xl w-full border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
           >
             <option value="">Filter by class</option>
-            {classOptions.map((className) => (
-              <option key={className} value={className}>
-                {className}
+            {classOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
               </option>
             ))}
           </select>
@@ -214,10 +230,15 @@ const TeachersTests = () => {
         </div>
       </div>
 
+      {/* Results */}
       {loading ? (
-        <p className="text-center text-gray-600 dark:text-gray-300">Loading...</p>
+        <p className="text-center text-gray-600 dark:text-gray-300">
+          Loading...
+        </p>
       ) : tests.length === 0 ? (
-        <p className="text-center text-gray-500 dark:text-gray-400">No tests found.</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">
+          No tests found.
+        </p>
       ) : (
         <>
           <div className="grid gap-6 sm:grid-cols-2">
@@ -229,55 +250,70 @@ const TeachersTests = () => {
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
                   {test.test_title}
                 </h2>
-                <p className="text-gray-700 dark:text-gray-300">
-                  <strong>Class:</strong> {test.class?.class_name || "Unknown"}
+                <p>
+                  <strong>Class:</strong>{" "}
+                  {test.class?.class_name || "Unknown"}
                 </p>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                <p>
+                  <strong>Arms:</strong>{" "}
+                  {test.test_arms?.map((a) => a.arm?.arm_name).join(", ") ||
+                    "None"}
+                </p>
+                <p className="text-sm">
                   <strong>Date:</strong> {formatDate(test.test_date)}
                 </p>
-                <p className="text-sm mt-2">
+                <p className="text-sm mt-1">
                   <strong>Status:</strong>{" "}
                   {test.is_submitted ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium">Submitted</span>
+                    <span className="text-green-600 dark:text-green-400 font-medium">
+                      Submitted
+                    </span>
                   ) : (
-                    <span className="text-red-600 dark:text-red-400 font-medium">Not Submitted</span>
+                    <span className="text-red-600 dark:text-red-400 font-medium">
+                      Not Submitted
+                    </span>
                   )}
                 </p>
-                {!test.is_submitted && (
-                  <button
-                    onClick={() => markAsSubmitted(test.id)}
-                    className="mt-3 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition"
-                  >
-                    Mark Test
-                  </button>
-                )}
 
-                <button
-                  onClick={() => handleRecordScores(test.id)}
-                  className="mt-2 px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700 transition ml-5"
-                >
-                  Record Scores
-                </button>
+                <div className="flex mt-3 gap-2 flex-wrap">
+                  {!test.is_submitted && (
+                    <button
+                      onClick={() => markAsSubmitted(test.id)}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
+                    >
+                      Mark Test
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRecordScores(test.id)}
+                    className="px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700"
+                  >
+                    Record Scores
+                  </button>
+                </div>
               </div>
             ))}
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center mt-6 space-x-2">
+            <div className="flex justify-center items-center mt-6 gap-4">
               <button
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-purple-500 text-white rounded-xl disabled:opacity-50"
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-xl disabled:opacity-50"
               >
                 Previous
               </button>
-              <span className="text-gray-700 dark:text-gray-300 font-medium">
-                Page {page} of {totalPages}
+              <span className="text-gray-700 dark:text-gray-300">
+                {page} / {totalPages}
               </span>
               <button
-                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
                 disabled={page === totalPages}
-                className="px-4 py-2 bg-purple-500 text-white rounded-xl disabled:opacity-50"
+                onClick={() =>
+                  setPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-xl disabled:opacity-50"
               >
                 Next
               </button>

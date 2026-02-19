@@ -24,7 +24,9 @@ const GuardianClassRanking = () => {
           students (
             id,
             student_name,
-            class_id
+            class_id,
+            school_id,
+            arm_id
           )
         `)
         .eq("guardian_name", userData.user_id);
@@ -39,6 +41,8 @@ const GuardianClassRanking = () => {
           id: row.students.id,
           name: row.students.student_name,
           class_id: row.students.class_id,
+          school_id: row.students.school_id,
+          arm_id: row.students.arm_id,
         }))
       );
     };
@@ -54,14 +58,17 @@ const GuardianClassRanking = () => {
 
     const fetchRanking = async () => {
       setLoading(true);
+      setRankings([]);
 
       // 1️⃣ Fetch top 5 + selected student
       const { data: rankingsData, error: rankError } = await supabase
         .from("class_rankings")
         .select("student_id, total_score, position")
+        .eq("school_id", selectedStudent.school_id)
         .eq("class_id", selectedStudent.class_id)
+        .eq("arm_id", selectedStudent.arm_id)
         .or(`position.lte.5,student_id.eq.${selectedStudent.id}`)
-        .order("position");
+        .order("position", { ascending: true });
 
       if (rankError) {
         console.error("Error fetching rankings:", rankError);

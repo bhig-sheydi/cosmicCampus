@@ -13,22 +13,14 @@ const AssignmentHistory = () => {
 
   const [assignments, setAssignments] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
-
+  const [classMap, setClassMap] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [classMap, setClassMap] = useState({});
-
   const [loading, setLoading] = useState(true);
-
-  const handleRecordScores = (assignmentId) => {
-  localStorage.setItem("record_assignment_id", assignmentId);
-  window.location.href = "/dashboard/asignmentRecord"; // or use navigate if you're using `react-router-dom`
-};
-
 
   const formatDate = (timestamp) =>
     new Date(timestamp).toLocaleDateString(undefined, {
@@ -37,133 +29,136 @@ const AssignmentHistory = () => {
       day: "numeric",
     });
 
-  // Fetch class options ONCE
+  const handleRecordScores = (assignmentId) => {
+    navigate("/dashboard/asignmentRecord", { state: { assignmentId } });
+  };
+
+  /* ---------------- FETCH CLASS OPTIONS ---------------- */
   const fetchClassOptions = useCallback(async () => {
-    const { data, error } = await supabase.from("class").select("class_id, class_name");
+    const { data, error } = await supabase
+      .from("class")
+      .select("class_id, class_name");
 
     if (!error && data) {
       const uniqueNames = [...new Set(data.map((c) => c.class_name))];
-      const nameToIdMap = {};
-      data.forEach((c) => {
-        nameToIdMap[c.class_name] = c.class_id;
-      });
+      const map = {};
+      data.forEach((c) => (map[c.class_name] = c.class_id));
 
       setClassOptions(uniqueNames);
-      setClassMap(nameToIdMap);  // Save mapping
+      setClassMap(map);
     }
   }, []);
 
-
-  // Fetch filtered and paginated assignments
+  /* ---------------- FETCH ASSIGNMENTS WITH ARMS ---------------- */
   const fetchAssignments = useCallback(
     async (currentPage = 1) => {
       if (!userData?.user_id) return;
-      setLoading(true);
-      let classIdToFilter = null;
 
+      setLoading(true);
+
+      let classIdToFilter = null;
       if (selectedClass && classMap[selectedClass]) {
         classIdToFilter = classMap[selectedClass];
       } else if (selectedClass) {
-        // Invalid class name (not in map)
         setAssignments([]);
         setTotalPages(1);
         setLoading(false);
         return;
       }
 
-
       let query = supabase
         .from("assignments")
         .select(
           `
-        id,
-        assignment_title,
-        class_id,
-        assignment_date,
-        is_submitted,
-        class:class_id (class_name)
-      `,
+            id,
+            assignment_title,
+            class_id,
+            assignment_date,
+            is_submitted,
+            class:class_id(class_name),
+            assignment_arms:assignment_arms!inner(
+              arm_id,
+              arm:arm_id(arm_name)
+            )
+          `,
           { count: "exact" }
         )
         .eq("teacher_id", userData.user_id)
         .order("assignment_date", { ascending: false });
 
-      if (searchTerm) {
-        query = query.ilike("assignment_title", `%${searchTerm}%`);
-      }
-
-      if (classIdToFilter) {
-        query = query.eq("class_id", classIdToFilter);
-      }
+      if (searchTerm) query = query.ilike("assignment_title", `%${searchTerm}%`);
+      if (classIdToFilter) query = query.eq("class_id", classIdToFilter);
 
       if (selectedDate) {
-        const startDate = new Date(selectedDate);
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 1);
+        const start = new Date(selectedDate);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 1);
 
         query = query
-          .gte("assignment_date", startDate.toISOString())
-          .lt("assignment_date", endDate.toISOString());
+          .gte("assignment_date", start.toISOString())
+          .lt("assignment_date", end.toISOString());
       }
 
-      if (selectedStatus === "submitted") {
-        query = query.eq("is_submitted", true);
-      } else if (selectedStatus === "not_submitted") {
-        query = query.eq("is_submitted", false);
-      }
+      if (selectedStatus === "submitted") query = query.eq("is_submitted", true);
+      if (selectedStatus === "not_submitted") query = query.eq("is_submitted", false);
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
       const { data, count, error } = await query.range(from, to);
 
-      if (error || !data || data.length === 0) {
+      if (error || !data) {
         setAssignments([]);
         setTotalPages(1);
       } else {
         setAssignments(data);
-        setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+        setTotalPages(Math.max(1, Math.ceil((count || 0) / ITEMS_PER_PAGE)));
       }
 
       setLoading(false);
     },
-    [userData, searchTerm, selectedClass, selectedDate, selectedStatus]
+    [userData, searchTerm, selectedClass, selectedDate, selectedStatus, classMap]
   );
 
-
-  // Debounce filter triggers
+  /* ---------------- RESET PAGE WHEN FILTERS CHANGE ---------------- */
   useEffect(() => {
-    const debouncedFetch = debounce(() => {
-      setPage(1);
-      fetchAssignments(1);
+    setPage(1);
+  }, [searchTerm, selectedClass, selectedDate, selectedStatus]);
+
+  /* ---------------- SINGLE SMART DEBOUNCED FETCH ---------------- */
+  useEffect(() => {
+    if (!userData?.user_id) return;
+
+    const debounced = debounce(() => {
+      fetchAssignments(page);
     }, 500);
-    debouncedFetch();
-    return () => debouncedFetch.cancel();
-  }, [fetchAssignments]);
 
-  // Page change effect
-  useEffect(() => {
-    fetchAssignments(page);
-  }, [page]);
+    debounced();
+    return () => debounced.cancel();
+  }, [
+    page,
+    userData,
+    searchTerm,
+    selectedClass,
+    selectedDate,
+    selectedStatus,
+    classMap,
+    fetchAssignments,
+  ]);
 
-  // Fetch class options on mount
+  /* ---------------- INITIAL CLASS LOAD ---------------- */
   useEffect(() => {
     fetchClassOptions();
   }, [fetchClassOptions]);
 
-
+  /* ---------------- MARK SUBMITTED ---------------- */
   const markAsSubmitted = async (assignmentId) => {
     const { error } = await supabase
       .from("assignments")
       .update({ is_submitted: true })
       .eq("id", assignmentId);
 
-    if (!error) {
-      // Refresh assignments after update
-      fetchAssignments(page);
-    } else {
-      console.error("Failed to mark as submitted:", error);
-    }
+    if (!error) fetchAssignments(page);
   };
 
   return (
@@ -192,10 +187,8 @@ const AssignmentHistory = () => {
             className="border px-3 py-2 rounded-xl w-full border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
           >
             <option value="">Filter by class</option>
-            {classOptions.map((className) => (
-              <option key={className} value={className}>
-                {className}
-              </option>
+            {classOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
             ))}
           </select>
 
@@ -234,7 +227,7 @@ const AssignmentHistory = () => {
         </div>
       </div>
 
-      {/* Assignments display */}
+      {/* Results */}
       {loading ? (
         <p className="text-center text-gray-600 dark:text-gray-300">Loading...</p>
       ) : assignments.length === 0 ? (
@@ -250,65 +243,48 @@ const AssignmentHistory = () => {
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
                   {assignment.assignment_title}
                 </h2>
-                <p className="text-gray-700 dark:text-gray-300">
-                  <strong>Class:</strong> {assignment.class?.class_name || "Unknown"}
-                </p>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  <strong>Date:</strong> {formatDate(assignment.assignment_date)}
-                </p>
-                <p className="text-sm mt-2">
-                  <strong>Status:</strong>{" "}
-                  {assignment.is_submitted ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium">Submitted</span>
-                  ) : (
-                    <span className="text-red-600 dark:text-red-400 font-medium">Not Submitted</span>
+                <p><strong>Class:</strong> {assignment.class?.class_name || "Unknown"}</p>
+                <p><strong>Arms:</strong> {assignment.assignment_arms?.map(a => a.arm?.arm_name).join(", ") || "None"}</p>
+                <p className="text-sm"><strong>Date:</strong> {formatDate(assignment.assignment_date)}</p>
+
+                <div className="flex mt-3 gap-2 flex-wrap">
+                  {!assignment.is_submitted && (
+                    <button
+                      onClick={() => markAsSubmitted(assignment.id)}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
+                    >
+                      Mark Assignment
+                    </button>
                   )}
-
-
-                </p>
-                {!assignment.is_submitted && (
                   <button
-                    onClick={() => markAsSubmitted(assignment.id)}
-                    className="mt-3 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition"
+                    onClick={() => handleRecordScores(assignment.id)}
+                    className="px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700"
                   >
-                    Mark Assignment
+                    Record Scores
                   </button>
-                )}
-
-                <button
-  onClick={() => handleRecordScores(assignment.id)}
-  className="mt-2 px-4 py-2 text-white rounded-xl bg-purple-600 hover:bg-purple-700
- transition ml-5"
->
-  Record Scores
-</button>
-
-
+                </div>
               </div>
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center mt-6 space-x-2">
-              <button
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                disabled={page === 1}
-                className="px-4 py-2 bg-purple-500 text-white rounded-xl disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="text-gray-700 dark:text-gray-300 font-medium">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                disabled={page === totalPages}
-                className="px-4 py-2 bg-purple-500 text-white rounded-xl disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          {/* Pagination */}
+          <div className="flex justify-center items-center gap-4 mt-6">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-xl hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-gray-700 dark:text-gray-300">{page} / {totalPages}</span>
+            <button
+              disabled={page === totalPages}
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              className="px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-xl hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </>
       )}
     </div>
