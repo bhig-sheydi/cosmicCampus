@@ -126,6 +126,10 @@ export function Login() {
                   Sign up
                 </Link>
               </div>
+
+                <Link to="/reset" className="underline">
+                                Forgot Password
+                              </Link>
             </div>
           </div>
 

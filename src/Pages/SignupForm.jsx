@@ -255,6 +255,7 @@ export function SignUp() {
             <div className="relative flex flex-col pt-24">
               <img src={Logo} className='w-[60%] rounded-full animate-rotate-3d relative z-10' alt="Walking Universe Logo" />
               <div className="w-[60%] h-8 absolute top-full left-1/3 transform -translate-x-1/2 -translate-y-2 rounded-full bg-black/30 dark:bg-purple-500/50 blur-md opacity-75 animate-shadow-rotate"></div>
+           
             </div>
           </div>
         </div>

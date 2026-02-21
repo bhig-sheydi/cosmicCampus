@@ -18,7 +18,7 @@ import TeacherAssign from './Pages/TeacherAsign';
 import TeacherAttendance from './Pages/TeacherAttendance';
 import FixedQRCode from './Pages/FixedQrCode';
 import GuardianProfile from './Pages/GuardianProfile';
-import { ResetPassword } from './Pages/Reset';
+import ResetPasswordPage from './Pages/Reset';
 import { UpdatePassword } from './Pages/updatepassword';
 import CBTExam from './Pages/CBTEXAMS'
 import TeacherSubjectsCard from './Pages/TeachersAssingnmentDashboard';
@@ -47,6 +47,7 @@ import CreateDependentChild from './components/CustomComponents/CreateDependentC
 import UpgradeManagedStudent from './components/CustomComponents/UpgradeManagedStudent';
 import GuardianClassRanking from './components/CustomComponents/ClassLeaderBoard';
 import DuplicateClassToArm from './components/CustomComponents/DuplicateClassToArm';
+import ResetStudentPassword from './Pages/ResetStudentPassword';
 
 
 
@@ -68,7 +69,7 @@ function App() {
             <Route path="/signup" element={<SignUp />} />
             <Route path="/login" element={<Login />} />
             <Route path="/exams" element={<CBTExam />} />
-            <Route path="/reset" element={<ResetPassword />} />
+            <Route path="/reset" element={<ResetPasswordPage/>} />
             <Route path="/update" element={<UpdatePassword />} />
             <Route path="/dashboard" element={<Dashboard />}>
 
@@ -101,6 +102,7 @@ function App() {
                   <Route path="fee-payments" element={<GuardianFees/>}/>
                   <Route path="place-order" element={<PlaceOrder/>} />
                    <Route path="childshomework" element={<GuardianAssignment />} />
+                    <Route path="resetStudentPassword" element={<ResetStudentPassword/>} />
               {/* parent navigation end */}
 
               {/* not for dashboard navigation */}
@@ -123,6 +125,8 @@ function App() {
              <Route path="studentAssignment" element={<StudentAssingnments />} />
               <Route path="homework" element={<AssignmentPage />} />
                <Route path="a" element={<GuardianProfile />} />
+              
+
               {/* hidden features  end*/}  
             </Route>
 

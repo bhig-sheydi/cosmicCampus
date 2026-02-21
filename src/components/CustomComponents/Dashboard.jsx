@@ -183,6 +183,14 @@ export function Dashboard() {
                   Class Ranking
                 </Link>
 
+                <Link
+                  to="/dashboard/resetStudentPassword"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Reset Child Password
+                </Link>
+
                 {/* Monitor Homework */}
 
                 {/* Child Assignments */}
@@ -310,6 +318,14 @@ export function Dashboard() {
                       >
                         <Trophy className="h-4 w-4" />
                         Class Ranking
+                      </Link>
+
+                      <Link
+                        to="/dashboard/resetStudentPassword"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                      >
+                        <Trophy className="h-4 w-4" />
+                        Reset Child Password
                       </Link>
 
                       {/* Monitor Homework */}
