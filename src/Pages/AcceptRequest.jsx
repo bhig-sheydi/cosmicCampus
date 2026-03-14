@@ -14,9 +14,6 @@ const AcceptRequests = () => {
   const [filterType, setFilterType] = useState('all'); // New filter state
   const { userData , setFetchFlags } = useUser();
 
-
-
-
    useEffect(() => {
       setFetchFlags(prev => ({ ...prev, oneStudent: true ,userData: true ,  requests: true})); // Set the flags to true
     }, []);

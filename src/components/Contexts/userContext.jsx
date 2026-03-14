@@ -561,20 +561,22 @@ useEffect(() => {
 // Fetch students with a join on the 'schools' table to get school names
 const fetchStudents = async () => {
   const { data, error } = await supabase
-    .from('students')
-    .select(`
-      id,
-      student_name,
-      age,
-      is_paid,
-      class_id,
-      school_id,
-      schools ( name ),
-      class ( class_name )
-    `)
-    .eq('proprietor', userData.user_id)
-    .order('created_at', { ascending: false })
-    .limit(20);
+.from('students')
+.select(`
+  id,
+  student_name,
+  age,
+  is_paid,
+  class_id,
+  school_id,
+  arm_id,
+  schools ( name ),
+  class ( class_name ),
+  arms ( arm_name )
+`)
+.eq('proprietor', userData.user_id)
+.order('created_at', { ascending: false })
+.limit(20);
 
   if (!error) setStudents(data);
 };

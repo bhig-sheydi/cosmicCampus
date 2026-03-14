@@ -3,19 +3,29 @@ import { useEffect } from "react";
 import {
   Bell,
   CircleUser,
-  LineChart,
   Menu,
   Search,
   Users,
-  CheckCheckIcon,
+  CheckCheck,
   Wallet,
   Trophy,
   Eye,
   BookOpen,
   ShoppingCart,
-  User
+  UserPlus,
+  GraduationCap,
+  ClipboardList,
+  FileText,
+  PenTool,
+  LayoutDashboard,
+  School,
+  UserCog,
+  Library,
+  PlusCircle,
+  Award,
+  Lock,
+  BookMarked
 } from "lucide-react";
-import { BookUserIcon } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,134 +60,194 @@ export function Dashboard() {
   }, []);
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-
-      {/* ================= SIDEBAR ================= */}
-      <div className="hidden border-r bg-white dark:bg-black md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-
+    <div className="flex min-h-screen w-full bg-white dark:bg-black">
+      {/* ================= SIDEBAR (DESKTOP) - FIXED POSITION ================= */}
+      <div className="hidden md:block w-[220px] lg:w-[280px] flex-shrink-0">
+        <div className="fixed top-0 left-0 h-screen w-[220px] lg:w-[280px] border-r bg-white dark:bg-black flex flex-col gap-2 overflow-hidden">
           {/* Logo */}
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 shadow-md">
-            <Link to="/" className="flex items-center gap-2 font-semibold">
-              <img src={Logo} className="rounded-full w-10" />
-              <span>Cosmic Campus</span>
+          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 shadow-md flex-shrink-0">
+            <Link to="/" className="flex items-center gap-2 font-semibold text-white">
+              <img src={Logo} className="rounded-full w-10" alt="Logo" />
+              <span className="text-sm lg:text-base">Cosmic Campus</span>
             </Link>
 
-            <Button variant="outline" size="icon" className="ml-auto h-8 w-8">
+            <Button variant="outline" size="icon" className="ml-auto h-8 w-8 bg-white/20 border-white/30">
               <Link to="notifications">
-                <Bell className="h-4 w-4" />
+                <Bell className="h-4 w-4 text-white" />
               </Link>
             </Button>
           </div>
 
-          {/* ========== NAVIGATION ========== */}
-          <div className="flex-1">
-
+          {/* ========== NAVIGATION - SCROLLABLE ========== */}
+          <div className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
             {/* ---- General (ALL) ---- */}
-            <Link
-              to="/dashboard/profile"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
-            >
-              <CircleUser className="h-4 w-4" />
-              Profile
-            </Link>
+            <nav className="space-y-1">
+              <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                General
+              </div>
+              <Link
+                to="/dashboard/profile"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+              >
+                <CircleUser className="h-4 w-4" />
+                Profile
+              </Link>
+            </nav>
 
-            {/* ---- School (role_id === 1) ---- */}
+            {/* ---- School Administration (role_id === 1) ---- */}
             {roleId === 1 && (
-              <>
+              <nav className="space-y-1">
+                <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  School Administration
+                </div>
+                
+                <Link
+                  to="/dashboard/school-dashboard"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Link>
+
                 <Link
                   to="/dashboard/accept-requests"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <Users className="h-4 w-4" />
+                  <UserPlus className="h-4 w-4" />
                   Accept Requests
-                  <Badge className="ml-auto h-6 w-6 bg-red-500 flex items-center justify-center rounded-full">
-                    {requests}
-                  </Badge>
+                  {requests > 0 && (
+                    <Badge className="ml-auto h-5 w-5 bg-red-500 flex items-center justify-center rounded-full text-[10px]">
+                      {requests}
+                    </Badge>
+                  )}
                 </Link>
 
                 <Link
                   to="/dashboard/students"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <BookUserIcon />
+                  <GraduationCap className="h-4 w-4" />
                   Students
                 </Link>
 
                 <Link
-                  to="/dashboard/classsubject"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  to="/dashboard/teachers"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <BookUserIcon />
+                  <UserCog className="h-4 w-4" />
+                  Teachers
+                </Link>
+
+                <Link
+                  to="/dashboard/classsubject"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <School className="h-4 w-4" />
                   Assign Class
                 </Link>
 
                 <Link
-                  to="/dashboard/teachers"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  to="/dashboard/createBatch"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <BookUserIcon />
-                  Teachers
+                  <PlusCircle className="h-4 w-4" />
+                  Create Batch
                 </Link>
-              </>
+              </nav>
+            )}
+
+            {/* ---- Student (role_id === 2) ---- */}
+            {roleId === 2 && (
+              <nav className="space-y-1">
+                <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Student Portal
+                </div>
+                
+                <Link
+                  to="/dashboard/c_assessment"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <Award className="h-4 w-4" />
+                  Progress & Assessment
+                </Link>
+
+                <Link
+                  to="/dashboard/take_assessment"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Take Assessment
+                </Link>
+
+                <Link
+                  to="/dashboard/note-reader"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Notes & Textbooks
+                </Link>
+              </nav>
             )}
 
             {/* ---- Teacher (role_id === 3) ---- */}
             {roleId === 3 && (
-
-              <>
+              <nav className="space-y-1">
+                <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Teacher Tools
+                </div>
+                
                 <Link
                   to="/dashboard/attendance"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <CheckCheckIcon />
+                  <ClipboardList className="h-4 w-4" />
                   Attendance
                 </Link>
 
                 <Link
                   to="/dashboard/assessment"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <CheckCheckIcon />
+                  <FileText className="h-4 w-4" />
                   Create Assessment
                 </Link>
 
-
                 <Link
                   to="/dashboard/note-editor"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <CheckCheckIcon />
-                  Create note
+                  <PenTool className="h-4 w-4" />
+                  Create Note
                 </Link>
-              </>
+              </nav>
             )}
 
             {/* ---- Guardian (role_id === 4) ---- */}
             {roleId === 4 && (
-              <>
-                {/* Dependents */}
+              <nav className="space-y-1">
+                <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Parent Portal
+                </div>
+                
                 <Link
                   to="/dashboard/dependent"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <Users className="h-4 w-4" />
-                  Create child account
+                  <UserPlus className="h-4 w-4" />
+                  Create Child Account
                 </Link>
 
-                {/* Fee Payments */}
                 <Link
                   to="/dashboard/fee-payments"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
                   <Wallet className="h-4 w-4" />
                   Fee Payments
                 </Link>
 
-                {/* Class Ranking / Leaders */}
                 <Link
                   to="/dashboard/leaders"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
                   <Trophy className="h-4 w-4" />
                   Class Ranking
@@ -185,49 +255,43 @@ export function Dashboard() {
 
                 <Link
                   to="/dashboard/resetStudentPassword"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
-                  <Trophy className="h-4 w-4" />
+                  <Lock className="h-4 w-4" />
                   Reset Child Password
                 </Link>
 
-                {/* Monitor Homework */}
-
-                {/* Child Assignments */}
                 <Link
                   to="/dashboard/childshomework"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
                   <Eye className="h-4 w-4" />
                   Monitor Homework
                 </Link>
 
-                {/* Place Order */}
                 <Link
                   to="/dashboard/place-order"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
                   <ShoppingCart className="h-4 w-4" />
                   Place Order
                 </Link>
-
-
-              </>
+              </nav>
             )}
 
           </div>
 
           {/* Upgrade */}
-          <div className="mt-auto p-4">
+          <div className="mt-auto p-4 flex-shrink-0">
             <Card>
-              <CardHeader>
-                <CardTitle>Upgrade to Pro</CardTitle>
-                <CardDescription>
+              <CardHeader className="p-4">
+                <CardTitle className="text-sm">Upgrade to Pro</CardTitle>
+                <CardDescription className="text-xs">
                   Unlock all features and premium support.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button className="w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+              <CardContent className="p-4 pt-0">
+                <Button className="w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-sm">
                   Upgrade
                 </Button>
               </CardContent>
@@ -236,85 +300,203 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ================= MAIN ================= */}
-      <div className="flex flex-col bg-white dark:bg-black">
-        <header className="flex h-14 items-center gap-4 border-b px-4 lg:h-[60px] lg:px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 shadow-md">
+      {/* ================= MAIN CONTENT - SCROLLABLE ================= */}
+      <div className="flex-1 flex flex-col min-h-screen overflow-y-auto bg-white dark:bg-black">
+        
+        {/* Header - Sticky */}
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b px-4 lg:h-[60px] lg:px-6 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 shadow-md">
+          
+          {/* Mobile Menu Trigger */}
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="md:hidden">
-                <Menu className="h-5 w-5" />
+              <Button variant="outline" size="icon" className="md:hidden bg-white/20 border-white/30">
+                <Menu className="h-5 w-5 text-white" />
               </Button>
             </SheetTrigger>
 
-            <SheetContent side="left" className="w-[100vw] flex flex-col">
-              {/* SAME ROLE LOGIC AS SIDEBAR */}
-              {roleId && (
-                <>
-                  <Link to="/dashboard/profile">Profile</Link>
+            <SheetContent side="left" className="w-[300px] p-0 bg-white dark:bg-black">
+              {/* ... mobile sheet content stays the same ... */}
+              <div className="flex flex-col h-full">
+                
+                {/* Mobile Logo */}
+                <div className="flex h-14 items-center border-b px-4 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
+                  <Link to="/" className="flex items-center gap-2 font-semibold text-white">
+                    <img src={Logo} className="rounded-full w-8" alt="Logo" />
+                    <span className="text-sm">Cosmic Campus</span>
+                  </Link>
+                </div>
+
+                {/* Mobile Navigation */}
+                <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+                  
+                  {/* General */}
+                  <nav className="space-y-1">
+                    <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      General
+                    </div>
+                    <Link
+                      to="/dashboard/profile"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                    >
+                      <CircleUser className="h-4 w-4" />
+                      Profile
+                    </Link>
+                  </nav>
+
+                  {/* School Admin */}
                   {roleId === 1 && (
-                    <>
-                      <Link to="/dashboard/accept-requests">Accept Requests</Link>
-                      <Link to="/dashboard/students">Students</Link>
-                      <Link to="/dashboard/classsubject">Assign Class</Link>
-                      <Link to="/dashboard/teachers">Teachers</Link>
-                    </>
-                  )}
-                  {roleId === 3 && (
-                    <>
-                      <Link to="/dashboard/attendance"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
-
-
+                    <nav className="space-y-1">
+                      <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        School Administration
+                      </div>
+                      
+                      <Link
+                        to="/dashboard/school-dashboard"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
-                        <CheckCheckIcon />
-                        Attendance
+                        <LayoutDashboard className="h-4 w-4" />
+                        Dashboard
+                      </Link>
 
+                      <Link
+                        to="/dashboard/accept-requests"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Accept Requests
+                        {requests > 0 && (
+                          <Badge className="ml-auto h-5 w-5 bg-red-500 flex items-center justify-center rounded-full text-[10px]">
+                            {requests}
+                          </Badge>
+                        )}
+                      </Link>
+
+                      <Link
+                        to="/dashboard/students"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <GraduationCap className="h-4 w-4" />
+                        Students
+                      </Link>
+
+                      <Link
+                        to="/dashboard/teachers"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <UserCog className="h-4 w-4" />
+                        Teachers
+                      </Link>
+
+                      <Link
+                        to="/dashboard/classsubject"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <School className="h-4 w-4" />
+                        Assign Class
+                      </Link>
+
+                      <Link
+                        to="/dashboard/createBatch"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                        Create Batch
+                      </Link>
+                    </nav>
+                  )}
+
+                  {/* Student */}
+                  {roleId === 2 && (
+                    <nav className="space-y-1">
+                      <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Student Portal
+                      </div>
+                      
+                      <Link
+                        to="/dashboard/c_assessment"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <Award className="h-4 w-4" />
+                        Progress & Assessment
+                      </Link>
+
+                      <Link
+                        to="/dashboard/take_assessment"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <CheckCheck className="h-4 w-4" />
+                        Take Assessment
+                      </Link>
+
+                      <Link
+                        to="/dashboard/note-reader"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        Notes & Textbooks
+                      </Link>
+                    </nav>
+                  )}
+
+                  {/* Teacher */}
+                  {roleId === 3 && (
+                    <nav className="space-y-1">
+                      <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Teacher Tools
+                      </div>
+                      
+                      <Link
+                        to="/dashboard/attendance"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <ClipboardList className="h-4 w-4" />
+                        Attendance
                       </Link>
 
                       <Link
                         to="/dashboard/assessment"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
-                        <CheckCheckIcon />
+                        <FileText className="h-4 w-4" />
                         Create Assessment
                       </Link>
 
-
                       <Link
                         to="/dashboard/note-editor"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
-                        <CheckCheckIcon />
-                        Create note
+                        <PenTool className="h-4 w-4" />
+                        Create Note
                       </Link>
-
-                    </>
-
+                    </nav>
                   )}
+
+                  {/* Guardian */}
                   {roleId === 4 && (
-                    <>
-                      {/* Dependents */}
+                    <nav className="space-y-1">
+                      <div className="px-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Parent Portal
+                      </div>
+                      
                       <Link
                         to="/dashboard/dependent"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
-                        <Users className="h-4 w-4" />
-                        Create child account
+                        <UserPlus className="h-4 w-4" />
+                        Create Child Account
                       </Link>
 
-                      {/* Fee Payments */}
                       <Link
                         to="/dashboard/fee-payments"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
                         <Wallet className="h-4 w-4" />
                         Fee Payments
                       </Link>
 
-                      {/* Class Ranking / Leaders */}
                       <Link
                         to="/dashboard/leaders"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
                         <Trophy className="h-4 w-4" />
                         Class Ranking
@@ -322,54 +504,51 @@ export function Dashboard() {
 
                       <Link
                         to="/dashboard/resetStudentPassword"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
-                        <Trophy className="h-4 w-4" />
+                        <Lock className="h-4 w-4" />
                         Reset Child Password
                       </Link>
 
-                      {/* Monitor Homework */}
-
-                      {/* Child Assignments */}
                       <Link
                         to="/dashboard/childshomework"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
                         <Eye className="h-4 w-4" />
                         Monitor Homework
                       </Link>
 
-                      {/* Place Order */}
                       <Link
                         to="/dashboard/place-order"
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                       >
                         <ShoppingCart className="h-4 w-4" />
                         Place Order
                       </Link>
-
-
-                    </>
+                    </nav>
                   )}
-                </>
-              )}
+
+                </div>
+              </div>
             </SheetContent>
           </Sheet>
 
+          {/* Search */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/70" />
               <Input
                 placeholder="Search..."
-                className="pl-8 md:w-2/3 lg:w-1/3"
+                className="pl-8 md:w-2/3 lg:w-1/3 bg-white/20 border-white/30 text-white placeholder:text-white/70 focus:bg-white/30"
               />
             </div>
           </div>
 
+          {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon" className="rounded-full">
-                <CircleUser className="h-5 w-5" />
+              <Button size="icon" className="rounded-full bg-white/20 border-white/30 hover:bg-white/30">
+                <CircleUser className="h-5 w-5 text-white" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -381,6 +560,7 @@ export function Dashboard() {
           </DropdownMenu>
         </header>
 
+        {/* Main Content Area - Scrolls independently */}
         <main className="flex-1 p-4 lg:p-6">
           <Outlet />
         </main>

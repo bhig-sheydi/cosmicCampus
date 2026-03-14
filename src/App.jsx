@@ -1,7 +1,7 @@
 import React from 'react';
-import { Routes, Route, BrowserRouter as Router } from 'react-router-dom';
+import { Routes, Route, BrowserRouter as Router, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './components/Contexts/ThemeProvider';
-import { AuthProvider } from './components/Contexts/AuthContext'; // Import the AuthProvider
+import { AuthProvider } from './components/Contexts/AuthContext';
 import Home from './Pages/Home';
 import Footer from './components/CustomComponents/Footer';
 import NavContainer from './components/CustomComponents/NavContainer';
@@ -20,7 +20,7 @@ import FixedQRCode from './Pages/FixedQrCode';
 import GuardianProfile from './Pages/GuardianProfile';
 import ResetPasswordPage from './Pages/Reset';
 import { UpdatePassword } from './Pages/updatepassword';
-import CBTExam from './Pages/CBTEXAMS'
+import CBTExam from './Pages/CBTEXAMS';
 import TeacherSubjectsCard from './Pages/TeachersAssingnmentDashboard';
 import StudentAssingnments from './Pages/StudentAssingnments';
 import AssignmentPage from './Pages/AssignmentPage';
@@ -48,90 +48,101 @@ import UpgradeManagedStudent from './components/CustomComponents/UpgradeManagedS
 import GuardianClassRanking from './components/CustomComponents/ClassLeaderBoard';
 import DuplicateClassToArm from './components/CustomComponents/DuplicateClassToArm';
 import ResetStudentPassword from './Pages/ResetStudentPassword';
+import ResetChildPasswordFromParentPortal from './Pages/ResetChildPasswordFromParentPortal';
+import StudentAcessment from './Pages/StudentAcessment';
+import BatchDashboard from './Pages/BatchDashboard';
 
-
-
-
-
-
-
+// Wrapper component to conditionally show footer
+function AppContent() {
+  const location = useLocation();
+  const isDashboard = location.pathname.startsWith('/dashboard');
+  
+  return (
+    <div className="min-h-screen flex flex-col bg-white dark:bg-black">
+      <NavContainer />
+      
+      <div className="flex-1">
+        <Routes>
+          {/* ==================== PUBLIC ROUTES ==================== */}
+          <Route path="/" element={<Home />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/reset" element={<ResetPasswordPage />} />
+          <Route path="/update" element={<UpdatePassword />} />
+          
+          {/* ==================== DASHBOARD ROUTES ==================== */}
+          <Route path="/dashboard" element={<Dashboard />}>
+            
+            {/* ─── General / Shared ─── */}
+            <Route path="profile" element={<Profile />} />
+            <Route path="notifications" element={<Aray />} />
+            
+            {/* ─── School Administration ─── */}
+            <Route path="school-dashboard" element={<SchoolDashboard />} />
+            <Route path="accept-requests" element={<AcceptRequests />} />
+            <Route path="students" element={<StudentsList />} />
+            <Route path="teachers" element={<TeacherList />} />
+            <Route path="classsubject" element={<TeacherAssign />} />
+            <Route path="attendanceQR" element={<FixedQRCode />} />
+            <Route path="bank-account-setup" element={<SchoolAccountSetup />} />
+            <Route path="fee-payments-structure" element={<SchoolFees />} />
+            <Route path="GeneralAssignments" element={<GeneralAssignments />} />
+            <Route path="createBatch" element={<BatchDashboard />} />
+            <Route path="createArm" element={<DuplicateClassToArm />} />
+            
+            {/* ─── Teacher Features ─── */}
+            <Route path="attendance" element={<TeacherAttendance />} />
+            <Route path="assessment" element={<TeacherSubjectsCard />} />
+            <Route path="note-editor" element={<GuidedLessonEditor />} />
+            <Route path="teachhersAsignment" element={<AssignmentHistory />} />
+            <Route path="teachersExams" element={<TeachersExams />} />
+            <Route path="teachersTests" element={<TeachersTests />} />
+            <Route path="asignmentRecord" element={<RecordAssignments />} />
+            <Route path="monitorHomework" element={<Monitor />} />
+            
+            {/* ─── Parent/Guardian Features ─── */}
+            <Route path="dependent" element={<CreateDependentChild />} />
+            <Route path="leaders" element={<GuardianClassRanking />} />
+            <Route path="fee-payments" element={<GuardianFees />} />
+            <Route path="place-order" element={<PlaceOrder />} />
+            <Route path="childshomework" element={<GuardianAssignment />} />
+            <Route path="resetStudentPassword" element={<ResetStudentPassword />} />
+            <Route path="rsppd" element={<ResetChildPasswordFromParentPortal />} />
+            <Route path="upgradestudent" element={<UpgradeManagedStudent />} />
+            
+            {/* ─── Student Features ─── */}
+            <Route path="studentAssignment" element={<StudentAssingnments />} />
+            <Route path="homework" element={<AssignmentPage />} />
+            <Route path="c_assessment" element={<StudentAcessment />} />
+            
+            {/* ─── Inventory / Store ─── */}
+            <Route path="inventory" element={<SchoolsInventory />} />
+            <Route path="add-product" element={<AddInventoryPage />} />
+            <Route path="restock" element={<RestockPage />} />
+            <Route path="cart" element={<CartPage />} />
+            <Route path="receipt" element={<ReceiptPage />} />
+            
+            {/* ─── Utilities / Hidden ─── */}
+            <Route path="a" element={<GuardianProfile />} />
+            <Route path="exams" element={<CBTExam />} />
+            
+          </Route>
+        </Routes>
+      </div>
+      
+      {/* Only show footer on non-dashboard pages */}
+      {!isDashboard && <Footer />}
+    </div>
+  );
+}
 
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-
       <AuthProvider>
         <Toaster />
         <Router>
-          <NavContainer />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/exams" element={<CBTExam />} />
-            <Route path="/reset" element={<ResetPasswordPage/>} />
-            <Route path="/update" element={<UpdatePassword />} />
-            <Route path="/dashboard" element={<Dashboard />}>
-
-            {/* general navigation */}
-             <Route path="profile" element={<Profile />} />
-             {/* general navigatio end */}
-
-             {/* school navigation */}
-              <Route path="accept-requests" element={<AcceptRequests />} />
-              <Route path="students" element={<StudentsList />} />
-              <Route path="teachers" element={<TeacherList />} />
-              <Route path="classsubject" element={<TeacherAssign />} />
-              <Route path="attendanceQR" element={<FixedQRCode />} />
-               <Route path="bank-account-setup" element={<SchoolAccountSetup/>}/>
-               <Route path="fee-payments-structure" element={<SchoolFees/>}/>
-              <Route path="school-dashboard" element={<SchoolDashboard />} />
-               <Route path="GeneralAssignments" element={<GeneralAssignments />} />
-              {/* teacher navigation end */}
-
-              {/* teacher navigation */}
-              <Route path="attendance" element={<TeacherAttendance />} />
-              <Route path="assessment" element={<TeacherSubjectsCard />} />
-               <Route path="note-editor" element={<GuidedLessonEditor />} />
-              {/* teacher navigation end */}
-
-              {/* parents navigation */}
-               
-                <Route path="dependent" element={<CreateDependentChild/>}/>
-                 <Route path="leaders" element={<GuardianClassRanking/>}/>
-                  <Route path="fee-payments" element={<GuardianFees/>}/>
-                  <Route path="place-order" element={<PlaceOrder/>} />
-                   <Route path="childshomework" element={<GuardianAssignment />} />
-                    <Route path="resetStudentPassword" element={<ResetStudentPassword/>} />
-              {/* parent navigation end */}
-
-              {/* not for dashboard navigation */}
-              <Route path="notifications" element={<Aray />} />
-              <Route path="notifications" element={<Aray />} />
-               <Route path="teachhersAsignment" element={<AssignmentHistory />} />
-               <Route path="teachersExams" element={<TeachersExams />} />
-               <Route path="teachersTests" element={<TeachersTests/> } />
-               <Route path="b427824287ww93u28y773e273g7gd73137g643824g7"element={<ReceiptPage/>}/>
-                 <Route path="cart" element={<CartPage/>}/>
-               <Route path="restock" element={<RestockPage/>} />
-                <Route path="add-product" element={<AddInventoryPage />} />
-                <Route path="createArm" element={<DuplicateClassToArm/>} />
-                <Route path="asignmentRecord" element={<RecordAssignments />} />
-                 <Route path="monitorHomework" element={<Monitor />} />
-              {/* not for dashboard navigation end */}
- 8
-             {/* hidden features  */}
-             <Route path="upgradestudent" element={<UpgradeManagedStudent/>}/> 
-             <Route path="studentAssignment" element={<StudentAssingnments />} />
-              <Route path="homework" element={<AssignmentPage />} />
-               <Route path="a" element={<GuardianProfile />} />
-              
-
-              {/* hidden features  end*/}  
-            </Route>
-
-          </Routes>
-          <Footer />
+          <AppContent />
         </Router>
       </AuthProvider>
     </ThemeProvider>

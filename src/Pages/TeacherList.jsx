@@ -1,46 +1,178 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// TeacherList.jsx - Self-contained version
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useUser } from '@/components/Contexts/userContext';
 import { supabase } from '@/supabaseClient';
-import { ListFilterIcon } from 'lucide-react';
+import { 
+  ListFilterIcon, Search, X, ChevronLeft, ChevronRight, 
+  User, School, BookOpen, Trash2, Loader2 
+} from 'lucide-react';
 import TeacherInfoModal from "../components/CustomComponents/TeacherInfoModal";
+
+// Create a singleton QueryClient (or use Context)
+let queryClientInstance = null;
+
+const getQueryClient = () => {
+  if (!queryClientInstance) {
+    queryClientInstance = {
+      cache: new Map(),
+      subscribe: (key, callback) => {
+        // Simple pub-sub for cache invalidation
+        if (!queryClientInstance.listeners) queryClientInstance.listeners = new Map();
+        if (!queryClientInstance.listeners.has(key)) queryClientInstance.listeners.set(key, new Set());
+        queryClientInstance.listeners.get(key).add(callback);
+        return () => queryClientInstance.listeners.get(key).delete(callback);
+      },
+      invalidateQueries: (key) => {
+        const cacheKey = Array.isArray(key) ? key.join('-') : key;
+        queryClientInstance.cache.delete(cacheKey);
+        // Notify listeners
+        queryClientInstance.listeners?.get(cacheKey)?.forEach(cb => cb());
+      },
+      setQueryData: (key, data) => {
+        const cacheKey = Array.isArray(key) ? key.join('-') : key;
+        queryClientInstance.cache.set(cacheKey, {
+          data,
+          timestamp: Date.now(),
+          staleTime: 5 * 60 * 1000
+        });
+        queryClientInstance.listeners?.get(cacheKey)?.forEach(cb => cb());
+      },
+      getQueryData: (key) => {
+        const cacheKey = Array.isArray(key) ? key.join('-') : key;
+        const cached = queryClientInstance.cache.get(cacheKey);
+        if (!cached) return null;
+        if (Date.now() - cached.timestamp > cached.staleTime) {
+          queryClientInstance.cache.delete(cacheKey);
+          return null;
+        }
+        return cached.data;
+      }
+    };
+  }
+  return queryClientInstance;
+};
+
+// Custom hook that mimics React Query without the dependency
+const useCachedQuery = (key, fetchFn, options = {}) => {
+  const [data, setData] = useState(() => getQueryClient().getQueryData(key));
+  const [isLoading, setIsLoading] = useState(!data);
+  const [error, setError] = useState(null);
+  
+  const { enabled = true, staleTime = 5 * 60 * 1000 } = options;
+  
+  useEffect(() => {
+    if (!enabled) return;
+    
+    const cacheKey = Array.isArray(key) ? key.join('-') : key;
+    const cached = getQueryClient().getQueryData(key);
+    
+    if (cached) {
+      setData(cached);
+      setIsLoading(false);
+      // Background refresh if stale
+      fetchFn().then(newData => {
+        getQueryClient().setQueryData(key, newData);
+        setData(newData);
+      }).catch(console.error);
+    } else {
+      setIsLoading(true);
+      fetchFn()
+        .then(newData => {
+          getQueryClient().setQueryData(key, newData);
+          setData(newData);
+          setError(null);
+        })
+        .catch(err => setError(err))
+        .finally(() => setIsLoading(false));
+    }
+    
+    // Subscribe to cache updates
+    return getQueryClient().subscribe(cacheKey, () => {
+      const updated = getQueryClient().getQueryData(key);
+      if (updated) setData(updated);
+    });
+  }, [JSON.stringify(key), enabled]);
+  
+  const refetch = useCallback(() => {
+    getQueryClient().invalidateQueries(key);
+    setIsLoading(true);
+    return fetchFn()
+      .then(newData => {
+        getQueryClient().setQueryData(key, newData);
+        setData(newData);
+        setError(null);
+        return newData;
+      })
+      .catch(err => {
+        setError(err);
+        throw err;
+      })
+      .finally(() => setIsLoading(false));
+  }, [fetchFn, key]);
+  
+  return { data, isLoading, error, refetch };
+};
+
+// Rest of your component remains similar...
+const FilterBadge = memo(({ label, value, onClear }) => {
+  if (!value) return null;
+  return (
+    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+      {label}: {value}
+      <button onClick={onClear} className="hover:text-blue-600 dark:hover:text-blue-300">
+        <X size={14} />
+      </button>
+    </span>
+  );
+});
+
+const StatCard = memo(({ label, value, icon: Icon, color }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex items-center gap-4">
+    <div className={`p-3 rounded-lg ${color}`}>
+      <Icon className="w-6 h-6 text-white" />
+    </div>
+    <div>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{label}</p>
+      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+    </div>
+  </div>
+));
+
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+};
 
 const TeacherList = () => {
   const { 
     setFetchFlags,
-    teachers, 
-    setTeachers, 
-    classes, 
-    subjects, 
-    userSchools, 
     userData, 
-    selectedTeacher, 
-    setSelectedTeacher,
+    userSchools, 
+    classes, 
+    subjects,
     teacherSubjectsFull
   } = useUser();
 
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSchool, setSelectedSchool] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-
-  const [showFiltersDropdown, setShowFiltersDropdown] = useState(false);
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [subjectTeacherId, setSubjectTeacherId] = useState(null);
-  const [showClassModal, setShowClassModal] = useState(false);
-  const [classTeacherId, setClassTeacherId] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  const [activeModal, setActiveModal] = useState(null);
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedClassForAssignment, setSelectedClassForAssignment] = useState('');
-  const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [selectedArmForAssignment, setSelectedArmForAssignment] = useState('');
-const [arms, setArms] = useState([]);
+  const [arms, setArms] = useState([]);
 
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
-  const schools = userSchools;
-
-  // Initialize fetch flags once
   useEffect(() => {
     setFetchFlags(prev => ({
       ...prev,
@@ -50,513 +182,667 @@ const [arms, setArms] = useState([]);
       subjects: true,
       teacherSubjectsFull: true
     }));
-  }, []);
+  }, [setFetchFlags]);
 
-  // Debounced fetch for search to reduce requests
-useEffect(() => {
-  if (!userData?.user_id) return;
+  const fetchTeachers = useCallback(async () => {
+    if (!userData?.user_id) throw new Error('User not authenticated');
 
-  const delay = setTimeout(() => {
-    loadTeachers();
-  }, 300);
+    let query = supabase
+      .from('teachers')
+      .select(`
+        *,
+        schools(name),
+        arms (
+          arm_id,
+          arm_name,
+          class:class (
+            class_id,
+            class_name
+          )
+        ),
+        teacher_subjects(
+          subject_id,
+          subjects(subject_name)
+        )
+      `, { count: 'exact' })
+      .eq('teacher_proprietor', userData.user_id);
 
-  return () => clearTimeout(delay);
-}, [
-  userData?.user_id,
-  page,
-  searchQuery,
-  selectedClass,
-  selectedSchool,
-  selectedSubject
-]);
+    if (debouncedSearch) query = query.ilike('teacher_name', `%${debouncedSearch}%`);
+    if (selectedClass && selectedClass !== 'null') query = query.eq('arms.class_id', selectedClass);
+    if (selectedClass === 'null') query = query.is('arm_id', null);
+    if (selectedSchool) query = query.eq('schools.name', selectedSchool);
+    if (selectedSubject) query = query.eq('teacher_subjects.subjects.subject_name', selectedSubject);
 
-const deleteTeacherSubject = async (teacherId, subjectId) => {
-  if (!teacherId || !subjectId) return;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    
+    const { data, count, error } = await query.range(from, to);
+    if (error) throw error;
+    
+    return { data, count };
+  }, [userData?.user_id, page, debouncedSearch, selectedClass, selectedSchool, selectedSubject]);
 
-  const confirmDelete = window.confirm('Remove this subject from teacher?');
-  if (!confirmDelete) return;
+  // Use custom cached query hook instead of React Query
+  const { data: teachersData, isLoading, error, refetch } = useCachedQuery(
+    ['teachers', page, debouncedSearch, selectedClass, selectedSchool, selectedSubject],
+    fetchTeachers,
+    { enabled: !!userData?.user_id }
+  );
 
-  const { error } = await supabase
-    .from('teacher_subjects')
-    .delete()
-    .eq('teacher_id', teacherId)
-    .eq('subject_id', subjectId);
+  const teachers = teachersData?.data || [];
+  const total = teachersData?.count || 0;
 
-  if (error) {
-    console.error(error);
-    alert('Failed to remove subject');
-    return;
-  }
-
-  loadTeachers(); // refresh UI
-};
-
-
-const fetchArms = async (classId) => {
-  if (!classId) return;
-
-  const schoolId = userSchools?.[0]?.id; // ✅ correct source
-
-  if (!schoolId) {
-    console.warn('School ID not found');
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from('arms')
-    .select('arm_id, arm_name')
-    .eq('class_id', classId)
-    .eq('school_id', schoolId);
-
-  if (error) {
-    console.error('Failed to fetch arms:', error.message);
-    return;
-  }
-
-  setArms(data || []);
-};
-
-
-
-const assignArmToTeacher = async () => {
-  if (!classTeacherId || !selectedArmForAssignment) return;
-
-  const { error } = await supabase
-    .from('teachers')
-    .update({ arm_id: selectedArmForAssignment })
-    .eq('teacher_id', classTeacherId);
-
-  if (error) {
-    alert('Failed to assign class');
-    return;
-  }
-
-  setShowClassModal(false);
-  loadTeachers();
-};
-
-
-
-const fetchTeachers = useCallback(async ({
-  page = 1,
-  pageSize = 10,
-  searchQuery = '',
-  selectedClass = '',
-  selectedSchool = '',
-  selectedSubject = '',
-}) => {
-  if (!userData?.user_id) {
-  throw new Error('User not ready');
-}
- // safety check
-
-let query = supabase
-  .from('teachers')
-  .select(`
-    *,
-    schools(name),
-    arms (
-      arm_id,
-      arm_name,
-      class:class (
-        class_id,
-        class_name
-      )
-    ),
-   teacher_subjects(
-  subject_id,
-  subjects (
-    subject_name
-  )
-)
-
-  `, { count: 'exact' })
-  .eq('teacher_proprietor', userData.user_id);
- // ✅ fetch only teachers of this proprietor
-
-  if (searchQuery) query = query.ilike('teacher_name', `%${searchQuery}%`);
-if (selectedClass && selectedClass !== 'null') {
- query = query.eq('arms.class_id', selectedClass);
-
-}
-
-if (selectedClass === 'null') {
-  query = query.is('arm_id', null);
-}
-
-
-  if (selectedSchool) query = query.eq('schools.name', selectedSchool);
-  if (selectedSubject) query = query.eq('teacher_subjects.subjects.subject_name', selectedSubject);
-
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  query = query.range(from, to);
-
-  const { data, count, error } = await query;
-  if (error) throw error;
-
-  return { data, count };
-}, [userData?.user_id]);
-
-
-const loadTeachers = useCallback(async () => {
-  if (!userData?.user_id) return;
-
-  setLoading(true);
-  try {
-    const { data, count } = await fetchTeachers({
-      page,
-      pageSize,
-      searchQuery,
-      selectedClass,
-      selectedSchool,
-      selectedSubject
-    });
-
-    setTeachers(data);
-    setTotal(count);
-  } catch (error) {
-    console.error('Failed to fetch teachers:', error.message);
-  } finally {
-    setLoading(false);
-  }
-}, [
-  userData?.user_id,
-  page,
-  pageSize,
-  searchQuery,
-  selectedClass,
-  selectedSchool,
-  selectedSubject,
-  fetchTeachers
-]);
-
-
-  // Realtime updates
-  useEffect(() => {
-    const teacherSub = supabase
-      .channel('public:teachers')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-        loadTeachers();
-      })
-      .subscribe();
-
-    return () => supabase.removeChannel(teacherSub);
-  }, [loadTeachers]);
-
-  // Client-side filtering fallback (useMemo to avoid recomputation)
-  const filteredTeachers = useMemo(() => {
-    if (!teachers) return [];
-    return teachers.filter(teacher => {
-      const matchesName = teacher.teacher_name.toLowerCase().includes(searchQuery.toLowerCase());
-     const matchesClass =
-  !selectedClass ||
-  (selectedClass === 'null'
-    ? !teacher.arm_id
-    : teacher.arms?.class?.class_id == selectedClass);
-
-      const matchesSchool = !selectedSchool || teacher.schools?.name === selectedSchool;
-      const matchesSubject =
-        !selectedSubject ||
-        teacherSubjectsFull?.some(
-          subject =>
-            subject?.teacher_id === teacher?.teacher_id &&
-            subject?.subjects?.subject_name === selectedSubject
-        );
-      return matchesName && matchesClass && matchesSchool && matchesSubject;
-    });
-  }, [teachers, searchQuery, selectedClass, selectedSchool, selectedSubject, teacherSubjectsFull]);
-
+  // Optimistic mutations
   const deleteTeacher = async (teacherId) => {
-    if (!teacherId) return alert('Failed to delete teacher. Please try again.');
-
+    if (!window.confirm('Are you sure you want to remove this teacher?')) return;
+    
     try {
-      // Batch all updates/deletes in parallel
-      const [requestErr, teacherErr, proprietorErr, subjectErr, classErr] = await Promise.all([
+      await Promise.all([
         supabase.from('requests').update({ status: 'rejected' }).eq('teacher_id', teacherId),
-        supabase.from('teachers').update({ teacher_school: null }).eq('teacher_id', teacherId),
-        supabase.from('teachers').update({ teacher_proprietor: null }).eq('teacher_id', teacherId),
-        supabase.from('teacher_subjects').delete().eq('teacher_id', teacherId),
-        supabase.from('teachers').update({ teacher_class: null }).eq('teacher_id', teacherId)
-      ].map(p => p.catch(e => e.error)));
-
-      if (requestErr || teacherErr || proprietorErr || subjectErr || classErr) throw new Error('Error deleting teacher');
-      alert('Teacher deleted successfully!');
-      loadTeachers(); // refresh list instantly
-    } catch (error) {
-      console.error(error);
-      alert('Failed to delete teacher. Please try again.');
+        supabase.from('teachers').update({ 
+          teacher_school: null, 
+          teacher_proprietor: null, 
+          teacher_class: null 
+        }).eq('teacher_id', teacherId),
+        supabase.from('teacher_subjects').delete().eq('teacher_id', teacherId)
+      ]);
+      refetch();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete teacher');
     }
   };
 
-  // const assignClassToTeacher = async () => {
-  //   if (!classTeacherId || !selectedClassForAssignment) return;
-
-  //   const { error } = await supabase
-  //     .from('teachers')
-  //     .update({ teacher_class: selectedClassForAssignment })
-  //     .eq('teacher_id', classTeacherId);
-
-  //   if (error) return alert('Failed to assign class');
-  //   setShowClassModal(false);
-  //   loadTeachers();
-  // };
-
-  const assignSubjectToTeacher = async () => {
-    if (!subjectTeacherId || !selectedSubject) return;
-
+  const assignSubject = async () => {
+    if (!selectedTeacher || !selectedSubject) return;
+    
     const { error } = await supabase
       .from('teacher_subjects')
       .insert({
-        teacher_id: subjectTeacherId,
+        teacher_id: selectedTeacher.teacher_id,
         subject_id: selectedSubject,
         owner_id: userData?.user_id
       });
 
-    if (error) return alert('Failed to assign subject');
-    setShowSubjectModal(false);
-    loadTeachers();
+    if (error) {
+      alert('Failed to assign subject');
+      return;
+    }
+    
+    setActiveModal(null);
+    refetch();
   };
 
-  const handleTeacherNameClick = (teacher) => {
-    setSelectedTeacher(teacher);
-    setShowTeacherModal(true);
+  const assignArm = async () => {
+    if (!selectedTeacher || !selectedArmForAssignment) return;
+    
+    const { error } = await supabase
+      .from('teachers')
+      .update({ arm_id: selectedArmForAssignment })
+      .eq('teacher_id', selectedTeacher.teacher_id);
+
+    if (error) {
+      alert('Failed to assign class');
+      return;
+    }
+    
+    closeClassModal();
+    refetch();
   };
+
+  const deleteTeacherSubject = async (subjectId) => {
+    if (!window.confirm('Remove this subject from teacher?')) return;
+    
+    const { error } = await supabase
+      .from('teacher_subjects')
+      .delete()
+      .eq('teacher_id', selectedTeacher.teacher_id)
+      .eq('subject_id', subjectId);
+
+    if (error) {
+      alert('Failed to remove subject');
+      return;
+    }
+    
+    refetch();
+  };
+
+  const fetchArms = useCallback(async (classId) => {
+    if (!classId || !userSchools?.[0]?.id) return;
+    
+    const { data, error } = await supabase
+      .from('arms')
+      .select('arm_id, arm_name')
+      .eq('class_id', classId)
+      .eq('school_id', userSchools[0].id);
+
+    if (error) {
+      console.error('Failed to fetch arms:', error);
+      return;
+    }
+    setArms(data || []);
+  }, [userSchools]);
+
+  const openSubjectModal = useCallback((teacher) => {
+    setSelectedTeacher(teacher);
+    setActiveModal('subject');
+  }, []);
+
+  const openClassModal = useCallback((teacher) => {
+    setSelectedTeacher(teacher);
+    setActiveModal('class');
+    setSelectedClassForAssignment('');
+    setSelectedArmForAssignment('');
+    setArms([]);
+  }, []);
+
+  const openTeacherModal = useCallback((teacher) => {
+    setSelectedTeacher(teacher);
+    setActiveModal('teacher');
+  }, []);
+
+  const closeClassModal = useCallback(() => {
+    setActiveModal(null);
+    setSelectedClassForAssignment('');
+    setSelectedArmForAssignment('');
+    setArms([]);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedClass('');
+    setSelectedSchool('');
+    setSelectedSubject('');
+    setPage(1);
+  }, []);
+
+  const activeFiltersCount = [selectedClass, selectedSchool, selectedSubject].filter(Boolean).length;
+
+  const stats = useMemo(() => ({
+    total: total,
+    withClass: teachers.filter(t => t.arm_id).length,
+    withSubject: teachers.filter(t => t.teacher_subjects?.length > 0).length
+  }), [teachers, total]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-500 mb-2">Failed to load teachers</p>
+          <button 
+            onClick={refetch}
+            className="text-blue-500 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-full">
-      <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-8 sm:mb-10 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-        Teachers List
-      </h1>    
-
-      <div className="mb-4 sm:mb-6 flex items-center justify-center">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-[80%] px-3 py-2 sm:px-4 sm:py-2 border rounded-md shadow-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-        />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Teachers
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Manage your teaching staff and their assignments
+        </p>
       </div>
 
-      {/* Filters Dropdown */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-4 sm:mb-6 pl-32">
-        <div className="relative">
-          <div
-            className="flex items-center cursor-pointer group"
-            onClick={() => setShowFiltersDropdown(prev => !prev)}
-          >
-            <ListFilterIcon className="text-2xl text-blue-500 group-hover:text-purple-500 dark:text-indigo-400 dark:group-hover:text-indigo-600" />
-            <span className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-              Filter options
-            </span>
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <StatCard label="Total Teachers" value={stats.total} icon={User} color="bg-blue-500" />
+        <StatCard label="With Class Assigned" value={stats.withClass} icon={School} color="bg-green-500" />
+        <StatCard label="With Subjects" value={stats.withSubject} icon={BookOpen} color="bg-purple-500" />
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search teachers by name..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
-          {showFiltersDropdown && (
-            <div className="absolute top-10 left-0 w-[600%] mt-2 border rounded-md bg-white shadow-lg z-10 p-4 dark:bg-gray-800 dark:border-gray-700">
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-                  Filter by Subject
-                </label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => {
-                    setSelectedSubject(e.target.value);
-                    setShowFiltersDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-                >
-                  <option value="">All Subjects</option>
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.subject_name}>
-                      {subject.subject_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-                  Filter by Class
-                </label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => {
-                    setSelectedClass(e.target.value);
-                    setShowFiltersDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-                >
-                  <option value="">All Classes</option>
-                  <option value="null">No Class</option>
-                  {classes?.map((c) => (
-                    <option key={c.class_id} value={c.class_id}>{c.class_name}</option>
-                  ))}
-                </select>
-              </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+              showFilters || activeFiltersCount > 0
+                ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300'
+                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white'
+            }`}
+          >
+            <ListFilterIcon size={20} />
+            Filters
+            {activeFiltersCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+        </div>
 
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-                  Filter by School
-                </label>
-                <select
-                  value={selectedSchool}
-                  onChange={(e) => {
-                    setSelectedSchool(e.target.value);
-                    setShowFiltersDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
-                >
-                  <option value="">All Schools</option>
-                  {schools.map((s, i) => <option key={i} value={s.name}>{s.name}</option>)}
-                </select>
-              </div>
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Subject
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => {
+                  setSelectedSubject(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">All Subjects</option>
+                {subjects.map((subject) => (
+                  <option key={subject.id} value={subject.subject_name}>
+                    {subject.subject_name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Class
+              </label>
+              <select
+                value={selectedClass}
+                onChange={(e) => {
+                  setSelectedClass(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">All Classes</option>
+                <option value="null">No Class Assigned</option>
+                {classes?.map((c) => (
+                  <option key={c.class_id} value={c.class_id}>
+                    {c.class_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                School
+              </label>
+              <select
+                value={selectedSchool}
+                onChange={(e) => {
+                  setSelectedSchool(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">All Schools</option>
+                {userSchools.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {activeFiltersCount > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
+            <FilterBadge 
+              label="Subject" 
+              value={selectedSubject} 
+              onClear={() => setSelectedSubject('')} 
+            />
+            <FilterBadge 
+              label="Class" 
+              value={selectedClass === 'null' ? 'No Class' : classes?.find(c => c.class_id == selectedClass)?.class_name} 
+              onClear={() => setSelectedClass('')} 
+            />
+            <FilterBadge 
+              label="School" 
+              value={selectedSchool} 
+              onClear={() => setSelectedSchool('')} 
+            />
+            <button 
+              onClick={clearFilters}
+              className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 ml-auto"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="ml-2 text-gray-600 dark:text-gray-400">Loading teachers...</span>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && teachers.length === 0 && (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
+            No teachers found
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            {searchQuery || activeFiltersCount > 0 
+              ? "Try adjusting your search or filters" 
+              : "Get started by adding your first teacher"}
+          </p>
+          {(searchQuery || activeFiltersCount > 0) && (
+            <button 
+              onClick={clearFilters}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear filters
+            </button>
           )}
         </div>
-      </div>
+      )}
 
       {/* Teachers Table */}
-      <div className="overflow-x-auto sm:w-full">
-        <table className="min-w-full border-collapse border rounded-lg shadow-lg dark:border-gray-700">
-          <thead className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white dark:bg-gradient-to-r dark:from-indigo-800 dark:via-purple-700 dark:to-pink-700">
-            <tr>
-              <th className="border px-4 py-2 text-left dark:border-gray-700">Name</th>
-              <th className="border px-4 py-2 text-left dark:border-gray-700">School</th>
-              <th className="border px-4 py-2 text-left dark:border-gray-700">Class</th>
-              <th className="border px-4 py-2 text-left dark:border-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTeachers.length > 0 ? filteredTeachers.map((teacher) => (
-              <tr key={teacher.id} className="hover:bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 dark:hover:bg-gray-700">
-                <td className="border px-4 py-2 dark:border-gray-700 dark:text-white cursor-pointer text-blue-600 hover:underline" onClick={() => handleTeacherNameClick(teacher)}>
-                  {teacher.teacher_name}
-                </td>
-                <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">{teacher.schools?.name || 'N/A'}</td>
-     <td className="border px-4 py-2 dark:border-gray-700 dark:text-white">
-  {teacher.arms?.class?.class_name
-    ? `${teacher.arms.class.class_name} (${teacher.arms.arm_name})`
-    : 'No Class Assigned'}
-</td>
+      {!isLoading && teachers.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Teacher
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    School
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Class & Arm
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Subjects
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {teachers.map((teacher) => (
+                  <tr 
+                    key={teacher.teacher_id} 
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => openTeacherModal(teacher)}
+                        className="flex items-center gap-3 group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                          {teacher.teacher_name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            {teacher.teacher_name}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            ID: {teacher.teacher_id}
+                          </p>
+                        </div>
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                      {teacher.schools?.name || '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {teacher.arms ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          {teacher.arms.class?.class_name} ({teacher.arms.arm_name})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                          Unassigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {teacher.teacher_subjects?.length > 0 ? (
+                          teacher.teacher_subjects.map((ts, idx) => (
+                            <span 
+                              key={idx}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                            >
+                              {ts.subjects?.subject_name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400 text-sm">No subjects</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openSubjectModal(teacher)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:text-blue-400 dark:hover:bg-blue-900/30"
+                          title="Assign Subject"
+                        >
+                          <BookOpen size={18} />
+                        </button>
+                        <button
+                          onClick={() => openClassModal(teacher)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors dark:text-green-400 dark:hover:bg-green-900/30"
+                          title="Assign Class"
+                        >
+                          <School size={18} />
+                        </button>
+                        <button
+                          onClick={() => deleteTeacher(teacher.teacher_id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors dark:text-red-400 dark:hover:bg-red-900/30"
+                          title="Remove Teacher"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                <td className="border px-4 py-2 dark:border-gray-700 flex gap-2">
-                  <button onClick={() => { setSubjectTeacherId(teacher.teacher_id); setShowSubjectModal(true); }} className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700">Assign Subject</button>
-                  <button onClick={() => deleteTeacher(teacher.teacher_id)} className="bg-red-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700">Delete</button>
-                  <button onClick={() => { setClassTeacherId(teacher.teacher_id); setShowClassModal(true); }} className="bg-green-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700">Assign Class</button>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan="4" className="text-center py-4 dark:text-white">No teachers found</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Pagination */}
-        <div className="flex justify-center mt-6 space-x-4">
-          <button onClick={() => setPage(prev => Math.max(prev - 1, 1))} disabled={page === 1} className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50">Previous</button>
-          <span className="text-lg font-medium">Page {page} of {Math.ceil(total / pageSize)}</span>
-          <button onClick={() => setPage(prev => prev + 1)} disabled={page >= Math.ceil(total / pageSize)} className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50">Next</button>
-        </div>
-      </div>
-
-      {/* Modals */}
-{showClassModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-lg shadow-lg dark:bg-gray-800 w-full max-w-md">
-      
-      <h2 className="text-lg font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">
-        Assign Class & Arm
-      </h2>
-
-      {/* CLASS SELECT */}
-      <select
-        value={selectedClassForAssignment}
-        onChange={(e) => {
-          const classId = e.target.value;
-          setSelectedClassForAssignment(classId);
-          setSelectedArmForAssignment('');
-          if (classId) fetchArms(classId);
-        }}
-        className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700 mb-4"
-      >
-        <option value="">Select a class</option>
-        {classes.map(c => (
-          <option key={c.class_id} value={c.class_id}>
-            {c.class_name}
-          </option>
-        ))}
-      </select>
-
-      {/* ARM SELECT */}
-      <select
-        value={selectedArmForAssignment}
-        onChange={(e) => setSelectedArmForAssignment(e.target.value)}
-        disabled={!selectedClassForAssignment}
-        className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700 mb-4 disabled:opacity-50"
-      >
-        <option value="">Select an arm</option>
-        {arms.map(a => (
-          <option key={a.arm_id} value={a.arm_id}>
-            {a.arm_name}
-          </option>
-        ))}
-      </select>
-
-      <div className="flex justify-end gap-4">
-        <button
-           onClick={assignArmToTeacher}
-          disabled={!selectedArmForAssignment}
-          className="bg-green-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-green-600 disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700"
-        >
-          Assign
-        </button>
-
-        <button
-          onClick={() => {
-            setShowClassModal(false);
-            setSelectedClassForAssignment('');
-            setSelectedArmForAssignment('');
-            setArms([]);
-          }}
-          className="bg-gray-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700"
-        >
-          Cancel
-        </button>
-      </div>
-
-    </div>
-  </div>
-)}
-
-
-      {showSubjectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg dark:bg-gray-800">
-            <h2 className="text-lg font-semibold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500">Assign Subject</h2>
-            <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full px-4 py-2 border rounded-md shadow-lg focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700 mb-4">
-              <option value="">Select a subject</option>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.subject_name}</option>)}
-            </select>
-            <div className="flex justify-end gap-4">
-              <button onClick={assignSubjectToTeacher} className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700">Assign</button>
-              <button onClick={() => setShowSubjectModal(false)} className="bg-gray-500 text-white px-4 py-2 rounded-md shadow-lg hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700">Cancel</button>
+          {/* Pagination */}
+          <div className="px-6 py-4 border-t dark:border-gray-700 flex items-center justify-between">
+            <p className="text-sm text-gray-700 dark:text-gray-400">
+              Showing <span className="font-medium">{(page - 1) * pageSize + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(page * pageSize, total)}</span> of{' '}
+              <span className="font-medium">{total}</span> teachers
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-sm text-gray-700 dark:text-gray-400">
+                Page {page} of {Math.ceil(total / pageSize)}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={page >= Math.ceil(total / pageSize)}
+                className="p-2 rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {showTeacherModal && (
-<TeacherInfoModal 
-  teacher={selectedTeacher}
-  onClose={() => {
-    setShowTeacherModal(false);
-    setSelectedTeacher(null);
-  }}
-  onDeleteSubject={deleteTeacherSubject}
-/>
+      {/* Modals */}
+      {activeModal === 'class' && selectedTeacher && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-6 border-b dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Assign Class & Arm
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                to {selectedTeacher.teacher_name}
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Class
+                </label>
+                <select
+                  value={selectedClassForAssignment}
+                  onChange={(e) => {
+                    const classId = e.target.value;
+                    setSelectedClassForAssignment(classId);
+                    setSelectedArmForAssignment('');
+                    if (classId) fetchArms(classId);
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="">Select a class</option>
+                  {classes.map(c => (
+                    <option key={c.class_id} value={c.class_id}>
+                      {c.class_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Arm
+                </label>
+                <select
+                  value={selectedArmForAssignment}
+                  onChange={(e) => setSelectedArmForAssignment(e.target.value)}
+                  disabled={!selectedClassForAssignment || arms.length === 0}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="">
+                    {!selectedClassForAssignment 
+                      ? 'Select a class first' 
+                      : arms.length === 0 
+                        ? 'No arms available' 
+                        : 'Select an arm'}
+                  </option>
+                  {arms.map(a => (
+                    <option key={a.arm_id} value={a.arm_id}>
+                      {a.arm_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={closeClassModal}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={assignArm}
+                disabled={!selectedArmForAssignment}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Assign Class
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'subject' && selectedTeacher && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-6 border-b dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Assign Subject
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                to {selectedTeacher.teacher_name}
+              </p>
+            </div>
+            
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Subject
+              </label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">Select a subject</option>
+                {subjects.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.subject_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="p-6 border-t dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={() => setActiveModal(null)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={assignSubject}
+                disabled={!selectedSubject}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Assign Subject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeModal === 'teacher' && selectedTeacher && (
+        <TeacherInfoModal 
+          teacher={selectedTeacher}
+          onClose={() => setActiveModal(null)}
+          onDeleteSubject={deleteTeacherSubject}
+        />
       )}
     </div>
   );
