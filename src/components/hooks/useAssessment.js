@@ -7,9 +7,24 @@ const defaultQuestion = [
 export const useAssessment = () => {
   const [questions, setQuestions] = useState(defaultQuestion);
   const [selectedArms, setSelectedArms] = useState([]);
+  const [term, setTerm] = useState(1);
+  
+  // NEW: Test security settings
+  const [durationMinutes, setDurationMinutes] = useState(null);
+  const [securityLevel, setSecurityLevel] = useState('standard');
+  const [requiresFullscreen, setRequiresFullscreen] = useState(false);
+  const [allowCalculator, setAllowCalculator] = useState(true);
+  const [rulesText, setRulesText] = useState('');
 
   const resetQuestions = useCallback(() => {
     setQuestions(defaultQuestion);
+    setTerm(1);
+    // NEW: Reset security settings
+    setDurationMinutes(null);
+    setSecurityLevel('standard');
+    setRequiresFullscreen(false);
+    setAllowCalculator(true);
+    setRulesText('');
   }, []);
 
   const handleQuestionChange = useCallback((index, field, value) => {
@@ -74,6 +89,19 @@ export const useAssessment = () => {
     setQuestions,
     selectedArms,
     setSelectedArms,
+    term,
+    setTerm,
+    // NEW: Test security exports
+    durationMinutes,
+    setDurationMinutes,
+    securityLevel,
+    setSecurityLevel,
+    requiresFullscreen,
+    setRequiresFullscreen,
+    allowCalculator,
+    setAllowCalculator,
+    rulesText,
+    setRulesText,
     resetQuestions,
     handleQuestionChange,
     addQuestion,

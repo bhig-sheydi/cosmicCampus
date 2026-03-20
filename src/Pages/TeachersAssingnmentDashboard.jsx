@@ -60,7 +60,6 @@ const TeacherSubjectsCard = () => {
     setHomeworkModal(null);
     homeworkAssessment.resetQuestions();
     setAssignmentTitle("");
-    homeworkAssessment.setSelectedArms([]);
   };
 
   const openExamModal = (cls) => {
@@ -73,7 +72,6 @@ const TeacherSubjectsCard = () => {
     setExamModal(null);
     examAssessment.resetQuestions();
     setExamTitle("");
-    examAssessment.setSelectedArms([]);
   };
 
   const openTestModal = (cls) => {
@@ -86,10 +84,8 @@ const TeacherSubjectsCard = () => {
     setTestModal(null);
     testAssessment.resetQuestions();
     setTestTitle("");
-    testAssessment.setSelectedArms([]);
   };
 
-  // RPC-based submission handlers
   const submitHomework = async () => {
     if (!homeworkModal || !teacher) return;
 
@@ -106,7 +102,6 @@ const TeacherSubjectsCard = () => {
         (sum, q) => sum + (parseFloat(q.marks) || 0), 0
       );
 
-      // Format questions for JSONB
       const questionsJsonb = homeworkAssessment.questions.map(q => ({
         question: q.question,
         options: q.type === "objective" ? q.options : [],
@@ -123,7 +118,8 @@ const TeacherSubjectsCard = () => {
         p_total_marks: totalMarks,
         p_subject_id: selectedSubjectId,
         p_arm_ids: homeworkAssessment.selectedArms,
-        p_questions: questionsJsonb
+        p_questions: questionsJsonb,
+        p_term: homeworkAssessment.term
       });
 
       if (rpcError) throw new Error(rpcError.message);
@@ -170,7 +166,8 @@ const TeacherSubjectsCard = () => {
         p_total_marks: totalMarks,
         p_subject_id: selectedSubjectId,
         p_arm_ids: examAssessment.selectedArms,
-        p_questions: questionsJsonb
+        p_questions: questionsJsonb,
+        p_term: examAssessment.term
       });
 
       if (rpcError) throw new Error(rpcError.message);
@@ -217,7 +214,14 @@ const TeacherSubjectsCard = () => {
         p_total_marks: totalMarks,
         p_subject_id: selectedSubjectId,
         p_arm_ids: testAssessment.selectedArms,
-        p_questions: questionsJsonb
+        p_questions: questionsJsonb,
+        p_term: testAssessment.term,
+        // NEW: Security settings
+        p_duration_minutes: testAssessment.durationMinutes,
+        p_security_level: testAssessment.securityLevel,
+        p_requires_fullscreen: testAssessment.requiresFullscreen,
+        p_allow_calculator: testAssessment.allowCalculator,
+        p_rules_text: testAssessment.rulesText
       });
 
       if (rpcError) throw new Error(rpcError.message);
@@ -230,6 +234,17 @@ const TeacherSubjectsCard = () => {
     } finally {
       setIsSubmitting(false);
     }
+
+
+        // ADD CONSOLE LOG HERE - before the supabase.rpc call
+    console.log('=== DEBUG: RPC Parameters ===');
+    console.log('p_teacher_id:', userData.user_id, 'type:', typeof userData.user_id);
+    console.log('p_class_id:', testModal.class_id, 'type:', typeof testModal.class_id);
+    console.log('p_school_id:', teacher[0]?.teacher_school, 'type:', typeof teacher[0]?.teacher_school);
+    console.log('p_proprietor_id:', teacher[0]?.teacher_proprietor, 'type:', typeof teacher[0]?.teacher_proprietor);
+    console.log('p_subject_id:', selectedSubjectId, 'type:', typeof selectedSubjectId);
+    console.log('p_arm_ids:', testAssessment.selectedArms);
+    console.log('================================');
   };
 
   return (
@@ -256,6 +271,7 @@ const TeacherSubjectsCard = () => {
         onSetHomework={openHomeworkModal}
       />
 
+      {/* Homework - no security settings */}
       <AssessmentModal
         isOpen={!!homeworkModal}
         onClose={closeHomeworkModal}
@@ -276,30 +292,50 @@ const TeacherSubjectsCard = () => {
         isSubmitting={isSubmitting}
         submitButtonText="Submit Homework"
         titlePlaceholder="Assignment Title"
+        term={homeworkAssessment.term}
+        setTerm={homeworkAssessment.setTerm}
+        isTest={false}
       />
 
-      <AssessmentModal
-        isOpen={!!examModal}
-        onClose={closeExamModal}
-        onSubmit={submitExam}
-        title="Set Exam"
-        className={examModal?.class_name}
-        armName={examModal?.arm_name}
-        assessmentTitle={examTitle}
-        setAssessmentTitle={setExamTitle}
-        questions={examAssessment.questions}
-        onQuestionChange={examAssessment.handleQuestionChange}
-        onAddQuestion={examAssessment.addQuestion}
-        onDeleteQuestion={examAssessment.deleteQuestion}
-        classesForSubject={classesForSubject}
-        selectedArms={examAssessment.selectedArms}
-        onArmToggle={examAssessment.setSelectedArms}
-        filterClassId={examModal?.class_id}
-        isSubmitting={isSubmitting}
-        submitButtonText="Submit Exam"
-        titlePlaceholder="Exam Title"
-      />
+      {/* Exam - no security settings (for now) */}
+ {/* Exam - WITH security settings */}
+<AssessmentModal
+  isOpen={!!examModal}
+  onClose={closeExamModal}
+  onSubmit={submitExam}
+  title="Set Exam"
+  className={examModal?.class_name}
+  armName={examModal?.arm_name}
+  assessmentTitle={examTitle}
+  setAssessmentTitle={setExamTitle}
+  questions={examAssessment.questions}
+  onQuestionChange={examAssessment.handleQuestionChange}
+  onAddQuestion={examAssessment.addQuestion}
+  onDeleteQuestion={examAssessment.deleteQuestion}
+  classesForSubject={classesForSubject}
+  selectedArms={examAssessment.selectedArms}
+  onArmToggle={examAssessment.setSelectedArms}
+  filterClassId={examModal?.class_id}
+  isSubmitting={isSubmitting}
+  submitButtonText="Submit Exam"
+  titlePlaceholder="Exam Title"
+  term={examAssessment.term}
+  setTerm={examAssessment.setTerm}
+  // NEW: Exam security props
+  isExam={true}
+  durationMinutes={examAssessment.durationMinutes}
+  setDurationMinutes={examAssessment.setDurationMinutes}
+  securityLevel={examAssessment.securityLevel}
+  setSecurityLevel={examAssessment.setSecurityLevel}
+  requiresFullscreen={examAssessment.requiresFullscreen}
+  setRequiresFullscreen={examAssessment.setRequiresFullscreen}
+  allowCalculator={examAssessment.allowCalculator}
+  setAllowCalculator={examAssessment.setAllowCalculator}
+  rulesText={examAssessment.rulesText}
+  setRulesText={examAssessment.setRulesText}
+/>
 
+      {/* Test - WITH security settings */}
       <AssessmentModal
         isOpen={!!testModal}
         onClose={closeTestModal}
@@ -320,6 +356,20 @@ const TeacherSubjectsCard = () => {
         isSubmitting={isSubmitting}
         submitButtonText="Submit Test"
         titlePlaceholder="Test Title"
+        term={testAssessment.term}
+        setTerm={testAssessment.setTerm}
+        // NEW: Test security props
+        isTest={true}
+        durationMinutes={testAssessment.durationMinutes}
+        setDurationMinutes={testAssessment.setDurationMinutes}
+        securityLevel={testAssessment.securityLevel}
+        setSecurityLevel={testAssessment.setSecurityLevel}
+        requiresFullscreen={testAssessment.requiresFullscreen}
+        setRequiresFullscreen={testAssessment.setRequiresFullscreen}
+        allowCalculator={testAssessment.allowCalculator}
+        setAllowCalculator={testAssessment.setAllowCalculator}
+        rulesText={testAssessment.rulesText}
+        setRulesText={testAssessment.setRulesText}
       />
 
       <ErrorModal 

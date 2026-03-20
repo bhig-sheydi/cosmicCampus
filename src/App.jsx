@@ -51,6 +51,10 @@ import ResetStudentPassword from './Pages/ResetStudentPassword';
 import ResetChildPasswordFromParentPortal from './Pages/ResetChildPasswordFromParentPortal';
 import StudentAcessment from './Pages/StudentAcessment';
 import BatchDashboard from './Pages/BatchDashboard';
+import StudentTests from './Pages/StudentTest';
+import StudentExams from './Pages/studentExams';
+import TestLobby from './Pages/TestLobby';
+import TeacherMonitoringDashboard from './Pages/TeacherMonitoringDashboard';
 
 // Wrapper component to conditionally show footer
 function AppContent() {
@@ -98,7 +102,8 @@ function AppContent() {
             <Route path="teachersExams" element={<TeachersExams />} />
             <Route path="teachersTests" element={<TeachersTests />} />
             <Route path="asignmentRecord" element={<RecordAssignments />} />
-            <Route path="monitorHomework" element={<Monitor />} />
+            <Route path="monitoring" element={<TeacherMonitoringDashboard/>} />
+            
             
             {/* ─── Parent/Guardian Features ─── */}
             <Route path="dependent" element={<CreateDependentChild />} />
@@ -109,11 +114,18 @@ function AppContent() {
             <Route path="resetStudentPassword" element={<ResetStudentPassword />} />
             <Route path="rsppd" element={<ResetChildPasswordFromParentPortal />} />
             <Route path="upgradestudent" element={<UpgradeManagedStudent />} />
+            <Route path="monitorHomework" element={<Monitor />} />
             
             {/* ─── Student Features ─── */}
             <Route path="studentAssignment" element={<StudentAssingnments />} />
             <Route path="homework" element={<AssignmentPage />} />
             <Route path="c_assessment" element={<StudentAcessment />} />
+            <Route path="view-tests" element={<StudentTests/>} />
+            <Route path="view-exams" element={<StudentExams/>} />
+              <Route path="take-test" element={<TestLobby/>} />
+
+            
+            
             
             {/* ─── Inventory / Store ─── */}
             <Route path="inventory" element={<SchoolsInventory />} />

@@ -7,17 +7,17 @@ import {
   X, 
   Calendar, 
   GraduationCap, 
-  BookOpen, 
+  FileText, 
   CheckCircle2, 
   Circle, 
   ChevronLeft, 
   ChevronRight,
   Loader2,
-  FileText,
   History,
   Users,
   AlertCircle,
-  Lock
+  Lock,
+  Award
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -26,10 +26,10 @@ const ITEMS_PER_PAGE = 10;
 const cache = new Map();
 const CACHE_TTL = 2 * 60 * 1000;
 
-const StudentAssignments = () => {
+const StudentExams = () => {
   const { oneStudent, setFetchFlags } = useUser();
-  const [assignments, setAssignments] = useState([]);
-  const [submittedAssignmentIds, setSubmittedAssignmentIds] = useState(new Set());
+  const [exams, setExams] = useState([]);
+  const [submittedExamIds, setSubmittedExamIds] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [viewMode, setViewMode] = useState("current"); // 'current' | 'all' | batch_id
@@ -115,26 +115,26 @@ const StudentAssignments = () => {
     return batches;
   }, [studentId]);
 
-  // Fetch which assignments this student has ALREADY SUBMITTED
-  const fetchStudentSubmissions = useCallback(async (assignmentIds) => {
-    if (!studentId || assignmentIds.length === 0) return new Set();
+  // Fetch which exams this student has ALREADY SUBMITTED
+  const fetchStudentSubmissions = useCallback(async (examIds) => {
+    if (!studentId || examIds.length === 0) return new Set();
 
     const { data, error } = await supabase
-      .from("assignment_submissions")
-      .select("assignment_id")
+      .from("exam_submissions")
+      .select("exam_id")
       .eq("student_id", studentId)
-      .in("assignment_id", assignmentIds);
+      .in("exam_id", examIds);
 
     if (error) {
       console.error("Error fetching submissions:", error);
       return new Set();
     }
 
-    return new Set(data?.map(s => s.assignment_id) || []);
+    return new Set(data?.map(s => s.exam_id) || []);
   }, [studentId]);
 
-  // Fetch assignments - FIXED ARM FILTERING
-  const fetchAssignments = useCallback(async (currentPage = 1, forceRefresh = false) => {
+  // Fetch exams - FIXED ARM FILTERING
+  const fetchExams = useCallback(async (currentPage = 1, forceRefresh = false) => {
     if (!studentId) return;
 
     setError(null);
@@ -142,7 +142,7 @@ const StudentAssignments = () => {
     const studentData = await fetchCurrentStudentData();
     if (!studentData?.batch_id) {
       setError("No batch assigned");
-      setAssignments([]);
+      setExams([]);
       setTotalCount(0);
       return;
     }
@@ -162,18 +162,18 @@ const StudentAssignments = () => {
     }
 
     if (batchIdsToFetch.length === 0) {
-      setAssignments([]);
+      setExams([]);
       setTotalCount(0);
       return;
     }
 
-    const cacheKey = `assignments:${studentId}:${studentArmId || 'noarm'}:${batchIdsToFetch.join(',')}:${searchTerm}:${selectedDate}:${currentPage}`;
+    const cacheKey = `exams:${studentId}:${studentArmId || 'noarm'}:${batchIdsToFetch.join(',')}:${searchTerm}:${selectedDate}:${currentPage}`;
     
     if (!forceRefresh) {
       const cached = cache.get(cacheKey);
       if (cached && Date.now() - cached.ts < CACHE_TTL) {
-        setAssignments(cached.data.assignments);
-        setSubmittedAssignmentIds(cached.data.submissions);
+        setExams(cached.data.exams);
+        setSubmittedExamIds(cached.data.submissions);
         setTotalCount(cached.data.count);
         return;
       }
@@ -182,29 +182,29 @@ const StudentAssignments = () => {
     setLoading(true);
 
     try {
-      // Step 1: Get assignment IDs for this arm
-      let assignmentIdsForArm = null;
+      // Step 1: Get exam IDs for this arm
+      let examIdsForArm = null;
       
       if (studentArmId) {
-        const { data: armAssignments, error: armError } = await supabase
-          .from("assignment_arms")
-          .select("assignment_id")
+        const { data: armExams, error: armError } = await supabase
+          .from("exam_arms")
+          .select("exam_id")
           .eq("arm_id", studentArmId);
 
         if (armError) {
-          console.error("Error fetching arm assignments:", armError);
-          setAssignments([]);
+          console.error("Error fetching arm exams:", armError);
+          setExams([]);
           setTotalCount(0);
           setLoading(false);
           return;
         }
 
-        assignmentIdsForArm = armAssignments?.map(a => a.assignment_id) || [];
+        examIdsForArm = armExams?.map(a => a.exam_id) || [];
         
-        // CRITICAL FIX: If student has an arm but no assignments found for that arm, show nothing
-        if (assignmentIdsForArm.length === 0) {
-          console.log(`No assignments found for arm ${studentArmId}`);
-          setAssignments([]);
+        // CRITICAL FIX: If student has an arm but no exams found for that arm, show nothing
+        if (examIdsForArm.length === 0) {
+          console.log(`No exams found for arm ${studentArmId}`);
+          setExams([]);
           setTotalCount(0);
           setLoading(false);
           return;
@@ -213,14 +213,15 @@ const StudentAssignments = () => {
 
       // Step 2: Build main query
       let query = supabase
-        .from("assignments")
+        .from("exams")
         .select(`
           id,
-          assignment_title,
-          assignment_date,
+          exam_title,
+          exam_date,
           is_submitted,
           total_marks,
           batch_id,
+          term,
           batch:batch_id(
             batch_name,
             class:class_id(class_name),
@@ -230,10 +231,10 @@ const StudentAssignments = () => {
           subject:subject_id(subject_name)
         `, { count: "exact" })
         .in("batch_id", batchIdsToFetch)
-        .order("assignment_date", { ascending: false });
+        .order("exam_date", { ascending: false });
 
       if (searchTerm) {
-        query = query.ilike("assignment_title", `%${searchTerm}%`);
+        query = query.ilike("exam_title", `%${searchTerm}%`);
       }
 
       if (selectedDate) {
@@ -241,21 +242,21 @@ const StudentAssignments = () => {
         const end = new Date(start);
         end.setDate(start.getDate() + 1);
         query = query
-          .gte("assignment_date", start.toISOString())
-          .lt("assignment_date", end.toISOString());
+          .gte("exam_date", start.toISOString())
+          .lt("exam_date", end.toISOString());
       }
 
-      // Apply arm filter - CRITICAL: Only show assignments for this arm
-      if (assignmentIdsForArm && assignmentIdsForArm.length > 0) {
-        query = query.in("id", assignmentIdsForArm);
+      // Apply arm filter - CRITICAL: Only show exams for this arm
+      if (examIdsForArm && examIdsForArm.length > 0) {
+        query = query.in("id", examIdsForArm);
       } else if (studentArmId) {
-        // Has arm but no assignments found - should have returned above, but safety check
-        setAssignments([]);
+        // Has arm but no exams found - should have returned above, but safety check
+        setExams([]);
         setTotalCount(0);
         setLoading(false);
         return;
       }
-      // If no arm_id (null), show all assignments in batch (legacy behavior)
+      // If no arm_id (null), show all exams in batch (legacy behavior)
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
@@ -266,17 +267,17 @@ const StudentAssignments = () => {
         throw queryError;
       }
 
-      // Step 3: Check which assignments this student has submitted
-      const assignmentIds = data?.map(a => a.id) || [];
-      const submissionIds = await fetchStudentSubmissions(assignmentIds);
+      // Step 3: Check which exams this student has submitted
+      const examIds = data?.map(e => e.id) || [];
+      const submissionIds = await fetchStudentSubmissions(examIds);
 
-      setAssignments(data || []);
-      setSubmittedAssignmentIds(submissionIds);
+      setExams(data || []);
+      setSubmittedExamIds(submissionIds);
       setTotalCount(count || 0);
       
       cache.set(cacheKey, { 
         data: { 
-          assignments: data || [], 
+          exams: data || [], 
           count: count || 0,
           submissions: submissionIds
         }, 
@@ -297,27 +298,27 @@ const StudentAssignments = () => {
     fetchStudentBatches();
   }, [studentId, fetchCurrentStudentData, fetchStudentBatches]);
 
-  // Fetch assignments when dependencies change
+  // Fetch exams when dependencies change
   useEffect(() => {
     if (!studentId) return;
     
     const timer = setTimeout(() => {
       setPage(1);
-      fetchAssignments(1);
+      fetchExams(1);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [studentId, viewMode, searchTerm, selectedDate, fetchAssignments]);
+  }, [studentId, viewMode, searchTerm, selectedDate, fetchExams]);
 
   // Fetch when page changes
   useEffect(() => {
     if (!studentId) return;
-    fetchAssignments(page);
-  }, [page, fetchAssignments, studentId]);
+    fetchExams(page);
+  }, [page, fetchExams, studentId]);
 
-  const handleDoAssignment = useCallback((id) => {
-    localStorage.setItem("selectedAssignmentId", id);
-    navigate("/dashboard/homework");
+  const handleDoExam = useCallback((id) => {
+    localStorage.setItem("selectedExamId", id);
+    navigate("/dashboard/take-exam");
   }, [navigate]);
 
   const clearFilters = useCallback(() => {
@@ -337,32 +338,32 @@ const StudentAssignments = () => {
     return studentBatches.find(b => b.batch_id === currentStudentData?.batch_id);
   }, [studentBatches, currentStudentData]);
 
-  // Check if student can do assignment
-  const canDoAssignment = useCallback((assignment) => {
-    // Cannot do if teacher has marked assignment as submitted (closed)
-    if (assignment.is_submitted) return false;
+  // Check if student can do exam
+  const canDoExam = useCallback((exam) => {
+    // Cannot do if teacher has marked exam as submitted (closed)
+    if (exam.is_submitted) return false;
     // Cannot do if student has already submitted
-    if (submittedAssignmentIds.has(assignment.id)) return false;
+    if (submittedExamIds.has(exam.id)) return false;
     return true;
-  }, [submittedAssignmentIds]);
+  }, [submittedExamIds]);
 
   // Get submission status text
-  const getSubmissionStatus = useCallback((assignment) => {
-    if (submittedAssignmentIds.has(assignment.id)) {
+  const getSubmissionStatus = useCallback((exam) => {
+    if (submittedExamIds.has(exam.id)) {
       return { text: "Submitted", className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: CheckCircle2 };
     }
-    if (assignment.is_submitted) {
+    if (exam.is_submitted) {
       return { text: "Closed", className: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400", icon: Lock };
     }
     return { text: "Active", className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: Circle };
-  }, [submittedAssignmentIds]);
+  }, [submittedExamIds]);
 
   const stats = useMemo(() => {
-    const submitted = assignments.filter(a => submittedAssignmentIds.has(a.id)).length;
-    const closed = assignments.filter(a => !submittedAssignmentIds.has(a.id) && a.is_submitted).length;
-    const active = assignments.length - submitted - closed;
+    const submitted = exams.filter(e => submittedExamIds.has(e.id)).length;
+    const closed = exams.filter(e => !submittedExamIds.has(e.id) && e.is_submitted).length;
+    const active = exams.length - submitted - closed;
     return { total: totalCount, submitted, closed, active };
-  }, [assignments, submittedAssignmentIds, totalCount]);
+  }, [exams, submittedExamIds, totalCount]);
 
   if (!studentId) {
     return (
@@ -378,8 +379,8 @@ const StudentAssignments = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-purple-600" />
-            Assignments
+            <Award className="w-6 h-6 text-purple-600" />
+            Exams
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {viewMode === "current" ? (
@@ -388,9 +389,9 @@ const StudentAssignments = () => {
                 {currentStudentData?.student_name || 'Student'} • Batch {currentStudentData?.batch_id} • Arm {currentStudentData?.arm_id || 'N/A'}
               </span>
             ) : viewMode === "all" ? (
-              "All your assignments across batches"
+              "All your exams across batches"
             ) : (
-              `Batch ${viewMode} assignments`
+              `Batch ${viewMode} exams`
             )}
           </p>
         </div>
@@ -474,7 +475,7 @@ const StudentAssignments = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search assignments..."
+            placeholder="Search exams..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
@@ -512,17 +513,17 @@ const StudentAssignments = () => {
       </div>
 
       {/* Results */}
-      {loading && assignments.length === 0 ? (
+      {loading && exams.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
         </div>
-      ) : assignments.length === 0 ? (
+      ) : exams.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed">
           <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-500 dark:text-gray-400 text-sm">
             {viewMode === "current" 
-              ? `No assignments for Batch ${currentStudentData?.batch_id}, Arm ${currentStudentData?.arm_id}.`
-              : "No assignments found."
+              ? `No exams for Batch ${currentStudentData?.batch_id}, Arm ${currentStudentData?.arm_id}.`
+              : "No exams found."
             }
           </p>
           {currentStudentData?.arm_id && (
@@ -534,18 +535,18 @@ const StudentAssignments = () => {
       ) : (
         <>
           <div className="space-y-3">
-            {assignments.map((assignment) => {
-              const status = getSubmissionStatus(assignment);
+            {exams.map((exam) => {
+              const status = getSubmissionStatus(exam);
               const StatusIcon = status.icon;
-              const canStart = canDoAssignment(assignment);
+              const canStart = canDoExam(exam);
 
               return (
                 <div
-                  key={assignment.id}
+                  key={exam.id}
                   className={`group flex items-center gap-4 p-3 rounded-lg border transition-all hover:shadow-md ${
-                    submittedAssignmentIds.has(assignment.id)
+                    submittedExamIds.has(exam.id)
                       ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800'
-                      : assignment.is_submitted
+                      : exam.is_submitted
                         ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                         : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                   }`}
@@ -559,17 +560,20 @@ const StudentAssignments = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className={`font-medium truncate ${
-                        submittedAssignmentIds.has(assignment.id) || assignment.is_submitted
+                        submittedExamIds.has(exam.id) || exam.is_submitted
                           ? 'text-gray-600 dark:text-gray-400' 
                           : 'text-gray-900 dark:text-white'
                       }`}>
-                        {assignment.assignment_title}
+                        {exam.exam_title}
                       </h3>
                       {viewMode !== "current" && (
                         <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                          Batch {assignment.batch_id}
+                          Batch {exam.batch_id}
                         </span>
                       )}
+                      <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                        Term {exam.term}
+                      </span>
                       <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-full ${status.className}`}>
                         {status.text}
                       </span>
@@ -578,21 +582,21 @@ const StudentAssignments = () => {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                       <span className="flex items-center gap-1">
                         <GraduationCap className="w-3 h-3" />
-                        {assignment.subject?.subject_name || assignment.batch?.class?.class_name}
+                        {exam.subject?.subject_name || exam.batch?.class?.class_name}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {formatDate(assignment.assignment_date)}
+                        {formatDate(exam.exam_date)}
                       </span>
-                      {assignment.total_marks && (
-                        <span>{assignment.total_marks} marks</span>
+                      {exam.total_marks && (
+                        <span>{exam.total_marks} marks</span>
                       )}
                     </div>
                   </div>
 
                   {/* Action */}
                   <button
-                    onClick={() => handleDoAssignment(assignment.id)}
+                    onClick={() => handleDoExam(exam.id)}
                     disabled={!canStart}
                     className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition ${
                       canStart
@@ -600,9 +604,9 @@ const StudentAssignments = () => {
                         : "text-gray-400 cursor-not-allowed bg-transparent"
                     }`}
                   >
-                    {submittedAssignmentIds.has(assignment.id) 
+                    {submittedExamIds.has(exam.id) 
                       ? "Submitted" 
-                      : assignment.is_submitted 
+                      : exam.is_submitted 
                         ? "Closed"
                         : "Start"
                     }
@@ -643,4 +647,4 @@ const StudentAssignments = () => {
   );
 };
 
-export default StudentAssignments;
+export default StudentExams;

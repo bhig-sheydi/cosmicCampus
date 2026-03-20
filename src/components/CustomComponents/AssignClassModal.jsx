@@ -46,7 +46,7 @@ const useArms = (classId) => {
       try {
         const { data, error } = await supabase
           .from("arms")
-          .select("arm_id, arm_name, capacity, current_count")
+          .select("arm_id, arm_name")  // REMOVED: capacity, current_count
           .eq("class_id", classId)
           .order("arm_name");
 
@@ -290,7 +290,6 @@ const AssignClassModal = ({ classes, currentStudent, onSuccess, onClose }) => {
               {arms.map((arm) => (
                 <option key={arm.arm_id} value={arm.arm_id}>
                   {arm.arm_name}
-                  {arm.capacity && ` (${arm.current_count || 0}/${arm.capacity})`}
                 </option>
               ))}
             </select>

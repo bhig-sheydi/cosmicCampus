@@ -20,11 +20,10 @@ import {
   LayoutDashboard,
   School,
   UserCog,
-  Library,
   PlusCircle,
   Award,
   Lock,
-  BookMarked
+  Monitor
 } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -213,6 +212,14 @@ export function Dashboard() {
                 </Link>
 
                 <Link
+                  to="/dashboard/monitoring"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                >
+                  <Monitor className="h-4 w-4" />
+                  Monitor Tests
+                </Link>
+
+                <Link
                   to="/dashboard/note-editor"
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
                 >
@@ -315,7 +322,6 @@ export function Dashboard() {
             </SheetTrigger>
 
             <SheetContent side="left" className="w-[300px] p-0 bg-white dark:bg-black">
-              {/* ... mobile sheet content stays the same ... */}
               <div className="flex flex-col h-full">
                 
                 {/* Mobile Logo */}
@@ -459,6 +465,14 @@ export function Dashboard() {
                       >
                         <FileText className="h-4 w-4" />
                         Create Assessment
+                      </Link>
+
+                      <Link
+                        to="/dashboard/monitoring"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground hover:bg-gradient-to-r hover:from-blue-500 hover:via-purple-500 hover:to-pink-500 hover:text-white transition-all"
+                      >
+                        <Monitor className="h-4 w-4" />
+                        Monitor Tests
                       </Link>
 
                       <Link

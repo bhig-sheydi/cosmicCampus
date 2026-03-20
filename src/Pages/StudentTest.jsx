@@ -7,17 +7,18 @@ import {
   X, 
   Calendar, 
   GraduationCap, 
-  BookOpen, 
+  FileText, 
   CheckCircle2, 
   Circle, 
   ChevronLeft, 
   ChevronRight,
   Loader2,
-  FileText,
   History,
   Users,
   AlertCircle,
-  Lock
+  Lock,
+  ClipboardList,
+  Clock
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -26,13 +27,13 @@ const ITEMS_PER_PAGE = 10;
 const cache = new Map();
 const CACHE_TTL = 2 * 60 * 1000;
 
-const StudentAssignments = () => {
+const StudentTests = () => {
   const { oneStudent, setFetchFlags } = useUser();
-  const [assignments, setAssignments] = useState([]);
-  const [submittedAssignmentIds, setSubmittedAssignmentIds] = useState(new Set());
+  const [tests, setTests] = useState([]);
+  const [submittedTestIds, setSubmittedTestIds] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [viewMode, setViewMode] = useState("current"); // 'current' | 'all' | batch_id
+  const [viewMode, setViewMode] = useState("current");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -43,12 +44,10 @@ const StudentAssignments = () => {
 
   const studentId = oneStudent?.id;
 
-  // Activate fetch flags
   useEffect(() => {
     setFetchFlags((prev) => ({ ...prev, oneStudent: true }));
   }, [setFetchFlags]);
 
-  // Format date helper
   const formatDate = useCallback((timestamp) => {
     if (!timestamp) return '—';
     return new Date(timestamp).toLocaleDateString(undefined, {
@@ -58,7 +57,6 @@ const StudentAssignments = () => {
     });
   }, []);
 
-  // Fetch current student data
   const fetchCurrentStudentData = useCallback(async () => {
     if (!studentId) return null;
 
@@ -77,7 +75,6 @@ const StudentAssignments = () => {
     return data;
   }, [studentId]);
 
-  // Fetch ALL batches this student has been in
   const fetchStudentBatches = useCallback(async () => {
     if (!studentId) return [];
 
@@ -115,26 +112,24 @@ const StudentAssignments = () => {
     return batches;
   }, [studentId]);
 
-  // Fetch which assignments this student has ALREADY SUBMITTED
-  const fetchStudentSubmissions = useCallback(async (assignmentIds) => {
-    if (!studentId || assignmentIds.length === 0) return new Set();
+  const fetchStudentSubmissions = useCallback(async (testIds) => {
+    if (!studentId || testIds.length === 0) return new Set();
 
     const { data, error } = await supabase
-      .from("assignment_submissions")
-      .select("assignment_id")
+      .from("test_submissions")
+      .select("test_id")
       .eq("student_id", studentId)
-      .in("assignment_id", assignmentIds);
+      .in("test_id", testIds);
 
     if (error) {
       console.error("Error fetching submissions:", error);
       return new Set();
     }
 
-    return new Set(data?.map(s => s.assignment_id) || []);
+    return new Set(data?.map(s => s.test_id) || []);
   }, [studentId]);
 
-  // Fetch assignments - FIXED ARM FILTERING
-  const fetchAssignments = useCallback(async (currentPage = 1, forceRefresh = false) => {
+  const fetchTests = useCallback(async (currentPage = 1, forceRefresh = false) => {
     if (!studentId) return;
 
     setError(null);
@@ -142,7 +137,7 @@ const StudentAssignments = () => {
     const studentData = await fetchCurrentStudentData();
     if (!studentData?.batch_id) {
       setError("No batch assigned");
-      setAssignments([]);
+      setTests([]);
       setTotalCount(0);
       return;
     }
@@ -150,7 +145,6 @@ const StudentAssignments = () => {
     const currentBatchId = studentData.batch_id;
     const studentArmId = studentData.arm_id;
 
-    // Determine which batches to fetch
     let batchIdsToFetch = [];
     if (viewMode === "current") {
       batchIdsToFetch = [currentBatchId];
@@ -162,18 +156,18 @@ const StudentAssignments = () => {
     }
 
     if (batchIdsToFetch.length === 0) {
-      setAssignments([]);
+      setTests([]);
       setTotalCount(0);
       return;
     }
 
-    const cacheKey = `assignments:${studentId}:${studentArmId || 'noarm'}:${batchIdsToFetch.join(',')}:${searchTerm}:${selectedDate}:${currentPage}`;
+    const cacheKey = `tests:${studentId}:${studentArmId || 'noarm'}:${batchIdsToFetch.join(',')}:${searchTerm}:${selectedDate}:${currentPage}`;
     
     if (!forceRefresh) {
       const cached = cache.get(cacheKey);
       if (cached && Date.now() - cached.ts < CACHE_TTL) {
-        setAssignments(cached.data.assignments);
-        setSubmittedAssignmentIds(cached.data.submissions);
+        setTests(cached.data.tests);
+        setSubmittedTestIds(cached.data.submissions);
         setTotalCount(cached.data.count);
         return;
       }
@@ -182,45 +176,45 @@ const StudentAssignments = () => {
     setLoading(true);
 
     try {
-      // Step 1: Get assignment IDs for this arm
-      let assignmentIdsForArm = null;
+      let testIdsForArm = null;
       
       if (studentArmId) {
-        const { data: armAssignments, error: armError } = await supabase
-          .from("assignment_arms")
-          .select("assignment_id")
+        const { data: armTests, error: armError } = await supabase
+          .from("test_arms")
+          .select("test_id")
           .eq("arm_id", studentArmId);
 
         if (armError) {
-          console.error("Error fetching arm assignments:", armError);
-          setAssignments([]);
+          console.error("Error fetching arm tests:", armError);
+          setTests([]);
           setTotalCount(0);
           setLoading(false);
           return;
         }
 
-        assignmentIdsForArm = armAssignments?.map(a => a.assignment_id) || [];
+        testIdsForArm = armTests?.map(a => a.test_id) || [];
         
-        // CRITICAL FIX: If student has an arm but no assignments found for that arm, show nothing
-        if (assignmentIdsForArm.length === 0) {
-          console.log(`No assignments found for arm ${studentArmId}`);
-          setAssignments([]);
+        if (testIdsForArm.length === 0) {
+          console.log(`No tests found for arm ${studentArmId}`);
+          setTests([]);
           setTotalCount(0);
           setLoading(false);
           return;
         }
       }
 
-      // Step 2: Build main query
+      // ADDED is_ready to select
       let query = supabase
-        .from("assignments")
+        .from("tests")
         .select(`
           id,
-          assignment_title,
-          assignment_date,
+          test_title,
+          test_date,
           is_submitted,
+          is_ready,
           total_marks,
           batch_id,
+          term,
           batch:batch_id(
             batch_name,
             class:class_id(class_name),
@@ -230,10 +224,10 @@ const StudentAssignments = () => {
           subject:subject_id(subject_name)
         `, { count: "exact" })
         .in("batch_id", batchIdsToFetch)
-        .order("assignment_date", { ascending: false });
+        .order("test_date", { ascending: false });
 
       if (searchTerm) {
-        query = query.ilike("assignment_title", `%${searchTerm}%`);
+        query = query.ilike("test_title", `%${searchTerm}%`);
       }
 
       if (selectedDate) {
@@ -241,21 +235,18 @@ const StudentAssignments = () => {
         const end = new Date(start);
         end.setDate(start.getDate() + 1);
         query = query
-          .gte("assignment_date", start.toISOString())
-          .lt("assignment_date", end.toISOString());
+          .gte("test_date", start.toISOString())
+          .lt("test_date", end.toISOString());
       }
 
-      // Apply arm filter - CRITICAL: Only show assignments for this arm
-      if (assignmentIdsForArm && assignmentIdsForArm.length > 0) {
-        query = query.in("id", assignmentIdsForArm);
+      if (testIdsForArm && testIdsForArm.length > 0) {
+        query = query.in("id", testIdsForArm);
       } else if (studentArmId) {
-        // Has arm but no assignments found - should have returned above, but safety check
-        setAssignments([]);
+        setTests([]);
         setTotalCount(0);
         setLoading(false);
         return;
       }
-      // If no arm_id (null), show all assignments in batch (legacy behavior)
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
@@ -266,17 +257,16 @@ const StudentAssignments = () => {
         throw queryError;
       }
 
-      // Step 3: Check which assignments this student has submitted
-      const assignmentIds = data?.map(a => a.id) || [];
-      const submissionIds = await fetchStudentSubmissions(assignmentIds);
+      const testIds = data?.map(t => t.id) || [];
+      const submissionIds = await fetchStudentSubmissions(testIds);
 
-      setAssignments(data || []);
-      setSubmittedAssignmentIds(submissionIds);
+      setTests(data || []);
+      setSubmittedTestIds(submissionIds);
       setTotalCount(count || 0);
       
       cache.set(cacheKey, { 
         data: { 
-          assignments: data || [], 
+          tests: data || [], 
           count: count || 0,
           submissions: submissionIds
         }, 
@@ -290,34 +280,31 @@ const StudentAssignments = () => {
     setLoading(false);
   }, [studentId, viewMode, searchTerm, selectedDate, fetchCurrentStudentData, fetchStudentBatches, fetchStudentSubmissions]);
 
-  // Initial load
   useEffect(() => {
     if (!studentId) return;
     fetchCurrentStudentData();
     fetchStudentBatches();
   }, [studentId, fetchCurrentStudentData, fetchStudentBatches]);
 
-  // Fetch assignments when dependencies change
   useEffect(() => {
     if (!studentId) return;
     
     const timer = setTimeout(() => {
       setPage(1);
-      fetchAssignments(1);
+      fetchTests(1);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [studentId, viewMode, searchTerm, selectedDate, fetchAssignments]);
+  }, [studentId, viewMode, searchTerm, selectedDate, fetchTests]);
 
-  // Fetch when page changes
   useEffect(() => {
     if (!studentId) return;
-    fetchAssignments(page);
-  }, [page, fetchAssignments, studentId]);
+    fetchTests(page);
+  }, [page, fetchTests, studentId]);
 
-  const handleDoAssignment = useCallback((id) => {
-    localStorage.setItem("selectedAssignmentId", id);
-    navigate("/dashboard/homework");
+  const handleDoTest = useCallback((id) => {
+    localStorage.setItem("selectedTestId", id);
+    navigate("/dashboard/take-test");
   }, [navigate]);
 
   const clearFilters = useCallback(() => {
@@ -337,32 +324,35 @@ const StudentAssignments = () => {
     return studentBatches.find(b => b.batch_id === currentStudentData?.batch_id);
   }, [studentBatches, currentStudentData]);
 
-  // Check if student can do assignment
-  const canDoAssignment = useCallback((assignment) => {
-    // Cannot do if teacher has marked assignment as submitted (closed)
-    if (assignment.is_submitted) return false;
-    // Cannot do if student has already submitted
-    if (submittedAssignmentIds.has(assignment.id)) return false;
+  // UPDATED: Check is_ready
+  const canDoTest = useCallback((test) => {
+    if (test.is_submitted) return false;
+    if (!test.is_ready) return false; // Teacher hasn't made it ready
+    if (submittedTestIds.has(test.id)) return false;
     return true;
-  }, [submittedAssignmentIds]);
+  }, [submittedTestIds]);
 
-  // Get submission status text
-  const getSubmissionStatus = useCallback((assignment) => {
-    if (submittedAssignmentIds.has(assignment.id)) {
+  // UPDATED: Show waiting status
+  const getSubmissionStatus = useCallback((test) => {
+    if (submittedTestIds.has(test.id)) {
       return { text: "Submitted", className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: CheckCircle2 };
     }
-    if (assignment.is_submitted) {
+    if (test.is_submitted) {
       return { text: "Closed", className: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400", icon: Lock };
     }
+    if (!test.is_ready) {
+      return { text: "Waiting for Teacher", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: Clock };
+    }
     return { text: "Active", className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: Circle };
-  }, [submittedAssignmentIds]);
+  }, [submittedTestIds]);
 
   const stats = useMemo(() => {
-    const submitted = assignments.filter(a => submittedAssignmentIds.has(a.id)).length;
-    const closed = assignments.filter(a => !submittedAssignmentIds.has(a.id) && a.is_submitted).length;
-    const active = assignments.length - submitted - closed;
-    return { total: totalCount, submitted, closed, active };
-  }, [assignments, submittedAssignmentIds, totalCount]);
+    const submitted = tests.filter(t => submittedTestIds.has(t.id)).length;
+    const closed = tests.filter(t => !submittedTestIds.has(t.id) && t.is_submitted).length;
+    const waiting = tests.filter(t => !submittedTestIds.has(t.id) && !t.is_submitted && !t.is_ready).length;
+    const active = tests.filter(t => !submittedTestIds.has(t.id) && !t.is_submitted && t.is_ready).length;
+    return { total: totalCount, submitted, closed, waiting, active };
+  }, [tests, submittedTestIds, totalCount]);
 
   if (!studentId) {
     return (
@@ -378,8 +368,8 @@ const StudentAssignments = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-purple-600" />
-            Assignments
+            <ClipboardList className="w-6 h-6 text-purple-600" />
+            Tests
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {viewMode === "current" ? (
@@ -388,9 +378,9 @@ const StudentAssignments = () => {
                 {currentStudentData?.student_name || 'Student'} • Batch {currentStudentData?.batch_id} • Arm {currentStudentData?.arm_id || 'N/A'}
               </span>
             ) : viewMode === "all" ? (
-              "All your assignments across batches"
+              "All your tests across batches"
             ) : (
-              `Batch ${viewMode} assignments`
+              `Batch ${viewMode} tests`
             )}
           </p>
         </div>
@@ -452,11 +442,15 @@ const StudentAssignments = () => {
         </div>
       )}
 
-      {/* Stats Bar */}
+      {/* Stats Bar - UPDATED with waiting count */}
       <div className="flex items-center gap-6 mb-4 text-sm">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500"></span>
           <span className="text-gray-600 dark:text-gray-400">{stats.active} Active</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+          <span className="text-gray-600 dark:text-gray-400">{stats.waiting} Waiting</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -474,7 +468,7 @@ const StudentAssignments = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search assignments..."
+            placeholder="Search tests..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
@@ -512,17 +506,17 @@ const StudentAssignments = () => {
       </div>
 
       {/* Results */}
-      {loading && assignments.length === 0 ? (
+      {loading && tests.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
         </div>
-      ) : assignments.length === 0 ? (
+      ) : tests.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed">
           <FileText className="w-8 h-8 text-gray-400 mx-auto mb-2" />
           <p className="text-gray-500 dark:text-gray-400 text-sm">
             {viewMode === "current" 
-              ? `No assignments for Batch ${currentStudentData?.batch_id}, Arm ${currentStudentData?.arm_id}.`
-              : "No assignments found."
+              ? `No tests for Batch ${currentStudentData?.batch_id}, Arm ${currentStudentData?.arm_id}.`
+              : "No tests found."
             }
           </p>
           {currentStudentData?.arm_id && (
@@ -534,20 +528,22 @@ const StudentAssignments = () => {
       ) : (
         <>
           <div className="space-y-3">
-            {assignments.map((assignment) => {
-              const status = getSubmissionStatus(assignment);
+            {tests.map((test) => {
+              const status = getSubmissionStatus(test);
               const StatusIcon = status.icon;
-              const canStart = canDoAssignment(assignment);
+              const canStart = canDoTest(test);
 
               return (
                 <div
-                  key={assignment.id}
+                  key={test.id}
                   className={`group flex items-center gap-4 p-3 rounded-lg border transition-all hover:shadow-md ${
-                    submittedAssignmentIds.has(assignment.id)
+                    submittedTestIds.has(test.id)
                       ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800'
-                      : assignment.is_submitted
-                        ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                      : !test.is_ready
+                        ? 'bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800'
+                        : test.is_submitted
+                          ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   {/* Status Icon */}
@@ -559,17 +555,22 @@ const StudentAssignments = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className={`font-medium truncate ${
-                        submittedAssignmentIds.has(assignment.id) || assignment.is_submitted
+                        submittedTestIds.has(test.id) || test.is_submitted
                           ? 'text-gray-600 dark:text-gray-400' 
-                          : 'text-gray-900 dark:text-white'
+                          : !test.is_ready
+                            ? 'text-yellow-700 dark:text-yellow-300'
+                            : 'text-gray-900 dark:text-white'
                       }`}>
-                        {assignment.assignment_title}
+                        {test.test_title}
                       </h3>
                       {viewMode !== "current" && (
                         <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                          Batch {assignment.batch_id}
+                          Batch {test.batch_id}
                         </span>
                       )}
+                      <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                        Term {test.term}
+                      </span>
                       <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-full ${status.className}`}>
                         {status.text}
                       </span>
@@ -578,21 +579,21 @@ const StudentAssignments = () => {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                       <span className="flex items-center gap-1">
                         <GraduationCap className="w-3 h-3" />
-                        {assignment.subject?.subject_name || assignment.batch?.class?.class_name}
+                        {test.subject?.subject_name || test.batch?.class?.class_name}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {formatDate(assignment.assignment_date)}
+                        {formatDate(test.test_date)}
                       </span>
-                      {assignment.total_marks && (
-                        <span>{assignment.total_marks} marks</span>
+                      {test.total_marks && (
+                        <span>{test.total_marks} marks</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Action */}
+                  {/* Action - UPDATED button text */}
                   <button
-                    onClick={() => handleDoAssignment(assignment.id)}
+                    onClick={() => handleDoTest(test.id)}
                     disabled={!canStart}
                     className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition ${
                       canStart
@@ -600,11 +601,13 @@ const StudentAssignments = () => {
                         : "text-gray-400 cursor-not-allowed bg-transparent"
                     }`}
                   >
-                    {submittedAssignmentIds.has(assignment.id) 
+                    {submittedTestIds.has(test.id) 
                       ? "Submitted" 
-                      : assignment.is_submitted 
+                      : test.is_submitted 
                         ? "Closed"
-                        : "Start"
+                        : !test.is_ready
+                          ? "Not Ready"
+                          : "Start"
                     }
                   </button>
                 </div>
@@ -643,4 +646,4 @@ const StudentAssignments = () => {
   );
 };
 
-export default StudentAssignments;
+export default StudentTests;
