@@ -17,7 +17,8 @@ import {
   Radio,
   ChevronRight,
   Loader2,
-  LogOut
+  LogOut,
+  MonitorX
 } from 'lucide-react';
 
 const TestLobby = () => {
@@ -30,9 +31,11 @@ const TestLobby = () => {
   const [error, setError] = useState(null);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [deviceVerified, setDeviceVerified] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [countdown, setCountdown] = useState(null);
 
+  // CRITICAL: Force fullscreen check on mount
   useEffect(() => {
     const storedTestId = localStorage.getItem('selectedTestId');
     if (!storedTestId) {
@@ -42,13 +45,17 @@ const TestLobby = () => {
     setTestId(parseInt(storedTestId));
   }, [navigate]);
 
+  // Initialize lobby
   useEffect(() => {
     if (!testId || !oneStudent?.id) return;
 
     const initLobby = async () => {
       try {
         const studentId = oneStudent.id;
+        const deviceFingerprint = generateDeviceFingerprint();
+        const screenResolution = `${window.screen.width}x${window.screen.height}`;
 
+        // Fetch test
         const { data: testData, error: testError } = await supabase
           .from('tests')
           .select(`
@@ -67,16 +74,11 @@ const TestLobby = () => {
           .single();
 
         if (testError) throw testError;
-
-        if (!testData.is_ready) {
-          throw new Error('Test is not ready yet. Please wait for teacher to start.');
-        }
+        if (!testData.is_ready) throw new Error('Test is not ready yet.');
 
         setTest(testData);
 
-        const deviceFingerprint = generateDeviceFingerprint();
-        const screenResolution = `${window.screen.width}x${window.screen.height}`;
-
+        // Create session
         const { data: sessionData, error: sessionError } = await supabase.rpc('create_test_session', {
           p_test_id: testId,
           p_student_id: studentId,
@@ -91,8 +93,11 @@ const TestLobby = () => {
 
         setSession(sessionData);
 
-        if (sessionData.status === 'ready') {
-          setCountdown(3);
+        // For exam_hall/strict mode, auto-enter fullscreen immediately
+        if (testData.security_level !== 'standard' && testData.requires_fullscreen) {
+          await enterFullscreen();
+        } else {
+          setDeviceVerified(true);
         }
 
       } catch (err) {
@@ -105,19 +110,73 @@ const TestLobby = () => {
     initLobby();
   }, [testId, oneStudent]);
 
+  // Monitor fullscreen changes
   useEffect(() => {
-    if (countdown === null || countdown <= 0) return;
-
-    const timer = setTimeout(() => {
-      if (countdown === 1) {
-        enterTest();
-      } else {
-        setCountdown(countdown - 1);
+    const handleFullscreenChange = () => {
+      const fullscreenElement = document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement;
+      
+      setIsFullscreen(!!fullscreenElement);
+      
+      // If exiting fullscreen during active session, kick student
+      if (!fullscreenElement && test?.requires_fullscreen && deviceVerified) {
+        handleFullscreenExit();
       }
-    }, 1000);
+    };
 
-    return () => clearTimeout(timer);
-  }, [countdown]);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+    };
+  }, [test, deviceVerified]);
+
+  const enterFullscreen = async () => {
+    try {
+      const element = document.documentElement;
+      
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
+      }
+      
+      setIsFullscreen(true);
+      setDeviceVerified(true);
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+      setError('Fullscreen is required. Please allow fullscreen permission and refresh.');
+    }
+  };
+
+  const handleFullscreenExit = async () => {
+    // Log violation
+    if (session?.session_id) {
+      await supabase.rpc('record_test_heartbeat', {
+        p_session_id: session.session_id,
+        p_session_token: session.session_token || 'token',
+        p_tab_visible: true,
+        p_is_fullscreen: false
+      });
+    }
+    
+    setError('Fullscreen mode required! You have been removed from the test.');
+    setDeviceVerified(false);
+    
+    // Optional: Auto-kick after delay
+    setTimeout(() => {
+      handleLeave();
+    }, 3000);
+  };
 
   const generateDeviceFingerprint = () => {
     const components = [
@@ -133,26 +192,6 @@ const TestLobby = () => {
     ];
     return btoa(components.join('|')).slice(0, 64);
   };
-
-  const handleDeviceCheck = useCallback(async () => {
-    const checks = {
-      fullscreen: document.fullscreenEnabled,
-      online: navigator.onLine,
-      secureContext: window.isSecureContext
-    };
-
-    if (!checks.fullscreen && test?.requires_fullscreen) {
-      try {
-        await document.documentElement.requestFullscreen();
-        document.exitFullscreen();
-        setDeviceVerified(true);
-      } catch {
-        setError('Fullscreen is required but not available. Please enable fullscreen permissions.');
-      }
-    } else {
-      setDeviceVerified(true);
-    }
-  }, [test]);
 
   const handleAcceptRules = () => {
     setAcceptedRules(true);
@@ -185,21 +224,41 @@ const TestLobby = () => {
     };
   };
 
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+
+    const timer = setTimeout(() => {
+      if (countdown === 1) {
+        enterTest();
+      } else {
+        setCountdown(countdown - 1);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
   const enterTest = async () => {
     setIsStarting(true);
     
     try {
+      // Verify still in fullscreen
+      if (test?.requires_fullscreen && !document.fullscreenElement) {
+        throw new Error('Fullscreen mode required to start test');
+      }
+
       const { data, error } = await supabase.rpc('start_test_session', {
         p_session_id: session.session_id,
         p_session_token: session.session_token
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (!data?.success) throw new Error(data?.error || 'Failed to start test');
 
       navigate('/dashboard/take-test', { 
         state: { 
           sessionId: session.session_id,
+          sessionToken: session.session_token,
           testId: testId,
           securityLevel: test.security_level,
           requiresFullscreen: test.requires_fullscreen
@@ -249,7 +308,7 @@ const TestLobby = () => {
         <div className="text-6xl font-bold mb-4">{countdown}</div>
         <p className="text-gray-400">Starting test...</p>
         {test?.requires_fullscreen && (
-          <p className="text-sm text-gray-500 mt-2">Entering fullscreen mode</p>
+          <p className="text-sm text-gray-500 mt-2">Stay in fullscreen mode</p>
         )}
       </div>
     );
@@ -262,9 +321,8 @@ const TestLobby = () => {
         title: 'Standard Mode',
         color: 'blue',
         features: [
-          { icon: Clock, text: 'Timer active - test auto-submits when time expires' },
-          { icon: CheckCircle, text: 'Progress automatically saved' },
-          { icon: FileText, text: 'Single submission only' }
+          { icon: Clock, text: 'Timer active' },
+          { icon: CheckCircle, text: 'Progress saved' }
         ],
         warnings: [],
         requiresVerification: false
@@ -274,15 +332,11 @@ const TestLobby = () => {
         title: 'Strict Mode',
         color: 'orange',
         features: [
-          { icon: Maximize, text: 'Fullscreen required - exiting auto-submits test' },
-          { icon: Eye, text: 'Tab switching tracked - leaving page auto-submits' },
-          { icon: Clock, text: 'Timer active - no pauses allowed' },
-          { icon: CheckCircle, text: 'Auto-submit on any violation' }
+          { icon: Maximize, text: 'Fullscreen required' },
+          { icon: Eye, text: 'Tab switching tracked' },
+          { icon: Clock, text: 'No pauses allowed' }
         ],
-        warnings: [
-          'Leaving fullscreen will immediately submit your test',
-          'Switching tabs or applications will immediately submit your test'
-        ],
+        warnings: ['Leaving fullscreen auto-submits test'],
         requiresVerification: true
       },
       exam_hall: {
@@ -290,22 +344,18 @@ const TestLobby = () => {
         title: 'Exam Hall Mode',
         color: 'red',
         features: [
-          { icon: Fingerprint, text: 'Device fingerprinting active - one device only' },
-          { icon: Monitor, text: 'Real-time teacher monitoring enabled' },
-          { icon: Maximize, text: 'Fullscreen locked - cannot exit' },
-          { icon: Eye, text: 'All activity logged and reported' },
-          { icon: Clock, text: 'Strict timer - no extensions' }
+          { icon: Fingerprint, text: 'Device locked' },
+          { icon: Monitor, text: 'Real-time monitoring' },
+          { icon: Maximize, text: 'Fullscreen locked' },
+          { icon: Eye, text: 'Activity logged' }
         ],
         warnings: [
-          'Teacher is monitoring your session in real-time',
-          'Any suspicious activity will be flagged immediately',
-          'Device switching is prohibited and will be detected',
-          'Auto-submit triggers: tab switch, fullscreen exit, device change, timeout'
+          'Teacher monitoring active',
+          'Auto-submit on: tab switch, fullscreen exit, timeout'
         ],
         requiresVerification: true
       }
     };
-
     return configs[test?.security_level] || configs.standard;
   };
 
@@ -316,6 +366,30 @@ const TestLobby = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Fullscreen Warning Banner */}
+        {needsVerification && !isFullscreen && (
+          <div className="bg-red-600 text-white p-4 rounded-xl mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MonitorX className="w-5 h-5" />
+              <span className="font-semibold">Fullscreen Required</span>
+            </div>
+            <button
+              onClick={enterFullscreen}
+              className="px-4 py-2 bg-white text-red-600 rounded-lg font-medium hover:bg-gray-100"
+            >
+              Enter Fullscreen
+            </button>
+          </div>
+        )}
+
+        {/* Fullscreen Active Indicator */}
+        {isFullscreen && (
+          <div className="bg-green-600 text-white p-2 rounded-lg mb-4 text-center text-sm flex items-center justify-center gap-2">
+            <Maximize className="w-4 h-4" />
+            Fullscreen Mode Active
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow-sm border-b dark:border-gray-700 p-6">
           <div className="flex items-center gap-3 mb-2">
@@ -363,7 +437,7 @@ const TestLobby = () => {
           <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4">
             <h3 className="font-semibold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
-              Important Warnings
+              Warnings
             </h3>
             <ul className="space-y-1">
               {security.warnings.map((warning, idx) => (
@@ -376,40 +450,12 @@ const TestLobby = () => {
           </div>
         )}
 
-        {/* Teacher's Rules */}
-        {test?.rules_text && (
-          <div className="bg-white dark:bg-gray-800 p-4 border-b dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              Test Rules & Instructions
-            </h3>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-              {test.rules_text}
-            </div>
-          </div>
-        )}
-
-        {/* Calculator Info */}
-        <div className="bg-white dark:bg-gray-800 p-4 border-b dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calculator className={`w-5 h-5 ${test?.allow_calculator ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Calculator
-              </span>
-            </div>
-            <span className={`text-sm ${test?.allow_calculator ? 'text-green-600' : 'text-gray-500'}`}>
-              {test?.allow_calculator ? 'Allowed' : 'Not Allowed'}
-            </span>
-          </div>
-        </div>
-
-        {/* Device Verification - MANDATORY for strict/exam_hall */}
+        {/* Device Verification */}
         {needsVerification && (
           <div className="bg-white dark:bg-gray-800 p-4 border-b dark:border-gray-700">
             <div className="flex items-center gap-2 mb-3">
               <h3 className="font-semibold text-gray-900 dark:text-white">Device Verification</h3>
-              {deviceVerified && (
+              {deviceVerified && isFullscreen && (
                 <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded-full flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" />
                   Verified
@@ -417,60 +463,59 @@ const TestLobby = () => {
               )}
             </div>
             
-            {!deviceVerified ? (
-              <>
+            {!isFullscreen ? (
+              <div className="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  You must verify your device before starting this test. This ensures your device supports required security features.
+                  You must enter fullscreen mode to take this test
                 </p>
                 <button
-                  onClick={handleDeviceCheck}
-                  className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                  onClick={enterFullscreen}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 mx-auto"
                 >
-                  <CheckCircle className="w-4 h-4" />
-                  Verify Device to Continue
+                  <Maximize className="w-4 h-4" />
+                  Enter Fullscreen Mode
                 </button>
-              </>
+              </div>
             ) : (
               <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                Your device has been verified. You may proceed.
+                Fullscreen active. You may proceed.
               </p>
             )}
           </div>
         )}
 
-        {/* Teacher Approval Status */}
+        {/* Teacher Approval */}
         {test?.security_level === 'exam_hall' && session?.status !== 'ready' && deviceVerified && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 border-b dark:border-gray-700">
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
               <div>
-                <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Waiting for Teacher Approval</h3>
+                <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Waiting for Teacher</h3>
                 <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                  Your teacher must approve you before you can start. Please wait.
+                  Your teacher must approve you before starting.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Acceptance Checkbox */}
+        {/* Rules Acceptance */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-b-xl shadow-sm">
-          <label className={`flex items-start gap-3 ${!deviceVerified && needsVerification ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+          <label className={`flex items-start gap-3 ${(!deviceVerified || !isFullscreen) && needsVerification ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               checked={acceptedRules}
               onChange={(e) => {
-                if (!deviceVerified && needsVerification) return;
+                if ((!deviceVerified || !isFullscreen) && needsVerification) return;
                 setAcceptedRules(e.target.checked);
               }}
-              disabled={!deviceVerified && needsVerification}
-              className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 disabled:opacity-50"
+              disabled={(!deviceVerified || !isFullscreen) && needsVerification}
+              className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              I have read and understand all the rules, warnings, and consequences. 
-              I agree to follow all test protocols. I understand that violations will 
-              result in immediate test submission and potential disciplinary action.
+              I have read and understand all rules. I agree to follow all test protocols. 
+              Violations will result in immediate submission.
             </span>
           </label>
 
@@ -487,7 +532,7 @@ const TestLobby = () => {
               onClick={handleAcceptRules}
               disabled={
                 !acceptedRules || 
-                (needsVerification && !deviceVerified) || 
+                (needsVerification && (!deviceVerified || !isFullscreen)) || 
                 isStarting ||
                 (test?.security_level === 'exam_hall' && session?.status !== 'ready')
               }
@@ -498,10 +543,10 @@ const TestLobby = () => {
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Starting...
                 </>
-              ) : !deviceVerified && needsVerification ? (
+              ) : !isFullscreen && needsVerification ? (
                 <>
-                  Verify Device First
-                  <Lock className="w-4 h-4" />
+                  Enter Fullscreen First
+                  <Maximize className="w-4 h-4" />
                 </>
               ) : test?.security_level === 'exam_hall' && session?.status !== 'ready' ? (
                 'Waiting for Teacher...'
@@ -514,12 +559,6 @@ const TestLobby = () => {
             </button>
           </div>
         </div>
-
-        {/* Footer Info */}
-        <p className="text-center text-xs text-gray-500 dark:text-gray-400 mt-4">
-          Session ID: {session?.session_id?.slice(0, 8)}... • 
-          Device: {session?.device_fingerprint?.slice(0, 8)}...
-        </p>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from "@/supabaseClient";
 import { useUser } from "../components/Contexts/userContext";
 import { 
@@ -31,23 +31,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const TeacherMonitoringDashboard = () => {
   const { userData, teacher } = useUser();
+  
+  // State
   const [tests, setTests] = useState([]);
   const [selectedTest, setSelectedTest] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [realtimeChannel, setRealtimeChannel] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Use ref for channel instead of state to avoid re-renders
+  const channelRef = useRef(null);
 
-  // Get teacher ID - could be from userData or teacher table
+  // Get teacher ID
   const teacherId = useMemo(() => {
     if (teacher?.[0]?.teacher_id) return teacher[0].teacher_id;
     if (userData?.user_id) return userData.user_id;
     return null;
   }, [userData, teacher]);
 
-  // Fetch teacher's tests - FIXED: removed created_at from query
+  // Fetch tests
   const fetchTests = useCallback(async () => {
     if (!teacherId) {
       setLoading(false);
@@ -74,19 +78,18 @@ const TeacherMonitoringDashboard = () => {
           class:class_id(class_name)
         `)
         .eq('teacher_id', teacherId)
-        .order('test_date', { ascending: false }); // Use test_date instead of created_at
+        .order('test_date', { ascending: false });
 
       if (error) throw error;
       setTests(data || []);
     } catch (err) {
-      console.error('Error fetching tests:', err);
       setError(`Failed to load tests: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }, [teacherId]);
 
-  // Fetch sessions for selected test
+  // Fetch sessions
   const fetchSessions = useCallback(async (testId) => {
     if (!testId) return;
     
@@ -122,10 +125,12 @@ const TeacherMonitoringDashboard = () => {
     }
   }, []);
 
-  // Setup realtime subscription
+  // Setup realtime with ref
   const setupRealtime = useCallback((testId) => {
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel);
+    // Cleanup previous channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     const channel = supabase
@@ -140,9 +145,15 @@ const TeacherMonitoringDashboard = () => {
       })
       .subscribe();
 
-    setRealtimeChannel(channel);
-    return () => supabase.removeChannel(channel);
-  }, [realtimeChannel, fetchSessions]);
+    channelRef.current = channel;
+    
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [fetchSessions]);
 
   // Initial load
   useEffect(() => {
@@ -153,29 +164,35 @@ const TeacherMonitoringDashboard = () => {
     fetchTests();
   }, [teacherId, fetchTests]);
 
-  // When test selected
+  // When test selected - FIXED: minimal dependencies
   useEffect(() => {
     if (!selectedTest) return;
+    
     fetchSessions(selectedTest.id);
     const cleanup = setupRealtime(selectedTest.id);
+    
     return cleanup;
-  }, [selectedTest, fetchSessions, setupRealtime]);
+  }, [selectedTest]); // Only selectedTest!
 
   // Actions
-  const approveStudent = async (sessionId) => {
+  const approveStudent = useCallback(async (sessionId) => {
     try {
       const { data, error } = await supabase.rpc('approve_student_for_test', {
         p_session_id: sessionId,
         p_teacher_id: teacherId
       });
       if (error) throw error;
-      fetchSessions(selectedTest.id);
+      if (data?.success) {
+        fetchSessions(selectedTest.id);
+      } else {
+        alert(data?.error || 'Failed to approve');
+      }
     } catch (err) {
       alert('Failed to approve: ' + err.message);
     }
-  };
+  }, [teacherId, selectedTest, fetchSessions]);
 
-  const kickStudent = async (sessionId, reason) => {
+  const kickStudent = useCallback(async (sessionId, reason) => {
     try {
       await supabase
         .from('test_sessions')
@@ -190,9 +207,9 @@ const TeacherMonitoringDashboard = () => {
     } catch (err) {
       alert('Failed to kick: ' + err.message);
     }
-  };
+  }, [selectedTest, fetchSessions]);
 
-  const toggleTestReady = async () => {
+  const toggleTestReady = useCallback(async () => {
     try {
       const { error } = await supabase
         .from('tests')
@@ -201,12 +218,12 @@ const TeacherMonitoringDashboard = () => {
       
       if (error) throw error;
       
-      setSelectedTest({...selectedTest, is_ready: !selectedTest.is_ready});
+      setSelectedTest(prev => ({...prev, is_ready: !prev.is_ready}));
       fetchTests();
     } catch (err) {
       alert('Failed to update test status: ' + err.message);
     }
-  };
+  }, [selectedTest, fetchTests]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -271,7 +288,6 @@ const TeacherMonitoringDashboard = () => {
             <Card>
               <CardContent className="p-8 text-center">
                 <p className="text-gray-500 dark:text-gray-400 mb-2">No tests found for your account.</p>
-                <p className="text-sm text-gray-400">Teacher ID: {teacherId}</p>
                 <Button onClick={fetchTests} variant="outline" className="mt-4">
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Refresh
@@ -488,7 +504,6 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
           <Badge variant="outline" className="dark:border-gray-600 dark:text-gray-300">{status.text}</Badge>
         </div>
 
-        {/* Violations */}
         {hasViolations && (
           <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-700 dark:text-red-300 space-y-1">
             {session.tab_switches > 0 && <div>⚠️ Tab switches: {session.tab_switches}</div>}
@@ -497,13 +512,11 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
           </div>
         )}
 
-        {/* Device Info */}
         <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 space-y-1">
           <div>Screen: {session.screen_resolution}</div>
           <div>Last seen: {session.last_heartbeat ? new Date(session.last_heartbeat).toLocaleTimeString() : 'Never'}</div>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-2">
           {session.status === 'lobby' && test.security_level === 'exam_hall' && !session.teacher_approved && (
             <Button onClick={onApprove} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">

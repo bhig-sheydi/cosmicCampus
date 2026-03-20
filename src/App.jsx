@@ -55,6 +55,7 @@ import StudentTests from './Pages/StudentTest';
 import StudentExams from './Pages/studentExams';
 import TestLobby from './Pages/TestLobby';
 import TeacherMonitoringDashboard from './Pages/TeacherMonitoringDashboard';
+import TakeTest from './Pages/TakeTest';
 
 // Wrapper component to conditionally show footer
 function AppContent() {
@@ -105,6 +106,7 @@ function AppContent() {
             <Route path="monitoring" element={<TeacherMonitoringDashboard/>} />
             
             
+            
             {/* ─── Parent/Guardian Features ─── */}
             <Route path="dependent" element={<CreateDependentChild />} />
             <Route path="leaders" element={<GuardianClassRanking />} />
@@ -122,7 +124,8 @@ function AppContent() {
             <Route path="c_assessment" element={<StudentAcessment />} />
             <Route path="view-tests" element={<StudentTests/>} />
             <Route path="view-exams" element={<StudentExams/>} />
-              <Route path="take-test" element={<TestLobby/>} />
+              <Route path="lobby" element={<TestLobby/>} />
+                <Route path="take-test" element={<TakeTest/>} />
 
             
             

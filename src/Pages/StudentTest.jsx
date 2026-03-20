@@ -304,7 +304,7 @@ const StudentTests = () => {
 
   const handleDoTest = useCallback((id) => {
     localStorage.setItem("selectedTestId", id);
-    navigate("/dashboard/take-test");
+    navigate("/dashboard/lobby");
   }, [navigate]);
 
   const clearFilters = useCallback(() => {
