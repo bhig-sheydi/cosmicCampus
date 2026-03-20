@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useUser } from '@/components/Contexts/userContext';
 import { Users, TrendingUp } from 'lucide-react';
-import { useStudents } from '@/components/hooks/UseStudents';
+import { useStudents } from '@/components/hooks/useStudents';
 import { usePromotion } from '@/components/hooks/usePromotion';
 import SearchFilterBar from '@/components/CustomComponents/SearchFilterBar';
 import StudentsTable from '@/components/CustomComponents/StudentsTable';
