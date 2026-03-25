@@ -8,10 +8,10 @@ import {
   Eye, 
   Clock,
   Loader2,
-  Send,
   ChevronLeft,
   ChevronRight,
-  Flag
+  XCircle,
+  CheckCircle
 } from 'lucide-react';
 
 const TakeTest = () => {
@@ -19,182 +19,392 @@ const TakeTest = () => {
   const location = useLocation();
   const { oneStudent } = useUser();
   
-  // Session data from navigation
-  const { sessionId, testId, securityLevel, requiresFullscreen } = location.state || {};
+  const { sessionId, sessionToken, testId, securityLevel, requiresFullscreen } = location.state || {};
   
-  // State
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
   const [violations, setViolations] = useState({ tabSwitches: 0, fullscreenExits: 0 });
   const [warning, setWarning] = useState(null);
+  const [isSecureMode, setIsSecureMode] = useState(false);
+  const [securityStep, setSecurityStep] = useState('loading');
+  const [answering, setAnswering] = useState(false);
   
-  // Refs for intervals
+  // Refs for mutable values that shouldn't trigger re-renders
+  const isActiveRef = useRef(false);
+  const violationsRef = useRef({ tabSwitches: 0, fullscreenExits: 0 });
   const heartbeatRef = useRef(null);
   const timerRef = useRef(null);
+  const hasInitialized = useRef(false);
+  const timeLimitRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const answerTimeoutRef = useRef(null);
+  const initAbortControllerRef = useRef(null);
+  const submittingRef = useRef(false);
+  const handlingViolationRef = useRef(false);
+  const answeringRef = useRef(false);
 
-  // Initialize test
+  // Keep violationsRef in sync with state
+  useEffect(() => {
+    violationsRef.current = violations;
+  }, [violations]);
+
+  // Keep submittingRef in sync
+  useEffect(() => {
+    submittingRef.current = submitting;
+  }, [submitting]);
+
+  // Keep answeringRef in sync
+  useEffect(() => {
+    answeringRef.current = answering;
+  }, [answering]);
+
+  // Initialize test - FIXED: Proper cleanup and re-init handling
   useEffect(() => {
     if (!sessionId || !testId) {
-      navigate('/dashboard/tests');
+      navigate('/dashboard/view-tests');
       return;
     }
 
-    // Load questions
-    loadTestData();
+    // Reset init flag when IDs change to allow re-initialization
+    hasInitialized.current = false;
+    initAbortControllerRef.current = new AbortController();
     
-    // Setup security based on level
-    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
-      setupStrictSecurity();
-    }
-    
-    // Start heartbeat
-    startHeartbeat();
+    const init = async () => {
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
 
-    return () => cleanup();
-  }, [sessionId, testId]);
+      try {
+        const { data: sessionData, error: sessionError } = await supabase
+          .from('test_sessions')
+          .select('status, started_at, time_limit_seconds, test_id, tab_switches, fullscreen_exits')
+          .eq('session_id', sessionId)
+          .single();
 
-  const loadTestData = async () => {
-    // Get session details including time limit
-    const { data: sessionData } = await supabase
-      .from('test_sessions')
-      .select('time_limit_seconds, started_at')
-      .eq('session_id', sessionId)
-      .single();
+        if (sessionError) throw sessionError;
 
-    // Calculate remaining time
-    if (sessionData?.started_at && sessionData?.time_limit_seconds) {
-      const endTime = new Date(sessionData.started_at).getTime() + (sessionData.time_limit_seconds * 1000);
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      setTimeLeft(remaining);
-      
-      // Start countdown
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            autoSubmit('time_expired');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+        if (sessionData.test_id !== testId) {
+          throw new Error('Session mismatch');
+        }
 
-    // Load questions
-    const { data: questionsData } = await supabase
+        if (sessionData.status !== 'active') {
+          throw new Error(`Test not active. Status: ${sessionData.status}`);
+        }
+
+        timeLimitRef.current = sessionData.time_limit_seconds;
+        startTimeRef.current = sessionData.started_at;
+
+        await loadQuestions();
+
+        const needsSecuritySetup = securityLevel === 'strict' || securityLevel === 'exam_hall';
+        
+        if (needsSecuritySetup) {
+          setSecurityStep('ready');
+        } else {
+          activateTest();
+        }
+
+        setLoading(false);
+
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.error('Initialization error:', err);
+        setError(err.message);
+        setSecurityStep('error');
+        setLoading(false);
+      }
+    };
+
+    init();
+
+    return () => {
+      initAbortControllerRef.current?.abort();
+    };
+  }, [sessionId, testId, navigate, securityLevel]);
+
+  const loadQuestions = async () => {
+    const { data: questionsData, error } = await supabase
       .from('test_questions')
       .select('*')
       .eq('test_id', testId)
       .order('question_id');
 
+    if (error) throw error;
     setQuestions(questionsData || []);
-    setLoading(false);
   };
 
-  const setupStrictSecurity = async () => {
-    // Force fullscreen immediately
-    if (requiresFullscreen && document.documentElement.requestFullscreen) {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        handleViolation('fullscreen_denied');
-      }
+  const enterSecurityMode = async () => {
+    if (securityLevel === 'standard') {
+      activateTest();
+      return;
     }
 
-    // Tab visibility detection
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    setSecurityStep('entering');
     
-    // Fullscreen detection
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    
-    // Prevent right-click
-    document.addEventListener('contextmenu', preventDefault);
-    
-    // Prevent keyboard shortcuts
-    document.addEventListener('keydown', handleKeyDown);
+    try {
+      const element = document.documentElement;
+      
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
+      }
+
+      setTimeout(() => {
+        const isFullscreen = !!(document.fullscreenElement || 
+          document.webkitFullscreenElement || 
+          document.mozFullScreenElement);
+
+        if (isFullscreen) {
+          activateSecurity();
+        } else {
+          setWarning('Fullscreen required. Please allow and try again.');
+          setSecurityStep('ready');
+        }
+      }, 800);
+
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+      setWarning('Could not enter fullscreen. Please try again.');
+      setSecurityStep('ready');
+    }
   };
 
-  const handleVisibilityChange = () => {
+  const activateSecurity = useCallback(() => {
+    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('contextmenu', preventDefault, true);
+      document.addEventListener('keydown', handleKeyDown, true);
+    }
+
+    setIsSecureMode(true);
+    isActiveRef.current = true;
+    setSecurityStep('active');
+
+    startTimer(timeLimitRef.current, startTimeRef.current);
+    
+    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
+      startHeartbeat();
+    }
+  }, [securityLevel, startTimer, startHeartbeat, handleVisibilityChange, handleFullscreenChange, preventDefault, handleKeyDown]);
+
+  const activateTest = useCallback(() => {
+    setIsSecureMode(true);
+    isActiveRef.current = true;
+    setSecurityStep('active');
+    
+    startTimer(timeLimitRef.current, startTimeRef.current);
+  }, [startTimer]);
+
+  const handleVisibilityChange = useCallback(() => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+    
     if (document.hidden) {
+      console.log('TAB SWITCH DETECTED');
       handleViolation('tab_switch');
     }
-  };
+  }, [securityLevel, handleViolation]);
 
-  const handleFullscreenChange = () => {
-    if (!document.fullscreenElement && requiresFullscreen) {
+  const handleFullscreenChange = useCallback(() => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    const isFullscreen = !!(document.fullscreenElement || 
+      document.webkitFullscreenElement || 
+      document.mozFullScreenElement);
+
+    console.log('Fullscreen change:', isFullscreen);
+
+    if (!isFullscreen && requiresFullscreen) {
+      console.log('FULLSCREEN EXIT');
       handleViolation('fullscreen_exit');
     }
-  };
+  }, [requiresFullscreen, securityLevel, handleViolation]);
 
-  const preventDefault = (e) => e.preventDefault();
+  const preventDefault = useCallback((e) => {
+    if (!isActiveRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  }, []);
 
-  const handleKeyDown = (e) => {
-    // Block F12, Ctrl+Shift+I, Ctrl+U, Escape
-    if (e.key === 'F12' || 
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.ctrlKey && e.key === 'u') ||
-        e.key === 'Escape') {
+  const handleKeyDown = useCallback((e) => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    const blockedKeys = ['F12', 'Escape', 'F11', 'F5'];
+    const isBlockedCombo = (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+                          (e.ctrlKey && e.key === 'u') ||
+                          (e.ctrlKey && e.key === 'r') ||
+                          (e.altKey && e.key === 'Tab') ||
+                          (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+                          (e.ctrlKey && e.key === 's') ||
+                          (e.metaKey && e.key === 's');
+
+    if (blockedKeys.includes(e.key) || isBlockedCombo) {
       e.preventDefault();
+      e.stopPropagation();
       handleViolation('keyboard_shortcut');
+      return false;
     }
-  };
+  }, [securityLevel, handleViolation]);
 
-  const handleViolation = async (type) => {
-    setViolations(prev => {
+  // FIXED: Handle violations with proper locking to prevent race conditions
+  const handleViolation = useCallback(async (type) => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+    if (handlingViolationRef.current) return; // Prevent concurrent handling
+    
+    handlingViolationRef.current = true;
+
+    try {
+      const newTabSwitches = violationsRef.current.tabSwitches + (type === 'tab_switch' ? 1 : 0);
+      const newFullscreenExits = violationsRef.current.fullscreenExits + (type === 'fullscreen_exit' ? 1 : 0);
+      
       const newViolations = {
-        ...prev,
-        [type === 'tab_switch' ? 'tabSwitches' : 'fullscreenExits']: 
-          prev[type === 'tab_switch' ? 'tabSwitches' : 'fullscreenExits'] + 1
+        tabSwitches: newTabSwitches,
+        fullscreenExits: newFullscreenExits
       };
+      
+      violationsRef.current = newViolations;
+      setViolations(newViolations);
 
-      // Show warning
-      setWarning(`Warning: ${type.replace('_', ' ')} detected!`);
+      setWarning(`VIOLATION: ${type.toUpperCase()}!`);
       setTimeout(() => setWarning(null), 3000);
 
-      // Auto-submit on critical violations for exam_hall
+      // FIXED: Removed hardcoded 'token' fallback - fail closed
+      if (!sessionToken) {
+        console.error('No session token available');
+        autoSubmit('security_error_no_token');
+        return;
+      }
+
+      const { data } = await supabase.rpc('record_test_heartbeat', {
+        p_session_id: sessionId,
+        p_session_token: sessionToken,
+        p_tab_visible: type !== 'tab_switch',
+        p_is_fullscreen: type !== 'fullscreen_exit'
+      });
+
+      // Check thresholds immediately after updating
       if (securityLevel === 'exam_hall') {
-        if (newViolations.tabSwitches >= 2 || newViolations.fullscreenExits >= 1) {
+        if (newTabSwitches >= 1 || newFullscreenExits >= 1) {
+          autoSubmit('security_violation_' + type);
+        }
+      } else if (securityLevel === 'strict') {
+        if (newTabSwitches >= 3 || newFullscreenExits >= 2) {
           autoSubmit('security_violation_' + type);
         }
       }
+    } catch (err) {
+      console.error('Violation log error:', err);
+    } finally {
+      handlingViolationRef.current = false;
+    }
+  }, [securityLevel, sessionId, sessionToken, autoSubmit]);
 
-      return newViolations;
-    });
+  const handleAnswer = useCallback((questionId, answer) => {
+    if (answeringRef.current || !isActiveRef.current) return;
+    if (answers[questionId] === answer) return;
 
-    // Log to server
-    await supabase.rpc('record_test_heartbeat', {
-      p_session_id: sessionId,
-      p_session_token: 'token', // You may need to pass this from lobby
-      p_tab_visible: !document.hidden,
-      p_is_fullscreen: !!document.fullscreenElement
-    });
-  };
+    answeringRef.current = true;
+    setAnswering(true);
+    setAnswers(prev => ({ ...prev, [questionId]: answer }));
 
-  const startHeartbeat = () => {
-    // Send heartbeat every 15 seconds
-    heartbeatRef.current = setInterval(async () => {
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+    }
+    
+    answerTimeoutRef.current = setTimeout(() => {
+      answeringRef.current = false;
+      setAnswering(false);
+      answerTimeoutRef.current = null;
+    }, 300);
+  }, [answers]);
+
+  // FIXED: Proper timer cleanup and prevention of duplicate timers
+  const startTimer = useCallback((timeLimitSeconds, startedAt) => {
+    // Clear any existing timer first
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    if (!timeLimitSeconds || !startedAt) return;
+
+    const endTime = new Date(startedAt).getTime() + (timeLimitSeconds * 1000);
+    
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        autoSubmit('time_expired');
+      }
+    };
+
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 1000);
+  }, [autoSubmit]);
+
+  const startHeartbeat = useCallback(() => {
+    // Clear any existing heartbeat first
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+
+    const initialTimeout = setTimeout(() => {
+      doHeartbeat();
+      heartbeatRef.current = setInterval(doHeartbeat, 10000);
+    }, 5000);
+
+    return () => clearTimeout(initialTimeout);
+  }, [doHeartbeat]);
+
+  const doHeartbeat = useCallback(async () => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    try {
+      const isFullscreen = !!(document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement);
+
+      // FIXED: Removed hardcoded 'token' fallback
+      if (!sessionToken) {
+        console.error('No session token for heartbeat');
+        return;
+      }
+
       const { data } = await supabase.rpc('record_test_heartbeat', {
         p_session_id: sessionId,
-        p_session_token: 'token',
+        p_session_token: sessionToken,
         p_tab_visible: !document.hidden,
-        p_is_fullscreen: !!document.fullscreenElement
+        p_is_fullscreen: isFullscreen
       });
 
-      // Check if server says we should submit
       if (data?.should_submit) {
         autoSubmit('server_triggered');
       }
-    }, 15000);
-  };
+    } catch (err) {
+      console.error('Heartbeat error:', err);
+    }
+  }, [securityLevel, sessionId, sessionToken, autoSubmit]);
 
-  const handleAnswer = (questionId, answer) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answer }));
-  };
-
-  const calculateScore = () => {
+  const calculateScore = useCallback(() => {
     let score = 0;
     questions.forEach(q => {
       const selected = answers[q.question_id];
@@ -207,50 +417,109 @@ const TakeTest = () => {
       }
     });
     return score;
-  };
+  }, [questions, answers]);
 
-  const submitTest = async (isAuto = false, reason = null) => {
+  const submitTest = useCallback(async (isAuto = false, reason = null, kickReason = null) => {
+    // Prevent double submission using ref
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
+    isActiveRef.current = false;
+    
     cleanup();
 
-    const score = calculateScore();
+    try {
+      const score = calculateScore();
 
-    const { data, error } = await supabase.rpc('submit_test_with_session', {
-      p_session_id: sessionId,
-      p_session_token: 'token', // Pass actual token from lobby
-      p_answers: answers,
-      p_score: score,
-      p_is_auto_submit: isAuto,
-      p_submit_reason: reason
-    });
+      // FIXED: Removed hardcoded 'token' fallback
+      if (!sessionToken) {
+        throw new Error('Session token missing');
+      }
 
-    if (!error && data?.success) {
-      navigate('/dashboard/test-completed', { 
-        state: { 
-          score, 
-          totalMarks: questions.reduce((sum, q) => sum + q.marks, 0),
-          isAutoSubmit: isAuto,
-          reason 
-        } 
+      const { data, error } = await supabase.rpc('submit_test_with_session', {
+        p_session_id: sessionId,
+        p_session_token: sessionToken,
+        p_answers: answers,
+        p_score: score,
+        p_is_auto_submit: isAuto,
+        p_submit_reason: reason
       });
-    } else {
-      setError('Failed to submit. Please retry.');
+
+      if (error) throw error;
+
+      if (data?.success) {
+        navigate('/dashboard/test-completed', { 
+          state: { 
+            score: reason === 'manual_kick' ? 0 : score,
+            totalMarks: questions.reduce((sum, q) => sum + (q.marks || 0), 0),
+            isAutoSubmit: isAuto,
+            reason,
+            kickReason: kickReason || (reason === 'manual_kick' ? 'Removed by teacher' : null),
+            isKicked: reason === 'manual_kick',
+            securityLevel
+          } 
+        });
+      } else {
+        throw new Error(data?.error || 'Submission failed');
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      setError('Failed to submit: ' + err.message);
       setSubmitting(false);
+      submittingRef.current = false;
     }
-  };
+  }, [sessionId, sessionToken, answers, questions, navigate, securityLevel, calculateScore, cleanup]);
 
-  const autoSubmit = (reason) => {
-    submitTest(true, reason);
-  };
+  const autoSubmit = useCallback((reason, kickReason = null) => {
+    submitTest(true, reason, kickReason);
+  }, [submitTest]);
 
-  const cleanup = () => {
+  // FIXED: Kick detection with proper cleanup and mounted check
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const checkKickStatus = async () => {
+      if (!isActiveRef.current) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('test_sessions')
+          .select('status, kicked_reason')
+          .eq('session_id', sessionId)
+          .single();
+
+        if (error) return;
+
+        if (data?.status === 'kicked') {
+          console.log('KICKED BY TEACHER:', data.kicked_reason);
+          autoSubmit('manual_kick', data.kicked_reason);
+        }
+      } catch (err) {
+        console.error('Kick check error:', err);
+      }
+    };
+
+    const interval = setInterval(checkKickStatus, 3000);
+    return () => clearInterval(interval);
+  }, [sessionId, autoSubmit]);
+
+  // FIXED: Proper cleanup function that uses refs to avoid stale closures
+  const cleanup = useCallback(() => {
     clearInterval(heartbeatRef.current);
     clearInterval(timerRef.current);
+    heartbeatRef.current = null;
+    timerRef.current = null;
+    
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    document.removeEventListener('contextmenu', preventDefault);
-    document.removeEventListener('keydown', handleKeyDown);
-  };
+    document.removeEventListener('contextmenu', preventDefault, true);
+    document.removeEventListener('keydown', handleKeyDown, true);
+    
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+      answerTimeoutRef.current = null;
+    }
+  }, [handleVisibilityChange, handleFullscreenChange, preventDefault, handleKeyDown]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -258,153 +527,254 @@ const TakeTest = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // FIXED: Proper cleanup effect with all dependencies
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isActiveRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      cleanup();
+      // Ensure all refs are cleared
+      isActiveRef.current = false;
+      handlingViolationRef.current = false;
+    };
+  }, [cleanup]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        <p className="ml-2 text-gray-600">Loading test...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full text-center">
+          <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Test Error</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/dashboard/view-tests')}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Back to Tests
+          </button>
+        </div>
       </div>
     );
   }
 
   const currentQ = questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
+  const progress = questions.length > 0 
+    ? ((currentQuestion + 1) / questions.length) * 100 
+    : 0;
+
+  const getHeaderText = () => {
+    switch(securityLevel) {
+      case 'exam_hall': return '🔒 EXAM HALL MODE';
+      case 'strict': return '🔒 STRICT MODE';
+      case 'standard': return 'TEST MODE';
+      default: return '🔒 SECURE TEST';
+    }
+  };
+
+  const getHeaderColor = () => {
+    switch(securityLevel) {
+      case 'exam_hall': return 'bg-red-600';
+      case 'strict': return 'bg-orange-600';
+      case 'standard': return 'bg-blue-600';
+      default: return 'bg-red-600';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Security Header */}
-      <div className="bg-red-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-50">
+      <div className={`${getHeaderColor()} text-white px-4 py-2 flex items-center justify-between sticky top-0 z-50`}>
         <div className="flex items-center gap-2">
-          <Eye className="w-4 h-4" />
+          {securityLevel !== 'standard' && <Eye className="w-4 h-4" />}
           <span className="text-sm font-bold uppercase">
-            {securityLevel === 'exam_hall' ? '🔒 EXAM HALL MODE - MONITORED' : '🔒 SECURE TEST'}
+            {getHeaderText()}
           </span>
+          {securityStep === 'ready' && securityLevel !== 'standard' && (
+            <span className="text-yellow-300 text-xs">(Click below to start)</span>
+          )}
+          {securityStep === 'entering' && (
+            <span className="text-yellow-300 text-xs">(Entering fullscreen...)</span>
+          )}
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
             {formatTime(timeLeft)}
           </span>
-          {(violations.tabSwitches > 0 || violations.fullscreenExits > 0) && (
-            <span className="bg-yellow-500 text-black px-2 py-0.5 rounded text-xs font-bold">
-              ⚠️ Warnings: {violations.tabSwitches + violations.fullscreenExits}
+          {isSecureMode && securityLevel !== 'standard' && (
+            <span className="bg-black/30 px-2 py-1 rounded text-xs">
+              V:{violations.tabSwitches + violations.fullscreenExits}
             </span>
           )}
         </div>
       </div>
 
-      {/* Warning Banner */}
-      {warning && (
-        <div className="bg-red-500 text-white text-center py-2 animate-pulse">
-          <AlertTriangle className="w-4 h-4 inline mr-2" />
+      {warning && securityLevel !== 'standard' && (
+        <div className="bg-red-500 text-white text-center py-3 animate-pulse font-bold">
+          <AlertTriangle className="w-5 h-5 inline mr-2" />
           {warning}
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto p-6">
-        {/* Progress */}
-        <div className="mb-6">
-          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>Question {currentQuestion + 1} of {questions.length}</span>
-            <span>{Math.round(progress)}% Complete</span>
-          </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
-            <div 
-              className="h-full bg-purple-600 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
+      {securityStep === 'ready' && securityLevel !== 'standard' && (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+            <Maximize className="w-16 h-16 text-purple-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Enter Secure Mode</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {securityLevel === 'exam_hall' 
+                ? 'Exam Hall mode requires fullscreen. Teacher is monitoring.'
+                : 'Strict mode requires fullscreen and tracks activity.'}
+            </p>
+            {warning && <p className="text-red-500 text-sm mb-4">{warning}</p>}
+            <button
+              onClick={enterSecurityMode}
+              className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold"
+            >
+              Enter Fullscreen & Start Test
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Question Card */}
-        {currentQ && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {currentQ.question}
-              </h2>
-              <span className="text-sm text-gray-500">{currentQ.marks} marks</span>
+      {securityStep === 'entering' && securityLevel !== 'standard' && (
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mb-2" />
+          <p className="text-gray-600">Entering fullscreen...</p>
+        </div>
+      )}
+
+      {(securityStep === 'active' || (securityLevel === 'standard' && securityStep !== 'error')) && (
+        <div className="max-w-4xl mx-auto p-6">
+          <div className="mb-6">
+            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <span>Question {currentQuestion + 1} of {questions.length}</span>
+              <span>{Math.round(progress)}% Complete</span>
             </div>
-
-            <div className="space-y-3">
-              {currentQ.options.map((option, idx) => {
-                const isSelected = answers[currentQ.question_id] === option;
-                const letter = String.fromCharCode(65 + idx);
-                
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => handleAnswer(currentQ.question_id, option)}
-                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                      isSelected
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                    }`}
-                  >
-                    <span className="font-bold mr-3">{letter}.</span>
-                    {option}
-                  </button>
-                );
-              })}
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
+              <div 
+                className="h-full bg-purple-600 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
-        )}
 
-        {/* Navigation */}
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => setCurrentQuestion(prev => Math.max(0, prev - 1))}
-            disabled={currentQuestion === 0}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg disabled:opacity-50"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          {currentQ && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {currentQ.question}
+                </h2>
+                <span className="text-sm text-gray-500">{currentQ.marks} marks</span>
+              </div>
 
-          <div className="flex gap-2">
-            {questions.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentQuestion(idx)}
-                className={`w-8 h-8 rounded text-sm ${
-                  idx === currentQuestion
-                    ? 'bg-purple-600 text-white'
-                    : answers[questions[idx]?.question_id]
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700'
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
+              <div className="space-y-3">
+                {currentQ.options.map((option, idx) => {
+                  const isSelected = answers[currentQ.question_id] === option;
+                  const letter = String.fromCharCode(65 + idx);
+                  
+                  return (
+                    <button
+                      key={`${currentQ.question_id}-${idx}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAnswer(currentQ.question_id, option);
+                      }}
+                      disabled={answering}
+                      className={`w-full p-4 rounded-lg border-2 text-left transition-all relative ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                      } ${answering ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      <span className="font-bold mr-3">{letter}.</span>
+                      {option}
+                      {isSelected && (
+                        <CheckCircle className="w-5 h-5 text-purple-500 absolute right-4 top-1/2 transform -translate-y-1/2" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            <button
+              onClick={() => setCurrentQuestion(prev => Math.max(0, prev - 1))}
+              disabled={currentQuestion === 0}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg disabled:opacity-50"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex gap-2 flex-wrap justify-center max-w-md">
+              {questions.map((q, idx) => (
+                <button
+                  key={q.question_id}
+                  onClick={() => setCurrentQuestion(idx)}
+                  className={`w-8 h-8 rounded text-sm ${
+                    idx === currentQuestion
+                      ? 'bg-purple-600 text-white'
+                      : answers[q.question_id]
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setCurrentQuestion(prev => Math.min(questions.length - 1, prev + 1))}
+              disabled={currentQuestion === questions.length - 1}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg disabled:opacity-50"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
 
-          <button
-            onClick={() => setCurrentQuestion(prev => Math.min(questions.length - 1, prev + 1))}
-            disabled={currentQuestion === questions.length - 1}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg disabled:opacity-50"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => {
+                if (window.confirm('Submit test?')) submitTest();
+              }}
+              disabled={submitting}
+              className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold disabled:opacity-50"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 inline animate-spin mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Test'
+              )}
+            </button>
+            <p className="text-sm text-gray-500 mt-2">
+              {Object.keys(answers).length} of {questions.length} answered
+            </p>
+          </div>
         </div>
-
-        {/* Submit Button */}
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to submit?')) {
-                submitTest();
-              }
-            }}
-            disabled={submitting}
-            className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold disabled:opacity-50"
-          >
-            {submitting ? 'Submitting...' : 'Submit Test'}
-          </button>
-          <p className="text-sm text-gray-500 mt-2">
-            {Object.keys(answers).length} of {questions.length} questions answered
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

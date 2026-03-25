@@ -22,7 +22,8 @@ import {
   Lock,
   Unlock,
   ChevronLeft,
-  Filter
+  Filter,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,9 +41,11 @@ const TeacherMonitoringDashboard = () => {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [actionLoading, setActionLoading] = useState({}); // Track loading per action
   
   // Use ref for channel instead of state to avoid re-renders
   const channelRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // Get teacher ID
   const teacherId = useMemo(() => {
@@ -58,6 +61,12 @@ const TeacherMonitoringDashboard = () => {
       setError('Not authenticated as teacher');
       return;
     }
+    
+    // Cancel previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
     
     try {
       const { data, error } = await supabase
@@ -83,13 +92,15 @@ const TeacherMonitoringDashboard = () => {
       if (error) throw error;
       setTests(data || []);
     } catch (err) {
-      setError(`Failed to load tests: ${err.message}`);
+      if (err.name !== 'AbortError') {
+        setError(`Failed to load tests: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
   }, [teacherId]);
 
-  // Fetch sessions
+  // Fetch sessions - FIXED: wrapped in useCallback with proper dependencies
   const fetchSessions = useCallback(async (testId) => {
     if (!testId) return;
     
@@ -125,7 +136,7 @@ const TeacherMonitoringDashboard = () => {
     }
   }, []);
 
-  // Setup realtime with ref
+  // Setup realtime with ref - FIXED: proper cleanup and stable dependencies
   const setupRealtime = useCallback((testId) => {
     // Cleanup previous channel
     if (channelRef.current) {
@@ -162,9 +173,13 @@ const TeacherMonitoringDashboard = () => {
       return;
     }
     fetchTests();
+    
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, [teacherId, fetchTests]);
 
-  // When test selected - FIXED: minimal dependencies
+  // When test selected - FIXED: include all dependencies to avoid stale closures
   useEffect(() => {
     if (!selectedTest) return;
     
@@ -172,67 +187,92 @@ const TeacherMonitoringDashboard = () => {
     const cleanup = setupRealtime(selectedTest.id);
     
     return cleanup;
-  }, [selectedTest]); // Only selectedTest!
+  }, [selectedTest, fetchSessions, setupRealtime]); // FIXED: Added missing dependencies
 
-  // Actions
+  // Actions - FIXED: proper loading states and error handling without alert()
   const approveStudent = useCallback(async (sessionId) => {
+    setActionLoading(prev => ({ ...prev, [sessionId]: 'approving' }));
+    
     try {
       const { data, error } = await supabase.rpc('approve_student_for_test', {
         p_session_id: sessionId,
         p_teacher_id: teacherId
       });
+      
       if (error) throw error;
+      
       if (data?.success) {
-        fetchSessions(selectedTest.id);
+        await fetchSessions(selectedTest.id);
       } else {
-        alert(data?.error || 'Failed to approve');
+        throw new Error(data?.error || 'Failed to approve');
       }
     } catch (err) {
-      alert('Failed to approve: ' + err.message);
+      console.error('Failed to approve:', err);
+      // Use state-based error instead of alert
+      setError(`Failed to approve student: ${err.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [sessionId]: false }));
     }
   }, [teacherId, selectedTest, fetchSessions]);
 
   const kickStudent = useCallback(async (sessionId, reason) => {
+    setActionLoading(prev => ({ ...prev, [sessionId]: 'kicking' }));
+    
     try {
-      await supabase
+      const { error } = await supabase
         .from('test_sessions')
         .update({
           status: 'kicked',
-          kicked_reason: reason,
+          kicked_reason: reason?.slice(0, 255), // Sanitize: limit length
           ended_at: new Date().toISOString()
         })
         .eq('session_id', sessionId);
       
-      fetchSessions(selectedTest.id);
+      if (error) throw error;
+      
+      await fetchSessions(selectedTest.id);
     } catch (err) {
-      alert('Failed to kick: ' + err.message);
+      console.error('Failed to kick:', err);
+      setError(`Failed to kick student: ${err.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [sessionId]: false }));
     }
   }, [selectedTest, fetchSessions]);
 
   const toggleTestReady = useCallback(async () => {
+    const testId = selectedTest?.id;
+    setActionLoading(prev => ({ ...prev, [testId]: 'toggling' }));
+    
     try {
       const { error } = await supabase
         .from('tests')
         .update({ is_ready: !selectedTest.is_ready })
-        .eq('id', selectedTest.id);
+        .eq('id', testId);
       
       if (error) throw error;
       
       setSelectedTest(prev => ({...prev, is_ready: !prev.is_ready}));
-      fetchTests();
+      await fetchTests();
     } catch (err) {
-      alert('Failed to update test status: ' + err.message);
+      console.error('Failed to update test status:', err);
+      setError(`Failed to update test status: ${err.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [testId]: false }));
     }
   }, [selectedTest, fetchTests]);
 
-  // Stats
+  // Stats - FIXED: consistent filtering logic
   const stats = useMemo(() => ({
     total: sessions.length,
     lobby: sessions.filter(s => s.status === 'lobby').length,
     ready: sessions.filter(s => s.status === 'ready').length,
     active: sessions.filter(s => s.status === 'active').length,
-    submitted: sessions.filter(s => s.status === 'submitted').length,
+    submitted: sessions.filter(s => s.status === 'submitted' || s.status === 'expired').length,
     kicked: sessions.filter(s => s.status === 'kicked').length,
+    // FIXED: Include violations count even for submitted/expired if they had violations
     violations: sessions.filter(s => 
       s.tab_switches > 0 || s.fullscreen_exits > 0 || s.concurrent_sessions_detected
     ).length
@@ -364,10 +404,13 @@ const TeacherMonitoringDashboard = () => {
             <div className="flex gap-2">
               <Button
                 onClick={toggleTestReady}
+                disabled={actionLoading[selectedTest.id]}
                 variant={selectedTest.is_ready ? "outline" : "default"}
                 className={selectedTest.is_ready ? 'border-yellow-500 text-yellow-600' : 'bg-green-600 hover:bg-green-700'}
               >
-                {selectedTest.is_ready ? (
+                {actionLoading[selectedTest.id] ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : selectedTest.is_ready ? (
                   <><Lock className="w-4 h-4 mr-2" /> Lock Test</>
                 ) : (
                   <><Unlock className="w-4 h-4 mr-2" /> Make Ready</>
@@ -429,6 +472,7 @@ const TeacherMonitoringDashboard = () => {
               test={selectedTest}
               onApprove={() => approveStudent(session.session_id)}
               onKick={(reason) => kickStudent(session.session_id, reason)}
+              isLoading={actionLoading[session.session_id]}
             />
           ))}
           
@@ -469,7 +513,7 @@ const StatCard = ({ icon: Icon, label, value, color }) => {
   );
 };
 
-const StudentCard = ({ session, test, onApprove, onKick }) => {
+const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
   const [showActions, setShowActions] = useState(false);
   const [kickReason, setKickReason] = useState('');
 
@@ -478,6 +522,7 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
     ready: { color: 'blue', icon: CheckCircle, text: 'Ready' },
     active: { color: 'green', icon: Activity, text: 'Taking Test' },
     submitted: { color: 'purple', icon: CheckCircle, text: 'Submitted' },
+    expired: { color: 'purple', icon: CheckCircle, text: 'Auto-Submitted' },
     kicked: { color: 'red', icon: UserX, text: 'Kicked' }
   };
 
@@ -485,13 +530,27 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
   const StatusIcon = status.icon;
   const hasViolations = session.tab_switches > 0 || session.fullscreen_exits > 0 || session.concurrent_sessions_detected;
 
+  // FIXED: Use proper Tailwind classes instead of dynamic template literals
+  const getStatusColorClasses = (color) => {
+    const colorMap = {
+      yellow: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
+      blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+      green: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+      purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+      red: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+      orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+      gray: 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400'
+    };
+    return colorMap[color] || colorMap.gray;
+  };
+
   return (
     <Card className={`dark:bg-gray-800 dark:border-gray-700 ${hasViolations ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full bg-${status.color}-100 dark:bg-${status.color}-900/30 flex items-center justify-center`}>
-              <StatusIcon className={`w-5 h-5 text-${status.color}-600 dark:text-${status.color}-400`} />
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColorClasses(status.color)}`}>
+              <StatusIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -519,8 +578,17 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
 
         <div className="flex gap-2">
           {session.status === 'lobby' && test.security_level === 'exam_hall' && !session.teacher_approved && (
-            <Button onClick={onApprove} size="sm" className="flex-1 bg-green-600 hover:bg-green-700">
-              <CheckCircle className="w-4 h-4 mr-1" />
+            <Button 
+              onClick={onApprove} 
+              size="sm" 
+              disabled={isLoading}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              {isLoading === 'approving' ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <CheckCircle className="w-4 h-4 mr-1" />
+              )}
               Approve
             </Button>
           )}
@@ -530,9 +598,14 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
               onClick={() => setShowActions(!showActions)} 
               variant="outline" 
               size="sm"
+              disabled={isLoading}
               className="dark:border-gray-600"
             >
-              <MoreVertical className="w-4 h-4" />
+              {isLoading === 'kicking' ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MoreVertical className="w-4 h-4" />
+              )}
             </Button>
           )}
         </div>
@@ -544,6 +617,7 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
               placeholder="Reason for kicking..."
               value={kickReason}
               onChange={(e) => setKickReason(e.target.value)}
+              maxLength={255}
               className="w-full px-3 py-2 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
             <Button 
@@ -552,12 +626,16 @@ const StudentCard = ({ session, test, onApprove, onKick }) => {
                 setShowActions(false);
                 setKickReason('');
               }}
-              disabled={!kickReason}
+              disabled={!kickReason || isLoading}
               variant="destructive"
               size="sm"
               className="w-full"
             >
-              <UserX className="w-4 h-4 mr-1" />
+              {isLoading === 'kicking' ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <UserX className="w-4 h-4 mr-1" />
+              )}
               Kick Student
             </Button>
           </div>

@@ -56,6 +56,7 @@ import StudentExams from './Pages/studentExams';
 import TestLobby from './Pages/TestLobby';
 import TeacherMonitoringDashboard from './Pages/TeacherMonitoringDashboard';
 import TakeTest from './Pages/TakeTest';
+import TestCompleted from './TestCompleted';
 
 // Wrapper component to conditionally show footer
 function AppContent() {
@@ -126,6 +127,7 @@ function AppContent() {
             <Route path="view-exams" element={<StudentExams/>} />
               <Route path="lobby" element={<TestLobby/>} />
                 <Route path="take-test" element={<TakeTest/>} />
+                <Route path="/dashboard/test-completed" element={<TestCompleted/>} />
 
             
             

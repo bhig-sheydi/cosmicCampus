@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/supabaseClient';
 import { useUser } from "../components/Contexts/userContext";
@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Loader2,
   LogOut,
-  MonitorX
+  MonitorX,
+  RefreshCw
 } from 'lucide-react';
 
 const TestLobby = () => {
@@ -34,20 +35,43 @@ const TestLobby = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const [lastCheckedStatus, setLastCheckedStatus] = useState(null);
 
-  // CRITICAL: Force fullscreen check on mount
+  // Refs for cleanup and race condition prevention
+  const abortControllerRef = useRef(null);
+  const fullscreenExitTimeoutRef = useRef(null);
+  const hasInitializedRef = useRef(false);
+  const enteringFullscreenRef = useRef(false);
+
+  // Parse testId from localStorage
   useEffect(() => {
     const storedTestId = localStorage.getItem('selectedTestId');
     if (!storedTestId) {
-      navigate('/dashboard/tests');
+      navigate('/dashboard/view-tests');
       return;
     }
-    setTestId(parseInt(storedTestId));
+    const parsedId = parseInt(storedTestId, 10);
+    if (isNaN(parsedId)) {
+      localStorage.removeItem('selectedTestId');
+      navigate('/dashboard/view-tests');
+      return;
+    }
+    setTestId(parsedId);
   }, [navigate]);
 
-  // Initialize lobby
+  // Initialize lobby - FIXED: proper cleanup and race condition handling
   useEffect(() => {
     if (!testId || !oneStudent?.id) return;
+
+    // Prevent double initialization
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
+    // Cancel any previous requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     const initLobby = async () => {
       try {
@@ -55,7 +79,6 @@ const TestLobby = () => {
         const deviceFingerprint = generateDeviceFingerprint();
         const screenResolution = `${window.screen.width}x${window.screen.height}`;
 
-        // Fetch test
         const { data: testData, error: testError } = await supabase
           .from('tests')
           .select(`
@@ -78,7 +101,6 @@ const TestLobby = () => {
 
         setTest(testData);
 
-        // Create session
         const { data: sessionData, error: sessionError } = await supabase.rpc('create_test_session', {
           p_test_id: testId,
           p_student_id: studentId,
@@ -92,35 +114,55 @@ const TestLobby = () => {
         if (!sessionData.success) throw new Error(sessionData.error);
 
         setSession(sessionData);
+        setLastCheckedStatus(sessionData.status);
 
-        // For exam_hall/strict mode, auto-enter fullscreen immediately
+        // FIXED: Handle fullscreen requirement properly with error handling
         if (testData.security_level !== 'standard' && testData.requires_fullscreen) {
-          await enterFullscreen();
+          const success = await enterFullscreen();
+          if (!success) {
+            // If fullscreen fails, don't set deviceVerified
+            // User will see the fullscreen required banner
+          }
         } else {
           setDeviceVerified(true);
         }
 
       } catch (err) {
-        setError(err.message);
+        if (err.name !== 'AbortError') {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     initLobby();
+
+    return () => {
+      abortControllerRef.current?.abort();
+      if (fullscreenExitTimeoutRef.current) {
+        clearTimeout(fullscreenExitTimeoutRef.current);
+      }
+    };
   }, [testId, oneStudent]);
 
-  // Monitor fullscreen changes
+  // Fullscreen change handler - FIXED: proper cleanup and race condition prevention
   useEffect(() => {
     const handleFullscreenChange = () => {
       const fullscreenElement = document.fullscreenElement || 
         document.webkitFullscreenElement || 
         document.mozFullScreenElement;
       
-      setIsFullscreen(!!fullscreenElement);
+      const isNowFullscreen = !!fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
       
-      // If exiting fullscreen during active session, kick student
-      if (!fullscreenElement && test?.requires_fullscreen && deviceVerified) {
+      // FIXED: Clear any pending exit timeout if we re-enter fullscreen
+      if (isNowFullscreen && fullscreenExitTimeoutRef.current) {
+        clearTimeout(fullscreenExitTimeoutRef.current);
+        fullscreenExitTimeoutRef.current = null;
+      }
+      
+      if (!isNowFullscreen && test?.requires_fullscreen && deviceVerified && !enteringFullscreenRef.current) {
         handleFullscreenExit();
       }
     };
@@ -136,7 +178,11 @@ const TestLobby = () => {
     };
   }, [test, deviceVerified]);
 
+  // FIXED: enterFullscreen now returns success status and prevents race conditions
   const enterFullscreen = async () => {
+    if (enteringFullscreenRef.current) return false;
+    enteringFullscreenRef.current = true;
+
     try {
       const element = document.documentElement;
       
@@ -152,28 +198,45 @@ const TestLobby = () => {
       
       setIsFullscreen(true);
       setDeviceVerified(true);
+      enteringFullscreenRef.current = false;
+      return true;
     } catch (err) {
       console.error('Fullscreen error:', err);
       setError('Fullscreen is required. Please allow fullscreen permission and refresh.');
+      enteringFullscreenRef.current = false;
+      return false;
     }
   };
 
+  // FIXED: handleFullscreenExit with cancellable timeout
   const handleFullscreenExit = async () => {
-    // Log violation
-    if (session?.session_id) {
+    // Don't process if we're no longer in a valid session
+    if (!session?.session_id) return;
+
+    // FIXED: Removed hardcoded 'token' fallback - fail closed
+    if (!session.session_token) {
+      console.error('No session token available');
+      setError('Session error. Please rejoin the test.');
+      setTimeout(() => handleLeave(), 3000);
+      return;
+    }
+
+    try {
       await supabase.rpc('record_test_heartbeat', {
         p_session_id: session.session_id,
-        p_session_token: session.session_token || 'token',
+        p_session_token: session.session_token,
         p_tab_visible: true,
         p_is_fullscreen: false
       });
+    } catch (err) {
+      console.error('Failed to record fullscreen exit:', err);
     }
     
     setError('Fullscreen mode required! You have been removed from the test.');
     setDeviceVerified(false);
     
-    // Optional: Auto-kick after delay
-    setTimeout(() => {
+    // FIXED: Store timeout ref so it can be cancelled
+    fullscreenExitTimeoutRef.current = setTimeout(() => {
       handleLeave();
     }, 3000);
   };
@@ -193,17 +256,36 @@ const TestLobby = () => {
     return btoa(components.join('|')).slice(0, 64);
   };
 
-  const handleAcceptRules = () => {
-    setAcceptedRules(true);
-    if (test?.security_level === 'exam_hall') {
-      subscribeToSessionUpdates();
-    } else {
-      setCountdown(3);
-    }
-  };
-
-  const subscribeToSessionUpdates = () => {
+  const checkApprovalStatus = useCallback(async () => {
     if (!session?.session_id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('test_sessions')
+        .select('status, teacher_approved')
+        .eq('session_id', session.session_id)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data?.status === 'ready' && countdown === null) {
+        setCountdown(3);
+        setLastCheckedStatus('ready');
+        return true;
+      }
+      
+      setLastCheckedStatus(data?.status);
+      return false;
+    } catch (err) {
+      console.error('Status check error:', err);
+      return false;
+    }
+  }, [session?.session_id, countdown]);
+
+  const subscribeToSessionUpdates = useCallback(() => {
+    if (!session?.session_id) return () => {};
+
+    console.log('Setting up approval monitoring for session:', session.session_id);
 
     const channel = supabase
       .channel(`session:${session.session_id}`)
@@ -213,17 +295,40 @@ const TestLobby = () => {
         table: 'test_sessions',
         filter: `session_id=eq.${session.session_id}`
       }, (payload) => {
+        console.log('Realtime update received:', payload);
         if (payload.new.status === 'ready' && payload.old.status !== 'ready') {
+          console.log('Teacher approval detected via realtime!');
           setCountdown(3);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
+
+    const pollInterval = setInterval(async () => {
+      const approved = await checkApprovalStatus();
+      if (approved) {
+        clearInterval(pollInterval);
+      }
+    }, 2000);
 
     return () => {
+      console.log('Cleaning up approval monitoring');
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  };
+  }, [session?.session_id, checkApprovalStatus]);
 
+  useEffect(() => {
+    if (!session?.session_id) return;
+    
+    if (test?.security_level === 'exam_hall' && session?.status !== 'ready') {
+      const cleanup = subscribeToSessionUpdates();
+      return cleanup;
+    }
+  }, [session?.session_id, test?.security_level, session?.status, subscribeToSessionUpdates]);
+
+  // FIXED: Countdown effect with proper cleanup
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
 
@@ -231,7 +336,7 @@ const TestLobby = () => {
       if (countdown === 1) {
         enterTest();
       } else {
-        setCountdown(countdown - 1);
+        setCountdown(prev => prev - 1);
       }
     }, 1000);
 
@@ -239,12 +344,18 @@ const TestLobby = () => {
   }, [countdown]);
 
   const enterTest = async () => {
+    // Prevent double submission
+    if (isStarting) return;
     setIsStarting(true);
     
     try {
-      // Verify still in fullscreen
       if (test?.requires_fullscreen && !document.fullscreenElement) {
         throw new Error('Fullscreen mode required to start test');
+      }
+
+      // FIXED: Removed hardcoded 'token' fallback
+      if (!session?.session_token) {
+        throw new Error('Session token missing');
       }
 
       const { data, error } = await supabase.rpc('start_test_session', {
@@ -272,9 +383,26 @@ const TestLobby = () => {
   };
 
   const handleLeave = () => {
+    // Cleanup before leaving
+    if (fullscreenExitTimeoutRef.current) {
+      clearTimeout(fullscreenExitTimeoutRef.current);
+    }
+    abortControllerRef.current?.abort();
+    
     localStorage.removeItem('selectedTestId');
-    navigate('/dashboard/tests');
+    navigate('/dashboard/view-tests');
   };
+
+  const handleAcceptRules = useCallback(() => {
+    setAcceptedRules(true);
+    if (test?.security_level === 'exam_hall') {
+      if (session?.status === 'ready' || lastCheckedStatus === 'ready') {
+        setCountdown(3);
+      }
+    } else {
+      setCountdown(3);
+    }
+  }, [test?.security_level, session?.status, lastCheckedStatus]);
 
   if (loading) {
     return (
@@ -313,6 +441,34 @@ const TestLobby = () => {
       </div>
     );
   }
+
+  // FIXED: Use static Tailwind classes instead of dynamic template literals
+  const getSecurityColorClasses = (color) => {
+    const colorMap = {
+      blue: {
+        bg: 'bg-blue-100 dark:bg-blue-900/30',
+        text: 'text-blue-600 dark:text-blue-400',
+        border: 'border-blue-500',
+        bgLight: 'bg-blue-50 dark:bg-blue-900/20',
+        textDark: 'text-blue-800 dark:text-blue-300'
+      },
+      orange: {
+        bg: 'bg-orange-100 dark:bg-orange-900/30',
+        text: 'text-orange-600 dark:text-orange-400',
+        border: 'border-orange-500',
+        bgLight: 'bg-orange-50 dark:bg-orange-900/20',
+        textDark: 'text-orange-800 dark:text-orange-300'
+      },
+      red: {
+        bg: 'bg-red-100 dark:bg-red-900/30',
+        text: 'text-red-600 dark:text-red-400',
+        border: 'border-red-500',
+        bgLight: 'bg-red-50 dark:bg-red-900/20',
+        textDark: 'text-red-800 dark:text-red-300'
+      }
+    };
+    return colorMap[color] || colorMap.blue;
+  };
 
   const getSecurityConfig = () => {
     const configs = {
@@ -362,11 +518,12 @@ const TestLobby = () => {
   const security = getSecurityConfig();
   const SecurityIcon = security.icon;
   const needsVerification = security.requiresVerification;
+  const isWaitingForApproval = test?.security_level === 'exam_hall' && session?.status !== 'ready' && lastCheckedStatus !== 'ready';
+  const colorClasses = getSecurityColorClasses(security.color);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Fullscreen Warning Banner */}
         {needsVerification && !isFullscreen && (
           <div className="bg-red-600 text-white p-4 rounded-xl mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -382,7 +539,6 @@ const TestLobby = () => {
           </div>
         )}
 
-        {/* Fullscreen Active Indicator */}
         {isFullscreen && (
           <div className="bg-green-600 text-white p-2 rounded-lg mb-4 text-center text-sm flex items-center justify-center gap-2">
             <Maximize className="w-4 h-4" />
@@ -390,11 +546,10 @@ const TestLobby = () => {
           </div>
         )}
 
-        {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow-sm border-b dark:border-gray-700 p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className={`p-2 rounded-lg bg-${security.color}-100 dark:bg-${security.color}-900/30`}>
-              <SecurityIcon className={`w-6 h-6 text-${security.color}-600 dark:text-${security.color}-400`} />
+            <div className={`p-2 rounded-lg ${colorClasses.bg}`}>
+              <SecurityIcon className={`w-6 h-6 ${colorClasses.text}`} />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">{test?.test_title}</h1>
@@ -412,9 +567,8 @@ const TestLobby = () => {
           )}
         </div>
 
-        {/* Security Info */}
-        <div className={`bg-${security.color}-50 dark:bg-${security.color}-900/20 border-l-4 border-${security.color}-500 p-4`}>
-          <h2 className={`font-semibold text-${security.color}-800 dark:text-${security.color}-300 mb-3 flex items-center gap-2`}>
+        <div className={`${colorClasses.bgLight} border-l-4 ${colorClasses.border} p-4`}>
+          <h2 className={`font-semibold ${colorClasses.textDark} mb-3 flex items-center gap-2`}>
             <Shield className="w-5 h-5" />
             {security.title}
           </h2>
@@ -432,7 +586,6 @@ const TestLobby = () => {
           </ul>
         </div>
 
-        {/* Warnings */}
         {security.warnings.length > 0 && (
           <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4">
             <h3 className="font-semibold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
@@ -450,7 +603,6 @@ const TestLobby = () => {
           </div>
         )}
 
-        {/* Device Verification */}
         {needsVerification && (
           <div className="bg-white dark:bg-gray-800 p-4 border-b dark:border-gray-700">
             <div className="flex items-center gap-2 mb-3">
@@ -485,22 +637,31 @@ const TestLobby = () => {
           </div>
         )}
 
-        {/* Teacher Approval */}
-        {test?.security_level === 'exam_hall' && session?.status !== 'ready' && deviceVerified && (
+        {isWaitingForApproval && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 border-b dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
-              <div>
-                <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">Waiting for Teacher</h3>
-                <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                  Your teacher must approve you before starting.
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
+                <div>
+                  <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">
+                    Waiting for Teacher Approval
+                  </h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    Status: {lastCheckedStatus || session?.status} • Auto-checking every 2 seconds
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={checkApprovalStatus}
+                className="px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm flex items-center gap-1 transition"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Check Now
+              </button>
             </div>
           </div>
         )}
 
-        {/* Rules Acceptance */}
         <div className="bg-white dark:bg-gray-800 p-4 rounded-b-xl shadow-sm">
           <label className={`flex items-start gap-3 ${(!deviceVerified || !isFullscreen) && needsVerification ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
             <input
@@ -534,7 +695,7 @@ const TestLobby = () => {
                 !acceptedRules || 
                 (needsVerification && (!deviceVerified || !isFullscreen)) || 
                 isStarting ||
-                (test?.security_level === 'exam_hall' && session?.status !== 'ready')
+                isWaitingForApproval
               }
               className="flex-1 py-2.5 px-4 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition flex items-center justify-center gap-2"
             >
@@ -548,8 +709,11 @@ const TestLobby = () => {
                   Enter Fullscreen First
                   <Maximize className="w-4 h-4" />
                 </>
-              ) : test?.security_level === 'exam_hall' && session?.status !== 'ready' ? (
-                'Waiting for Teacher...'
+              ) : isWaitingForApproval ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Waiting for Teacher...
+                </>
               ) : (
                 <>
                   Start Test
