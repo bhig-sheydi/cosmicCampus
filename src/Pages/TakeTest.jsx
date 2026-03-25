@@ -63,21 +63,344 @@ const TakeTest = () => {
     answeringRef.current = answering;
   }, [answering]);
 
-  // Initialize test - FIXED: Proper cleanup and re-init handling
+  // FIXED: Define timer functions FIRST before they are used by other callbacks
+  
+  // Start timer - defined early to avoid TDZ
+  const startTimer = useCallback((timeLimitSeconds, startedAt) => {
+    // Clear any existing timer first
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    if (!timeLimitSeconds || !startedAt) return;
+
+    const endTime = new Date(startedAt).getTime() + (timeLimitSeconds * 1000);
+    
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        // Use setTimeout to avoid calling autoSubmit synchronously during render
+        setTimeout(() => autoSubmitRef.current('time_expired'), 0);
+      }
+    };
+
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 1000);
+  }, []);
+
+  // Heartbeat function - defined before activateSecurity
+  const doHeartbeat = useCallback(async () => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    try {
+      const isFullscreen = !!(document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement);
+
+      if (!sessionToken) {
+        console.error('No session token for heartbeat');
+        return;
+      }
+
+      const { data } = await supabase.rpc('record_test_heartbeat', {
+        p_session_id: sessionId,
+        p_session_token: sessionToken,
+        p_tab_visible: !document.hidden,
+        p_is_fullscreen: isFullscreen
+      });
+
+      if (data?.should_submit) {
+        autoSubmitRef.current('server_triggered');
+      }
+    } catch (err) {
+      console.error('Heartbeat error:', err);
+    }
+  }, [securityLevel, sessionId, sessionToken]);
+
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+
+    const initialTimeout = setTimeout(() => {
+      doHeartbeat();
+      heartbeatRef.current = setInterval(doHeartbeat, 10000);
+    }, 5000);
+
+    return () => clearTimeout(initialTimeout);
+  }, [doHeartbeat]);
+
+  // FIXED: Use ref for autoSubmit to break circular dependency
+  const autoSubmitRef = useRef(() => {});
+  
+  // Now define functions that depend on the above
+  
+  const cleanup = useCallback(() => {
+    clearInterval(heartbeatRef.current);
+    clearInterval(timerRef.current);
+    heartbeatRef.current = null;
+    timerRef.current = null;
+    
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    document.removeEventListener('contextmenu', preventDefault, true);
+    document.removeEventListener('keydown', handleKeyDown, true);
+    
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+      answerTimeoutRef.current = null;
+    }
+  }, []);
+
+  const calculateScore = useCallback(() => {
+    let score = 0;
+    questions.forEach(q => {
+      const selected = answers[q.question_id];
+      if (selected) {
+        const selectedIndex = q.options.indexOf(selected);
+        const selectedLetter = String.fromCharCode(65 + selectedIndex);
+        if (selectedLetter.toLowerCase() === q.correct_answer.toLowerCase()) {
+          score += q.marks;
+        }
+      }
+    });
+    return score;
+  }, [questions, answers]);
+
+  const submitTest = useCallback(async (isAuto = false, reason = null, kickReason = null) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    isActiveRef.current = false;
+    
+    cleanup();
+
+    try {
+      const score = calculateScore();
+
+      if (!sessionToken) {
+        throw new Error('Session token missing');
+      }
+
+      const { data, error } = await supabase.rpc('submit_test_with_session', {
+        p_session_id: sessionId,
+        p_session_token: sessionToken,
+        p_answers: answers,
+        p_score: score,
+        p_is_auto_submit: isAuto,
+        p_submit_reason: reason
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        navigate('/dashboard/test-completed', { 
+          state: { 
+            score: reason === 'manual_kick' ? 0 : score,
+            totalMarks: questions.reduce((sum, q) => sum + (q.marks || 0), 0),
+            isAutoSubmit: isAuto,
+            reason,
+            kickReason: kickReason || (reason === 'manual_kick' ? 'Removed by teacher' : null),
+            isKicked: reason === 'manual_kick',
+            securityLevel
+          } 
+        });
+      } else {
+        throw new Error(data?.error || 'Submission failed');
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      setError('Failed to submit: ' + err.message);
+      setSubmitting(false);
+      submittingRef.current = false;
+    }
+  }, [sessionId, sessionToken, answers, questions, navigate, securityLevel, calculateScore, cleanup]);
+
+  // Set up autoSubmitRef to point to the actual function
+  autoSubmitRef.current = useCallback((reason, kickReason = null) => {
+    submitTest(true, reason, kickReason);
+  }, [submitTest]);
+
+  // Security event handlers
+  const handleVisibilityChange = useCallback(() => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+    
+    if (document.hidden) {
+      console.log('TAB SWITCH DETECTED');
+      handleViolationRef.current('tab_switch');
+    }
+  }, [securityLevel]);
+
+  const handleFullscreenChange = useCallback(() => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    const isFullscreen = !!(document.fullscreenElement || 
+      document.webkitFullscreenElement || 
+      document.mozFullScreenElement);
+
+    console.log('Fullscreen change:', isFullscreen);
+
+    if (!isFullscreen && requiresFullscreen) {
+      console.log('FULLSCREEN EXIT');
+      handleViolationRef.current('fullscreen_exit');
+    }
+  }, [requiresFullscreen, securityLevel]);
+
+  const preventDefault = useCallback((e) => {
+    if (!isActiveRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  }, []);
+
+  const handleKeyDown = useCallback((e) => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+
+    const blockedKeys = ['F12', 'Escape', 'F11', 'F5'];
+    const isBlockedCombo = (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+                          (e.ctrlKey && e.key === 'u') ||
+                          (e.ctrlKey && e.key === 'r') ||
+                          (e.altKey && e.key === 'Tab') ||
+                          (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+                          (e.ctrlKey && e.key === 's') ||
+                          (e.metaKey && e.key === 's');
+
+    if (blockedKeys.includes(e.key) || isBlockedCombo) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleViolationRef.current('keyboard_shortcut');
+      return false;
+    }
+  }, [securityLevel]);
+
+  // FIXED: Handle violations with proper locking
+  const handleViolation = useCallback(async (type) => {
+    if (!isActiveRef.current) return;
+    if (securityLevel === 'standard') return;
+    if (handlingViolationRef.current) return;
+    
+    handlingViolationRef.current = true;
+
+    try {
+      const newTabSwitches = violationsRef.current.tabSwitches + (type === 'tab_switch' ? 1 : 0);
+      const newFullscreenExits = violationsRef.current.fullscreenExits + (type === 'fullscreen_exit' ? 1 : 0);
+      
+      const newViolations = {
+        tabSwitches: newTabSwitches,
+        fullscreenExits: newFullscreenExits
+      };
+      
+      violationsRef.current = newViolations;
+      setViolations(newViolations);
+
+      setWarning(`VIOLATION: ${type.toUpperCase()}!`);
+      setTimeout(() => setWarning(null), 3000);
+
+      if (!sessionToken) {
+        console.error('No session token available');
+        autoSubmitRef.current('security_error_no_token');
+        return;
+      }
+
+      const { data } = await supabase.rpc('record_test_heartbeat', {
+        p_session_id: sessionId,
+        p_session_token: sessionToken,
+        p_tab_visible: type !== 'tab_switch',
+        p_is_fullscreen: type !== 'fullscreen_exit'
+      });
+
+      if (securityLevel === 'exam_hall') {
+        if (newTabSwitches >= 1 || newFullscreenExits >= 1) {
+          autoSubmitRef.current('security_violation_' + type);
+        }
+      } else if (securityLevel === 'strict') {
+        if (newTabSwitches >= 3 || newFullscreenExits >= 2) {
+          autoSubmitRef.current('security_violation_' + type);
+        }
+      }
+    } catch (err) {
+      console.error('Violation log error:', err);
+    } finally {
+      handlingViolationRef.current = false;
+    }
+  }, [securityLevel, sessionId, sessionToken]);
+
+  // Set up handleViolationRef
+  const handleViolationRef = useRef(handleViolation);
+  useEffect(() => {
+    handleViolationRef.current = handleViolation;
+  }, [handleViolation]);
+
+  const handleAnswer = useCallback((questionId, answer) => {
+    if (answeringRef.current || !isActiveRef.current) return;
+    if (answers[questionId] === answer) return;
+
+    answeringRef.current = true;
+    setAnswering(true);
+    setAnswers(prev => ({ ...prev, [questionId]: answer }));
+
+    if (answerTimeoutRef.current) {
+      clearTimeout(answerTimeoutRef.current);
+    }
+    
+    answerTimeoutRef.current = setTimeout(() => {
+      answeringRef.current = false;
+      setAnswering(false);
+      answerTimeoutRef.current = null;
+    }, 300);
+  }, [answers]);
+
+  // Now define activate functions that use the above
+  const activateSecurity = useCallback(() => {
+    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('contextmenu', preventDefault, true);
+      document.addEventListener('keydown', handleKeyDown, true);
+    }
+
+    setIsSecureMode(true);
+    isActiveRef.current = true;
+    setSecurityStep('active');
+
+    startTimer(timeLimitRef.current, startTimeRef.current);
+    
+    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
+      startHeartbeat();
+    }
+  }, [securityLevel, startTimer, startHeartbeat, handleVisibilityChange, handleFullscreenChange, preventDefault, handleKeyDown]);
+
+  const activateTest = useCallback(() => {
+    setIsSecureMode(true);
+    isActiveRef.current = true;
+    setSecurityStep('active');
+    
+    startTimer(timeLimitRef.current, startTimeRef.current);
+  }, [startTimer]);
+
+  // Initialize test
   useEffect(() => {
     if (!sessionId || !testId) {
       navigate('/dashboard/view-tests');
       return;
     }
 
-    // Reset init flag when IDs change to allow re-initialization
-    hasInitialized.current = false;
-    initAbortControllerRef.current = new AbortController();
-    
-    const init = async () => {
-      if (hasInitialized.current) return;
-      hasInitialized.current = true;
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
 
+    initAbortControllerRef.current = new AbortController();
+
+    const initializeTest = async () => {
       try {
         const { data: sessionData, error: sessionError } = await supabase
           .from('test_sessions')
@@ -111,7 +434,6 @@ const TakeTest = () => {
         setLoading(false);
 
       } catch (err) {
-        if (err.name === 'AbortError') return;
         console.error('Initialization error:', err);
         setError(err.message);
         setSecurityStep('error');
@@ -119,23 +441,23 @@ const TakeTest = () => {
       }
     };
 
-    init();
+    const loadQuestions = async () => {
+      const { data: questionsData, error } = await supabase
+        .from('test_questions')
+        .select('*')
+        .eq('test_id', testId)
+        .order('question_id');
+
+      if (error) throw error;
+      setQuestions(questionsData || []);
+    };
+
+    initializeTest();
 
     return () => {
       initAbortControllerRef.current?.abort();
     };
-  }, [sessionId, testId, navigate, securityLevel]);
-
-  const loadQuestions = async () => {
-    const { data: questionsData, error } = await supabase
-      .from('test_questions')
-      .select('*')
-      .eq('test_id', testId)
-      .order('question_id');
-
-    if (error) throw error;
-    setQuestions(questionsData || []);
-  };
+  }, [sessionId, testId, navigate, securityLevel, activateTest]);
 
   const enterSecurityMode = async () => {
     if (securityLevel === 'standard') {
@@ -178,303 +500,7 @@ const TakeTest = () => {
     }
   };
 
-  const activateSecurity = useCallback(() => {
-    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      document.addEventListener('contextmenu', preventDefault, true);
-      document.addEventListener('keydown', handleKeyDown, true);
-    }
-
-    setIsSecureMode(true);
-    isActiveRef.current = true;
-    setSecurityStep('active');
-
-    startTimer(timeLimitRef.current, startTimeRef.current);
-    
-    if (securityLevel === 'strict' || securityLevel === 'exam_hall') {
-      startHeartbeat();
-    }
-  }, [securityLevel, startTimer, startHeartbeat, handleVisibilityChange, handleFullscreenChange, preventDefault, handleKeyDown]);
-
-  const activateTest = useCallback(() => {
-    setIsSecureMode(true);
-    isActiveRef.current = true;
-    setSecurityStep('active');
-    
-    startTimer(timeLimitRef.current, startTimeRef.current);
-  }, [startTimer]);
-
-  const handleVisibilityChange = useCallback(() => {
-    if (!isActiveRef.current) return;
-    if (securityLevel === 'standard') return;
-    
-    if (document.hidden) {
-      console.log('TAB SWITCH DETECTED');
-      handleViolation('tab_switch');
-    }
-  }, [securityLevel, handleViolation]);
-
-  const handleFullscreenChange = useCallback(() => {
-    if (!isActiveRef.current) return;
-    if (securityLevel === 'standard') return;
-
-    const isFullscreen = !!(document.fullscreenElement || 
-      document.webkitFullscreenElement || 
-      document.mozFullScreenElement);
-
-    console.log('Fullscreen change:', isFullscreen);
-
-    if (!isFullscreen && requiresFullscreen) {
-      console.log('FULLSCREEN EXIT');
-      handleViolation('fullscreen_exit');
-    }
-  }, [requiresFullscreen, securityLevel, handleViolation]);
-
-  const preventDefault = useCallback((e) => {
-    if (!isActiveRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    return false;
-  }, []);
-
-  const handleKeyDown = useCallback((e) => {
-    if (!isActiveRef.current) return;
-    if (securityLevel === 'standard') return;
-
-    const blockedKeys = ['F12', 'Escape', 'F11', 'F5'];
-    const isBlockedCombo = (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-                          (e.ctrlKey && e.key === 'u') ||
-                          (e.ctrlKey && e.key === 'r') ||
-                          (e.altKey && e.key === 'Tab') ||
-                          (e.ctrlKey && e.shiftKey && e.key === 'J') ||
-                          (e.ctrlKey && e.key === 's') ||
-                          (e.metaKey && e.key === 's');
-
-    if (blockedKeys.includes(e.key) || isBlockedCombo) {
-      e.preventDefault();
-      e.stopPropagation();
-      handleViolation('keyboard_shortcut');
-      return false;
-    }
-  }, [securityLevel, handleViolation]);
-
-  // FIXED: Handle violations with proper locking to prevent race conditions
-  const handleViolation = useCallback(async (type) => {
-    if (!isActiveRef.current) return;
-    if (securityLevel === 'standard') return;
-    if (handlingViolationRef.current) return; // Prevent concurrent handling
-    
-    handlingViolationRef.current = true;
-
-    try {
-      const newTabSwitches = violationsRef.current.tabSwitches + (type === 'tab_switch' ? 1 : 0);
-      const newFullscreenExits = violationsRef.current.fullscreenExits + (type === 'fullscreen_exit' ? 1 : 0);
-      
-      const newViolations = {
-        tabSwitches: newTabSwitches,
-        fullscreenExits: newFullscreenExits
-      };
-      
-      violationsRef.current = newViolations;
-      setViolations(newViolations);
-
-      setWarning(`VIOLATION: ${type.toUpperCase()}!`);
-      setTimeout(() => setWarning(null), 3000);
-
-      // FIXED: Removed hardcoded 'token' fallback - fail closed
-      if (!sessionToken) {
-        console.error('No session token available');
-        autoSubmit('security_error_no_token');
-        return;
-      }
-
-      const { data } = await supabase.rpc('record_test_heartbeat', {
-        p_session_id: sessionId,
-        p_session_token: sessionToken,
-        p_tab_visible: type !== 'tab_switch',
-        p_is_fullscreen: type !== 'fullscreen_exit'
-      });
-
-      // Check thresholds immediately after updating
-      if (securityLevel === 'exam_hall') {
-        if (newTabSwitches >= 1 || newFullscreenExits >= 1) {
-          autoSubmit('security_violation_' + type);
-        }
-      } else if (securityLevel === 'strict') {
-        if (newTabSwitches >= 3 || newFullscreenExits >= 2) {
-          autoSubmit('security_violation_' + type);
-        }
-      }
-    } catch (err) {
-      console.error('Violation log error:', err);
-    } finally {
-      handlingViolationRef.current = false;
-    }
-  }, [securityLevel, sessionId, sessionToken, autoSubmit]);
-
-  const handleAnswer = useCallback((questionId, answer) => {
-    if (answeringRef.current || !isActiveRef.current) return;
-    if (answers[questionId] === answer) return;
-
-    answeringRef.current = true;
-    setAnswering(true);
-    setAnswers(prev => ({ ...prev, [questionId]: answer }));
-
-    if (answerTimeoutRef.current) {
-      clearTimeout(answerTimeoutRef.current);
-    }
-    
-    answerTimeoutRef.current = setTimeout(() => {
-      answeringRef.current = false;
-      setAnswering(false);
-      answerTimeoutRef.current = null;
-    }, 300);
-  }, [answers]);
-
-  // FIXED: Proper timer cleanup and prevention of duplicate timers
-  const startTimer = useCallback((timeLimitSeconds, startedAt) => {
-    // Clear any existing timer first
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    if (!timeLimitSeconds || !startedAt) return;
-
-    const endTime = new Date(startedAt).getTime() + (timeLimitSeconds * 1000);
-    
-    const updateTimer = () => {
-      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-      setTimeLeft(remaining);
-      
-      if (remaining <= 0) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-        autoSubmit('time_expired');
-      }
-    };
-
-    updateTimer();
-    timerRef.current = setInterval(updateTimer, 1000);
-  }, [autoSubmit]);
-
-  const startHeartbeat = useCallback(() => {
-    // Clear any existing heartbeat first
-    if (heartbeatRef.current) {
-      clearInterval(heartbeatRef.current);
-      heartbeatRef.current = null;
-    }
-
-    const initialTimeout = setTimeout(() => {
-      doHeartbeat();
-      heartbeatRef.current = setInterval(doHeartbeat, 10000);
-    }, 5000);
-
-    return () => clearTimeout(initialTimeout);
-  }, [doHeartbeat]);
-
-  const doHeartbeat = useCallback(async () => {
-    if (!isActiveRef.current) return;
-    if (securityLevel === 'standard') return;
-
-    try {
-      const isFullscreen = !!(document.fullscreenElement || 
-        document.webkitFullscreenElement || 
-        document.mozFullScreenElement);
-
-      // FIXED: Removed hardcoded 'token' fallback
-      if (!sessionToken) {
-        console.error('No session token for heartbeat');
-        return;
-      }
-
-      const { data } = await supabase.rpc('record_test_heartbeat', {
-        p_session_id: sessionId,
-        p_session_token: sessionToken,
-        p_tab_visible: !document.hidden,
-        p_is_fullscreen: isFullscreen
-      });
-
-      if (data?.should_submit) {
-        autoSubmit('server_triggered');
-      }
-    } catch (err) {
-      console.error('Heartbeat error:', err);
-    }
-  }, [securityLevel, sessionId, sessionToken, autoSubmit]);
-
-  const calculateScore = useCallback(() => {
-    let score = 0;
-    questions.forEach(q => {
-      const selected = answers[q.question_id];
-      if (selected) {
-        const selectedIndex = q.options.indexOf(selected);
-        const selectedLetter = String.fromCharCode(65 + selectedIndex);
-        if (selectedLetter.toLowerCase() === q.correct_answer.toLowerCase()) {
-          score += q.marks;
-        }
-      }
-    });
-    return score;
-  }, [questions, answers]);
-
-  const submitTest = useCallback(async (isAuto = false, reason = null, kickReason = null) => {
-    // Prevent double submission using ref
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    setSubmitting(true);
-    isActiveRef.current = false;
-    
-    cleanup();
-
-    try {
-      const score = calculateScore();
-
-      // FIXED: Removed hardcoded 'token' fallback
-      if (!sessionToken) {
-        throw new Error('Session token missing');
-      }
-
-      const { data, error } = await supabase.rpc('submit_test_with_session', {
-        p_session_id: sessionId,
-        p_session_token: sessionToken,
-        p_answers: answers,
-        p_score: score,
-        p_is_auto_submit: isAuto,
-        p_submit_reason: reason
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        navigate('/dashboard/test-completed', { 
-          state: { 
-            score: reason === 'manual_kick' ? 0 : score,
-            totalMarks: questions.reduce((sum, q) => sum + (q.marks || 0), 0),
-            isAutoSubmit: isAuto,
-            reason,
-            kickReason: kickReason || (reason === 'manual_kick' ? 'Removed by teacher' : null),
-            isKicked: reason === 'manual_kick',
-            securityLevel
-          } 
-        });
-      } else {
-        throw new Error(data?.error || 'Submission failed');
-      }
-    } catch (err) {
-      console.error('Submit error:', err);
-      setError('Failed to submit: ' + err.message);
-      setSubmitting(false);
-      submittingRef.current = false;
-    }
-  }, [sessionId, sessionToken, answers, questions, navigate, securityLevel, calculateScore, cleanup]);
-
-  const autoSubmit = useCallback((reason, kickReason = null) => {
-    submitTest(true, reason, kickReason);
-  }, [submitTest]);
-
-  // FIXED: Kick detection with proper cleanup and mounted check
+  // Kick detection
   useEffect(() => {
     if (!sessionId) return;
 
@@ -492,7 +518,7 @@ const TakeTest = () => {
 
         if (data?.status === 'kicked') {
           console.log('KICKED BY TEACHER:', data.kicked_reason);
-          autoSubmit('manual_kick', data.kicked_reason);
+          autoSubmitRef.current('manual_kick', data.kicked_reason);
         }
       } catch (err) {
         console.error('Kick check error:', err);
@@ -501,25 +527,7 @@ const TakeTest = () => {
 
     const interval = setInterval(checkKickStatus, 3000);
     return () => clearInterval(interval);
-  }, [sessionId, autoSubmit]);
-
-  // FIXED: Proper cleanup function that uses refs to avoid stale closures
-  const cleanup = useCallback(() => {
-    clearInterval(heartbeatRef.current);
-    clearInterval(timerRef.current);
-    heartbeatRef.current = null;
-    timerRef.current = null;
-    
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    document.removeEventListener('contextmenu', preventDefault, true);
-    document.removeEventListener('keydown', handleKeyDown, true);
-    
-    if (answerTimeoutRef.current) {
-      clearTimeout(answerTimeoutRef.current);
-      answerTimeoutRef.current = null;
-    }
-  }, [handleVisibilityChange, handleFullscreenChange, preventDefault, handleKeyDown]);
+  }, [sessionId]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -527,7 +535,6 @@ const TakeTest = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // FIXED: Proper cleanup effect with all dependencies
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (isActiveRef.current) {
@@ -537,11 +544,9 @@ const TakeTest = () => {
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       cleanup();
-      // Ensure all refs are cleared
       isActiveRef.current = false;
       handlingViolationRef.current = false;
     };

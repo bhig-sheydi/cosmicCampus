@@ -23,7 +23,9 @@ import {
   Unlock,
   ChevronLeft,
   Filter,
-  Loader2
+  Loader2,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,11 +43,13 @@ const TeacherMonitoringDashboard = () => {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [actionLoading, setActionLoading] = useState({}); // Track loading per action
+  const [actionLoading, setActionLoading] = useState({});
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'connected', 'disconnected'
   
   // Use ref for channel instead of state to avoid re-renders
   const channelRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
 
   // Get teacher ID
   const teacherId = useMemo(() => {
@@ -62,7 +66,6 @@ const TeacherMonitoringDashboard = () => {
       return;
     }
     
-    // Cancel previous request if exists
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -100,7 +103,7 @@ const TeacherMonitoringDashboard = () => {
     }
   }, [teacherId]);
 
-  // Fetch sessions - FIXED: wrapped in useCallback with proper dependencies
+  // Fetch sessions
   const fetchSessions = useCallback(async (testId) => {
     if (!testId) return;
     
@@ -114,6 +117,7 @@ const TeacherMonitoringDashboard = () => {
           teacher_approved,
           approved_at,
           started_at,
+          ended_at,
           last_heartbeat,
           tab_switches,
           fullscreen_exits,
@@ -121,6 +125,7 @@ const TeacherMonitoringDashboard = () => {
           device_fingerprint,
           ip_address,
           screen_resolution,
+          kicked_reason,
           student:student_id(
             student_name,
             arm:arm_id(arm_name)
@@ -136,7 +141,7 @@ const TeacherMonitoringDashboard = () => {
     }
   }, []);
 
-  // Setup realtime with ref - FIXED: proper cleanup and stable dependencies
+  // FIXED: Setup realtime with ALL events (INSERT, UPDATE, DELETE) and proper error handling
   const setupRealtime = useCallback((testId) => {
     // Cleanup previous channel
     if (channelRef.current) {
@@ -144,17 +149,60 @@ const TeacherMonitoringDashboard = () => {
       channelRef.current = null;
     }
 
+    setConnectionStatus('connecting');
+
+    // Create channel with a unique name
     const channel = supabase
-      .channel(`teacher-monitor:${testId}`)
+      .channel(`teacher-monitor-${testId}-${Date.now()}`)
       .on('postgres_changes', {
-        event: '*',
+        event: '*', // Listen to ALL events: INSERT, UPDATE, DELETE
         schema: 'public',
         table: 'test_sessions',
         filter: `test_id=eq.${testId}`
-      }, () => {
-        fetchSessions(testId);
+      }, (payload) => {
+        console.log('Realtime event received:', payload);
+        
+        // Handle different event types
+        switch (payload.eventType) {
+          case 'INSERT':
+            // New student joined - add to list
+            setSessions(prev => {
+              // Check if already exists to avoid duplicates
+              const exists = prev.find(s => s.session_id === payload.new.session_id);
+              if (exists) return prev;
+              return [payload.new, ...prev];
+            });
+            break;
+            
+          case 'UPDATE':
+            // Student status changed - update in place
+            setSessions(prev => prev.map(session => 
+              session.session_id === payload.new.session_id 
+                ? { ...session, ...payload.new }
+                : session
+            ));
+            break;
+            
+          case 'DELETE':
+            // Student/session removed - remove from list
+            setSessions(prev => prev.filter(s => s.session_id !== payload.old.session_id));
+            break;
+            
+          default:
+            // Fallback: refresh all sessions to ensure consistency
+            fetchSessions(testId);
+        }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+          // Fallback to polling if realtime fails
+          startPolling(testId);
+        }
+      });
 
     channelRef.current = channel;
     
@@ -163,8 +211,25 @@ const TeacherMonitoringDashboard = () => {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+      stopPolling();
     };
   }, [fetchSessions]);
+
+  // FIXED: Add polling fallback for when realtime fails
+  const startPolling = useCallback((testId) => {
+    stopPolling(); // Clear any existing interval
+    pollingIntervalRef.current = setInterval(() => {
+      console.log('Polling fallback: fetching sessions');
+      fetchSessions(testId);
+    }, 3000); // Poll every 3 seconds
+  }, [fetchSessions]);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -179,19 +244,35 @@ const TeacherMonitoringDashboard = () => {
     };
   }, [teacherId, fetchTests]);
 
-  // When test selected - FIXED: include all dependencies to avoid stale closures
+  // When test selected - FIXED: proper dependencies and cleanup
   useEffect(() => {
-    if (!selectedTest) return;
+    if (!selectedTest) {
+      stopPolling();
+      return;
+    }
     
+    // Initial fetch
     fetchSessions(selectedTest.id);
+    
+    // Setup realtime
     const cleanup = setupRealtime(selectedTest.id);
     
-    return cleanup;
-  }, [selectedTest, fetchSessions, setupRealtime]); // FIXED: Added missing dependencies
+    return () => {
+      cleanup();
+      stopPolling();
+    };
+  }, [selectedTest, fetchSessions, setupRealtime, stopPolling]);
 
-  // Actions - FIXED: proper loading states and error handling without alert()
+  // FIXED: Approve student with optimistic update
   const approveStudent = useCallback(async (sessionId) => {
     setActionLoading(prev => ({ ...prev, [sessionId]: 'approving' }));
+    
+    // Optimistic update - immediately update UI
+    setSessions(prev => prev.map(s => 
+      s.session_id === sessionId 
+        ? { ...s, teacher_approved: true, status: 'ready' }
+        : s
+    ));
     
     try {
       const { data, error } = await supabase.rpc('approve_student_for_test', {
@@ -201,14 +282,22 @@ const TeacherMonitoringDashboard = () => {
       
       if (error) throw error;
       
-      if (data?.success) {
-        await fetchSessions(selectedTest.id);
-      } else {
+      if (!data?.success) {
         throw new Error(data?.error || 'Failed to approve');
       }
+      
+      // Server confirmed - already updated optimistically
+      // But fetch to ensure consistency
+      await fetchSessions(selectedTest.id);
+      
     } catch (err) {
       console.error('Failed to approve:', err);
-      // Use state-based error instead of alert
+      // Revert optimistic update on error
+      setSessions(prev => prev.map(s => 
+        s.session_id === sessionId 
+          ? { ...s, teacher_approved: false, status: 'lobby' }
+          : s
+      ));
       setError(`Failed to approve student: ${err.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
@@ -216,24 +305,36 @@ const TeacherMonitoringDashboard = () => {
     }
   }, [teacherId, selectedTest, fetchSessions]);
 
+  // FIXED: Kick student with immediate UI update
   const kickStudent = useCallback(async (sessionId, reason) => {
     setActionLoading(prev => ({ ...prev, [sessionId]: 'kicking' }));
+    
+    // Optimistic update - immediately remove from active list
+    setSessions(prev => prev.map(s => 
+      s.session_id === sessionId 
+        ? { ...s, status: 'kicked', kicked_reason: reason, ended_at: new Date().toISOString() }
+        : s
+    ));
     
     try {
       const { error } = await supabase
         .from('test_sessions')
         .update({
           status: 'kicked',
-          kicked_reason: reason?.slice(0, 255), // Sanitize: limit length
+          kicked_reason: reason?.slice(0, 255),
           ended_at: new Date().toISOString()
         })
         .eq('session_id', sessionId);
       
       if (error) throw error;
       
+      // Realtime will catch this, but fetch to ensure consistency
       await fetchSessions(selectedTest.id);
+      
     } catch (err) {
       console.error('Failed to kick:', err);
+      // Revert on error - fetch fresh data
+      await fetchSessions(selectedTest.id);
       setError(`Failed to kick student: ${err.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
@@ -264,17 +365,22 @@ const TeacherMonitoringDashboard = () => {
     }
   }, [selectedTest, fetchTests]);
 
-  // Stats - FIXED: consistent filtering logic
+  // FIXED: Stats calculation - include all terminal states as "done"
   const stats = useMemo(() => ({
     total: sessions.length,
     lobby: sessions.filter(s => s.status === 'lobby').length,
     ready: sessions.filter(s => s.status === 'ready').length,
     active: sessions.filter(s => s.status === 'active').length,
-    submitted: sessions.filter(s => s.status === 'submitted' || s.status === 'expired').length,
+    submitted: sessions.filter(s => 
+      s.status === 'submitted' || 
+      s.status === 'expired' || 
+      s.status === 'completed'
+    ).length,
     kicked: sessions.filter(s => s.status === 'kicked').length,
-    // FIXED: Include violations count even for submitted/expired if they had violations
     violations: sessions.filter(s => 
-      s.tab_switches > 0 || s.fullscreen_exits > 0 || s.concurrent_sessions_detected
+      s.tab_switches > 0 || 
+      s.fullscreen_exits > 0 || 
+      s.concurrent_sessions_detected
     ).length
   }), [sessions]);
 
@@ -390,7 +496,10 @@ const TeacherMonitoringDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => setSelectedTest(null)}>
+              <Button variant="ghost" onClick={() => {
+                setSelectedTest(null);
+                stopPolling();
+              }}>
                 <ChevronLeft className="w-5 h-5" />
               </Button>
               <div>
@@ -401,7 +510,22 @@ const TeacherMonitoringDashboard = () => {
               </div>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              {/* Connection status indicator */}
+              <div className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                style={{
+                  backgroundColor: connectionStatus === 'connected' ? '#dcfce7' : connectionStatus === 'connecting' ? '#fef9c3' : '#fee2e2',
+                  color: connectionStatus === 'connected' ? '#166534' : connectionStatus === 'connecting' ? '#854d0e' : '#991b1b'
+                }}
+              >
+                {connectionStatus === 'connected' ? <Wifi className="w-3 h-3" /> : 
+                 connectionStatus === 'connecting' ? <Loader2 className="w-3 h-3 animate-spin" /> : 
+                 <WifiOff className="w-3 h-3" />}
+                {connectionStatus === 'connected' ? 'Live' : 
+                 connectionStatus === 'connecting' ? 'Connecting...' : 
+                 'Offline'}
+              </div>
+              
               <Button
                 onClick={toggleTestReady}
                 disabled={actionLoading[selectedTest.id]}
@@ -523,6 +647,7 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
     active: { color: 'green', icon: Activity, text: 'Taking Test' },
     submitted: { color: 'purple', icon: CheckCircle, text: 'Submitted' },
     expired: { color: 'purple', icon: CheckCircle, text: 'Auto-Submitted' },
+    completed: { color: 'purple', icon: CheckCircle, text: 'Completed' },
     kicked: { color: 'red', icon: UserX, text: 'Kicked' }
   };
 
@@ -530,7 +655,6 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
   const StatusIcon = status.icon;
   const hasViolations = session.tab_switches > 0 || session.fullscreen_exits > 0 || session.concurrent_sessions_detected;
 
-  // FIXED: Use proper Tailwind classes instead of dynamic template literals
   const getStatusColorClasses = (color) => {
     const colorMap = {
       yellow: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
@@ -544,8 +668,11 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
     return colorMap[color] || colorMap.gray;
   };
 
+  // Determine if student is done (submitted, expired, or kicked)
+  const isDone = session.status === 'submitted' || session.status === 'expired' || session.status === 'completed' || session.status === 'kicked';
+
   return (
-    <Card className={`dark:bg-gray-800 dark:border-gray-700 ${hasViolations ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
+    <Card className={`dark:bg-gray-800 dark:border-gray-700 ${hasViolations ? 'border-red-500 ring-1 ring-red-500' : ''} ${isDone ? 'opacity-75' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -556,6 +683,7 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 {session.student?.student_name}
                 {hasViolations && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                {isDone && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">DONE</span>}
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">{session.student?.arm?.arm_name}</p>
             </div>
@@ -571,9 +699,16 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
           </div>
         )}
 
+        {session.kicked_reason && (
+          <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/40 rounded text-xs text-red-800 dark:text-red-200">
+            <strong>Kick Reason:</strong> {session.kicked_reason}
+          </div>
+        )}
+
         <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 space-y-1">
           <div>Screen: {session.screen_resolution}</div>
           <div>Last seen: {session.last_heartbeat ? new Date(session.last_heartbeat).toLocaleTimeString() : 'Never'}</div>
+          {session.ended_at && <div>Ended: {new Date(session.ended_at).toLocaleTimeString()}</div>}
         </div>
 
         <div className="flex gap-2">
@@ -593,7 +728,7 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
             </Button>
           )}
           
-          {(session.status === 'lobby' || session.status === 'ready' || session.status === 'active') && (
+          {!isDone && (session.status === 'lobby' || session.status === 'ready' || session.status === 'active') && (
             <Button 
               onClick={() => setShowActions(!showActions)} 
               variant="outline" 
@@ -610,7 +745,7 @@ const StudentCard = ({ session, test, onApprove, onKick, isLoading }) => {
           )}
         </div>
 
-        {showActions && (
+        {showActions && !isDone && (
           <div className="mt-3 space-y-2">
             <input
               type="text"
