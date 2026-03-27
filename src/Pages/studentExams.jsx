@@ -17,7 +17,8 @@ import {
   Users,
   AlertCircle,
   Lock,
-  Award
+  ClipboardList,
+  Clock
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -32,7 +33,7 @@ const StudentExams = () => {
   const [submittedExamIds, setSubmittedExamIds] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [viewMode, setViewMode] = useState("current"); // 'current' | 'all' | batch_id
+  const [viewMode, setViewMode] = useState("current");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -43,12 +44,10 @@ const StudentExams = () => {
 
   const studentId = oneStudent?.id;
 
-  // Activate fetch flags
   useEffect(() => {
     setFetchFlags((prev) => ({ ...prev, oneStudent: true }));
   }, [setFetchFlags]);
 
-  // Format date helper
   const formatDate = useCallback((timestamp) => {
     if (!timestamp) return '—';
     return new Date(timestamp).toLocaleDateString(undefined, {
@@ -58,7 +57,6 @@ const StudentExams = () => {
     });
   }, []);
 
-  // Fetch current student data
   const fetchCurrentStudentData = useCallback(async () => {
     if (!studentId) return null;
 
@@ -77,7 +75,6 @@ const StudentExams = () => {
     return data;
   }, [studentId]);
 
-  // Fetch ALL batches this student has been in
   const fetchStudentBatches = useCallback(async () => {
     if (!studentId) return [];
 
@@ -115,7 +112,6 @@ const StudentExams = () => {
     return batches;
   }, [studentId]);
 
-  // Fetch which exams this student has ALREADY SUBMITTED
   const fetchStudentSubmissions = useCallback(async (examIds) => {
     if (!studentId || examIds.length === 0) return new Set();
 
@@ -133,7 +129,6 @@ const StudentExams = () => {
     return new Set(data?.map(s => s.exam_id) || []);
   }, [studentId]);
 
-  // Fetch exams - FIXED ARM FILTERING
   const fetchExams = useCallback(async (currentPage = 1, forceRefresh = false) => {
     if (!studentId) return;
 
@@ -150,7 +145,6 @@ const StudentExams = () => {
     const currentBatchId = studentData.batch_id;
     const studentArmId = studentData.arm_id;
 
-    // Determine which batches to fetch
     let batchIdsToFetch = [];
     if (viewMode === "current") {
       batchIdsToFetch = [currentBatchId];
@@ -182,7 +176,6 @@ const StudentExams = () => {
     setLoading(true);
 
     try {
-      // Step 1: Get exam IDs for this arm
       let examIdsForArm = null;
       
       if (studentArmId) {
@@ -201,7 +194,6 @@ const StudentExams = () => {
 
         examIdsForArm = armExams?.map(a => a.exam_id) || [];
         
-        // CRITICAL FIX: If student has an arm but no exams found for that arm, show nothing
         if (examIdsForArm.length === 0) {
           console.log(`No exams found for arm ${studentArmId}`);
           setExams([]);
@@ -211,7 +203,7 @@ const StudentExams = () => {
         }
       }
 
-      // Step 2: Build main query
+      // ADDED is_ready to select
       let query = supabase
         .from("exams")
         .select(`
@@ -219,6 +211,7 @@ const StudentExams = () => {
           exam_title,
           exam_date,
           is_submitted,
+          is_ready,
           total_marks,
           batch_id,
           term,
@@ -246,17 +239,14 @@ const StudentExams = () => {
           .lt("exam_date", end.toISOString());
       }
 
-      // Apply arm filter - CRITICAL: Only show exams for this arm
       if (examIdsForArm && examIdsForArm.length > 0) {
         query = query.in("id", examIdsForArm);
       } else if (studentArmId) {
-        // Has arm but no exams found - should have returned above, but safety check
         setExams([]);
         setTotalCount(0);
         setLoading(false);
         return;
       }
-      // If no arm_id (null), show all exams in batch (legacy behavior)
 
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
@@ -267,7 +257,6 @@ const StudentExams = () => {
         throw queryError;
       }
 
-      // Step 3: Check which exams this student has submitted
       const examIds = data?.map(e => e.id) || [];
       const submissionIds = await fetchStudentSubmissions(examIds);
 
@@ -291,14 +280,12 @@ const StudentExams = () => {
     setLoading(false);
   }, [studentId, viewMode, searchTerm, selectedDate, fetchCurrentStudentData, fetchStudentBatches, fetchStudentSubmissions]);
 
-  // Initial load
   useEffect(() => {
     if (!studentId) return;
     fetchCurrentStudentData();
     fetchStudentBatches();
   }, [studentId, fetchCurrentStudentData, fetchStudentBatches]);
 
-  // Fetch exams when dependencies change
   useEffect(() => {
     if (!studentId) return;
     
@@ -310,7 +297,6 @@ const StudentExams = () => {
     return () => clearTimeout(timer);
   }, [studentId, viewMode, searchTerm, selectedDate, fetchExams]);
 
-  // Fetch when page changes
   useEffect(() => {
     if (!studentId) return;
     fetchExams(page);
@@ -318,7 +304,7 @@ const StudentExams = () => {
 
   const handleDoExam = useCallback((id) => {
     localStorage.setItem("selectedExamId", id);
-    navigate("/dashboard/take-exam");
+    navigate("/dashboard/elobby");
   }, [navigate]);
 
   const clearFilters = useCallback(() => {
@@ -338,16 +324,15 @@ const StudentExams = () => {
     return studentBatches.find(b => b.batch_id === currentStudentData?.batch_id);
   }, [studentBatches, currentStudentData]);
 
-  // Check if student can do exam
+  // UPDATED: Check is_ready
   const canDoExam = useCallback((exam) => {
-    // Cannot do if teacher has marked exam as submitted (closed)
     if (exam.is_submitted) return false;
-    // Cannot do if student has already submitted
+    if (!exam.is_ready) return false; // Teacher hasn't made it ready
     if (submittedExamIds.has(exam.id)) return false;
     return true;
   }, [submittedExamIds]);
 
-  // Get submission status text
+  // UPDATED: Show waiting status
   const getSubmissionStatus = useCallback((exam) => {
     if (submittedExamIds.has(exam.id)) {
       return { text: "Submitted", className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: CheckCircle2 };
@@ -355,14 +340,18 @@ const StudentExams = () => {
     if (exam.is_submitted) {
       return { text: "Closed", className: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400", icon: Lock };
     }
+    if (!exam.is_ready) {
+      return { text: "Waiting for Teacher", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: Clock };
+    }
     return { text: "Active", className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: Circle };
   }, [submittedExamIds]);
 
   const stats = useMemo(() => {
     const submitted = exams.filter(e => submittedExamIds.has(e.id)).length;
     const closed = exams.filter(e => !submittedExamIds.has(e.id) && e.is_submitted).length;
-    const active = exams.length - submitted - closed;
-    return { total: totalCount, submitted, closed, active };
+    const waiting = exams.filter(e => !submittedExamIds.has(e.id) && !e.is_submitted && !e.is_ready).length;
+    const active = exams.filter(e => !submittedExamIds.has(e.id) && !e.is_submitted && e.is_ready).length;
+    return { total: totalCount, submitted, closed, waiting, active };
   }, [exams, submittedExamIds, totalCount]);
 
   if (!studentId) {
@@ -379,7 +368,7 @@ const StudentExams = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Award className="w-6 h-6 text-purple-600" />
+            <ClipboardList className="w-6 h-6 text-purple-600" />
             Exams
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -453,11 +442,15 @@ const StudentExams = () => {
         </div>
       )}
 
-      {/* Stats Bar */}
+      {/* Stats Bar - UPDATED with waiting count */}
       <div className="flex items-center gap-6 mb-4 text-sm">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500"></span>
           <span className="text-gray-600 dark:text-gray-400">{stats.active} Active</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+          <span className="text-gray-600 dark:text-gray-400">{stats.waiting} Waiting</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -546,9 +539,11 @@ const StudentExams = () => {
                   className={`group flex items-center gap-4 p-3 rounded-lg border transition-all hover:shadow-md ${
                     submittedExamIds.has(exam.id)
                       ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800'
-                      : exam.is_submitted
-                        ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                      : !exam.is_ready
+                        ? 'bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800'
+                        : exam.is_submitted
+                          ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                   }`}
                 >
                   {/* Status Icon */}
@@ -562,7 +557,9 @@ const StudentExams = () => {
                       <h3 className={`font-medium truncate ${
                         submittedExamIds.has(exam.id) || exam.is_submitted
                           ? 'text-gray-600 dark:text-gray-400' 
-                          : 'text-gray-900 dark:text-white'
+                          : !exam.is_ready
+                            ? 'text-yellow-700 dark:text-yellow-300'
+                            : 'text-gray-900 dark:text-white'
                       }`}>
                         {exam.exam_title}
                       </h3>
@@ -594,7 +591,7 @@ const StudentExams = () => {
                     </div>
                   </div>
 
-                  {/* Action */}
+                  {/* Action - UPDATED button text */}
                   <button
                     onClick={() => handleDoExam(exam.id)}
                     disabled={!canStart}
@@ -608,7 +605,9 @@ const StudentExams = () => {
                       ? "Submitted" 
                       : exam.is_submitted 
                         ? "Closed"
-                        : "Start"
+                        : !exam.is_ready
+                          ? "Not Ready"
+                          : "Start"
                     }
                   </button>
                 </div>

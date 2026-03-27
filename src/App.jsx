@@ -57,6 +57,10 @@ import TestLobby from './Pages/TestLobby';
 import TeacherMonitoringDashboard from './Pages/TeacherMonitoringDashboard';
 import TakeTest from './Pages/TakeTest';
 import TestCompleted from './TestCompleted';
+import ExamLobby from './Pages/ExamLobby';
+import TakeExam from './Pages/TakeExam';
+import TeacherExamMonitoringDashboard from './Pages/TeacherExamMonitoringDashboard';
+
 
 // Wrapper component to conditionally show footer
 function AppContent() {
@@ -75,6 +79,8 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/update" element={<UpdatePassword />} />
+             <Route path="take-test" element={<TakeTest/>} />
+              <Route path="take-exam" element={<TakeExam/>} />
           
           {/* ==================== DASHBOARD ROUTES ==================== */}
           <Route path="/dashboard" element={<Dashboard />}>
@@ -105,6 +111,7 @@ function AppContent() {
             <Route path="teachersTests" element={<TeachersTests />} />
             <Route path="asignmentRecord" element={<RecordAssignments />} />
             <Route path="monitoring" element={<TeacherMonitoringDashboard/>} />
+             <Route path="emonitoring" element={<TeacherExamMonitoringDashboard/>} />
             
             
             
@@ -126,8 +133,9 @@ function AppContent() {
             <Route path="view-tests" element={<StudentTests/>} />
             <Route path="view-exams" element={<StudentExams/>} />
               <Route path="lobby" element={<TestLobby/>} />
-                <Route path="take-test" element={<TakeTest/>} />
+              <Route path="elobby" element={<ExamLobby/>} />
                 <Route path="/dashboard/test-completed" element={<TestCompleted/>} />
+
 
             
             

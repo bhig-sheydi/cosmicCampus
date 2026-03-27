@@ -22,11 +22,11 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-const TestLobby = () => {
+const ExamLobby = () => {
   const navigate = useNavigate();
   const { oneStudent } = useUser();
-  const [testId, setTestId] = useState(null);
-  const [test, setTest] = useState(null);
+  const [examId, setExamId] = useState(null);
+  const [exam, setExam] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,31 +43,29 @@ const TestLobby = () => {
   const hasInitializedRef = useRef(false);
   const enteringFullscreenRef = useRef(false);
 
-  // Parse testId from localStorage
+  // Parse examId from localStorage
   useEffect(() => {
-    const storedTestId = localStorage.getItem('selectedTestId');
-    if (!storedTestId) {
-      navigate('/dashboard/view-tests');
+    const storedExamId = localStorage.getItem('selectedExamId');
+    if (!storedExamId) {
+      navigate('/dashboard/view-exams');
       return;
     }
-    const parsedId = parseInt(storedTestId, 10);
+    const parsedId = parseInt(storedExamId, 10);
     if (isNaN(parsedId)) {
-      localStorage.removeItem('selectedTestId');
-      navigate('/dashboard/view-tests');
+      localStorage.removeItem('selectedExamId');
+      navigate('/dashboard/view-exams');
       return;
     }
-    setTestId(parsedId);
+    setExamId(parsedId);
   }, [navigate]);
 
-  // Initialize lobby - FIXED: proper cleanup and race condition handling
+  // Initialize lobby
   useEffect(() => {
-    if (!testId || !oneStudent?.id) return;
+    if (!examId || !oneStudent?.id) return;
 
-    // Prevent double initialization
     if (hasInitializedRef.current) return;
     hasInitializedRef.current = true;
 
-    // Cancel any previous requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -79,11 +77,11 @@ const TestLobby = () => {
         const deviceFingerprint = generateDeviceFingerprint();
         const screenResolution = `${window.screen.width}x${window.screen.height}`;
 
-        const { data: testData, error: testError } = await supabase
-          .from('tests')
+        const { data: examData, error: examError } = await supabase
+          .from('exams')
           .select(`
             id,
-            test_title,
+            exam_title,
             duration_minutes,
             is_ready,
             security_level,
@@ -93,16 +91,16 @@ const TestLobby = () => {
             subject:subject_id(subject_name),
             teacher:teacher_id(teacher_name)
           `)
-          .eq('id', testId)
+          .eq('id', examId)
           .single();
 
-        if (testError) throw testError;
-        if (!testData.is_ready) throw new Error('Test is not ready yet.');
+        if (examError) throw examError;
+        if (!examData.is_ready) throw new Error('Exam is not ready yet.');
 
-        setTest(testData);
+        setExam(examData);
 
-        const { data: sessionData, error: sessionError } = await supabase.rpc('create_test_session', {
-          p_test_id: testId,
+        const { data: sessionData, error: sessionError } = await supabase.rpc('create_exam_session', {
+          p_exam_id: examId,
           p_student_id: studentId,
           p_device_fingerprint: deviceFingerprint,
           p_ip_address: null,
@@ -116,12 +114,10 @@ const TestLobby = () => {
         setSession(sessionData);
         setLastCheckedStatus(sessionData.status);
 
-        // FIXED: Handle fullscreen requirement properly with error handling
-        if (testData.security_level !== 'standard' && testData.requires_fullscreen) {
+        if (examData.security_level !== 'standard' && examData.requires_fullscreen) {
           const success = await enterFullscreen();
           if (!success) {
-            // If fullscreen fails, don't set deviceVerified
-            // User will see the fullscreen required banner
+            // Fullscreen failed, user will see required banner
           }
         } else {
           setDeviceVerified(true);
@@ -144,9 +140,9 @@ const TestLobby = () => {
         clearTimeout(fullscreenExitTimeoutRef.current);
       }
     };
-  }, [testId, oneStudent]);
+  }, [examId, oneStudent]);
 
-  // Fullscreen change handler - FIXED: proper cleanup and race condition prevention
+  // Fullscreen change handler
   useEffect(() => {
     const handleFullscreenChange = () => {
       const fullscreenElement = document.fullscreenElement || 
@@ -156,13 +152,12 @@ const TestLobby = () => {
       const isNowFullscreen = !!fullscreenElement;
       setIsFullscreen(isNowFullscreen);
       
-      // FIXED: Clear any pending exit timeout if we re-enter fullscreen
       if (isNowFullscreen && fullscreenExitTimeoutRef.current) {
         clearTimeout(fullscreenExitTimeoutRef.current);
         fullscreenExitTimeoutRef.current = null;
       }
       
-      if (!isNowFullscreen && test?.requires_fullscreen && deviceVerified && !enteringFullscreenRef.current) {
+      if (!isNowFullscreen && exam?.requires_fullscreen && deviceVerified && !enteringFullscreenRef.current) {
         handleFullscreenExit();
       }
     };
@@ -176,9 +171,8 @@ const TestLobby = () => {
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
     };
-  }, [test, deviceVerified]);
+  }, [exam, deviceVerified]);
 
-  // FIXED: enterFullscreen now returns success status and prevents race conditions
   const enterFullscreen = async () => {
     if (enteringFullscreenRef.current) return false;
     enteringFullscreenRef.current = true;
@@ -208,21 +202,18 @@ const TestLobby = () => {
     }
   };
 
-  // FIXED: handleFullscreenExit with cancellable timeout
   const handleFullscreenExit = async () => {
-    // Don't process if we're no longer in a valid session
     if (!session?.session_id) return;
 
-    // FIXED: Removed hardcoded 'token' fallback - fail closed
     if (!session.session_token) {
       console.error('No session token available');
-      setError('Session error. Please rejoin the test.');
+      setError('Session error. Please rejoin the exam.');
       setTimeout(() => handleLeave(), 3000);
       return;
     }
 
     try {
-      await supabase.rpc('record_test_heartbeat', {
+      await supabase.rpc('record_exam_heartbeat', {
         p_session_id: session.session_id,
         p_session_token: session.session_token,
         p_tab_visible: true,
@@ -232,10 +223,9 @@ const TestLobby = () => {
       console.error('Failed to record fullscreen exit:', err);
     }
     
-    setError('Fullscreen mode required! You have been removed from the test.');
+    setError('Fullscreen mode required! You have been removed from the exam.');
     setDeviceVerified(false);
     
-    // FIXED: Store timeout ref so it can be cancelled
     fullscreenExitTimeoutRef.current = setTimeout(() => {
       handleLeave();
     }, 3000);
@@ -261,7 +251,7 @@ const TestLobby = () => {
     
     try {
       const { data, error } = await supabase
-        .from('test_sessions')
+        .from('exam_sessions')
         .select('status, teacher_approved')
         .eq('session_id', session.session_id)
         .single();
@@ -288,11 +278,11 @@ const TestLobby = () => {
     console.log('Setting up approval monitoring for session:', session.session_id);
 
     const channel = supabase
-      .channel(`session:${session.session_id}`)
+      .channel(`exam-session:${session.session_id}`)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'test_sessions',
+        table: 'exam_sessions',
         filter: `session_id=eq.${session.session_id}`
       }, (payload) => {
         console.log('Realtime update received:', payload);
@@ -322,19 +312,18 @@ const TestLobby = () => {
   useEffect(() => {
     if (!session?.session_id) return;
     
-    if (test?.security_level === 'exam_hall' && session?.status !== 'ready') {
+    if (exam?.security_level === 'exam_hall' && session?.status !== 'ready') {
       const cleanup = subscribeToSessionUpdates();
       return cleanup;
     }
-  }, [session?.session_id, test?.security_level, session?.status, subscribeToSessionUpdates]);
+  }, [session?.session_id, exam?.security_level, session?.status, subscribeToSessionUpdates]);
 
-  // FIXED: Countdown effect with proper cleanup
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
 
     const timer = setTimeout(() => {
       if (countdown === 1) {
-        enterTest();
+        enterExam();
       } else {
         setCountdown(prev => prev - 1);
       }
@@ -343,36 +332,34 @@ const TestLobby = () => {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const enterTest = async () => {
-    // Prevent double submission
+  const enterExam = async () => {
     if (isStarting) return;
     setIsStarting(true);
     
     try {
-      if (test?.requires_fullscreen && !document.fullscreenElement) {
-        throw new Error('Fullscreen mode required to start test');
+      if (exam?.requires_fullscreen && !document.fullscreenElement) {
+        throw new Error('Fullscreen mode required to start exam');
       }
 
-      // FIXED: Removed hardcoded 'token' fallback
       if (!session?.session_token) {
         throw new Error('Session token missing');
       }
 
-      const { data, error } = await supabase.rpc('start_test_session', {
+      const { data, error } = await supabase.rpc('start_exam_session', {
         p_session_id: session.session_id,
         p_session_token: session.session_token
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Failed to start test');
+      if (!data?.success) throw new Error(data?.error || 'Failed to start exam');
 
-      navigate('/take-test', { 
+      navigate('/take-exam', { 
         state: { 
           sessionId: session.session_id,
           sessionToken: session.session_token,
-          testId: testId,
-          securityLevel: test.security_level,
-          requiresFullscreen: test.requires_fullscreen
+          examId: examId,
+          securityLevel: exam.security_level,
+          requiresFullscreen: exam.requires_fullscreen
         }
       });
 
@@ -383,26 +370,25 @@ const TestLobby = () => {
   };
 
   const handleLeave = () => {
-    // Cleanup before leaving
     if (fullscreenExitTimeoutRef.current) {
       clearTimeout(fullscreenExitTimeoutRef.current);
     }
     abortControllerRef.current?.abort();
     
-    localStorage.removeItem('selectedTestId');
-    navigate('/dashboard/view-tests');
+    localStorage.removeItem('selectedExamId');
+    navigate('/dashboard/view-exams');
   };
 
   const handleAcceptRules = useCallback(() => {
     setAcceptedRules(true);
-    if (test?.security_level === 'exam_hall') {
+    if (exam?.security_level === 'exam_hall') {
       if (session?.status === 'ready' || lastCheckedStatus === 'ready') {
         setCountdown(3);
       }
     } else {
       setCountdown(3);
     }
-  }, [test?.security_level, session?.status, lastCheckedStatus]);
+  }, [exam?.security_level, session?.status, lastCheckedStatus]);
 
   if (loading) {
     return (
@@ -417,13 +403,13 @@ const TestLobby = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Cannot Start Test</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Cannot Start Exam</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
             onClick={handleLeave}
             className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
-            Back to Tests
+            Back to Exams
           </button>
         </div>
       </div>
@@ -434,15 +420,14 @@ const TestLobby = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
         <div className="text-6xl font-bold mb-4">{countdown}</div>
-        <p className="text-gray-400">Starting test...</p>
-        {test?.requires_fullscreen && (
+        <p className="text-gray-400">Starting exam...</p>
+        {exam?.requires_fullscreen && (
           <p className="text-sm text-gray-500 mt-2">Stay in fullscreen mode</p>
         )}
       </div>
     );
   }
 
-  // FIXED: Use static Tailwind classes instead of dynamic template literals
   const getSecurityColorClasses = (color) => {
     const colorMap = {
       blue: {
@@ -492,7 +477,7 @@ const TestLobby = () => {
           { icon: Eye, text: 'Tab switching tracked' },
           { icon: Clock, text: 'No pauses allowed' }
         ],
-        warnings: ['Leaving fullscreen auto-submits test'],
+        warnings: ['Leaving fullscreen auto-submits exam'],
         requiresVerification: true
       },
       exam_hall: {
@@ -512,13 +497,13 @@ const TestLobby = () => {
         requiresVerification: true
       }
     };
-    return configs[test?.security_level] || configs.standard;
+    return configs[exam?.security_level] || configs.standard;
   };
 
   const security = getSecurityConfig();
   const SecurityIcon = security.icon;
   const needsVerification = security.requiresVerification;
-  const isWaitingForApproval = test?.security_level === 'exam_hall' && session?.status !== 'ready' && lastCheckedStatus !== 'ready';
+  const isWaitingForApproval = exam?.security_level === 'exam_hall' && session?.status !== 'ready' && lastCheckedStatus !== 'ready';
   const colorClasses = getSecurityColorClasses(security.color);
 
   return (
@@ -552,17 +537,17 @@ const TestLobby = () => {
               <SecurityIcon className={`w-6 h-6 ${colorClasses.text}`} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{test?.test_title}</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">{exam?.exam_title}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {test?.subject?.subject_name} • {test?.teacher?.teacher_name}
+                {exam?.subject?.subject_name} • {exam?.teacher?.teacher_name}
               </p>
             </div>
           </div>
           
-          {test?.duration_minutes && (
+          {exam?.duration_minutes && (
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mt-3">
               <Clock className="w-4 h-4" />
-              Time limit: {test.duration_minutes} minutes
+              Time limit: {exam.duration_minutes} minutes
             </div>
           )}
         </div>
@@ -618,7 +603,7 @@ const TestLobby = () => {
             {!isFullscreen ? (
               <div className="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  You must enter fullscreen mode to take this test
+                  You must enter fullscreen mode to take this exam
                 </p>
                 <button
                   onClick={enterFullscreen}
@@ -675,7 +660,7 @@ const TestLobby = () => {
               className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              I have read and understand all rules. I agree to follow all test protocols. 
+              I have read and understand all rules. I agree to follow all exam protocols. 
               Violations will result in immediate submission.
             </span>
           </label>
@@ -716,7 +701,7 @@ const TestLobby = () => {
                 </>
               ) : (
                 <>
-                  Start Test
+                  Start Exam
                   <ChevronRight className="w-4 h-4" />
                 </>
               )}
@@ -728,4 +713,4 @@ const TestLobby = () => {
   );
 };
 
-export default TestLobby;
+export default ExamLobby;
