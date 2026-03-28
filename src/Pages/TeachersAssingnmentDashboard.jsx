@@ -134,53 +134,59 @@ const TeacherSubjectsCard = () => {
     }
   };
 
-  const submitExam = async () => {
-    if (!examModal || !teacher) return;
+const submitExam = async () => {
+  if (!examModal || !teacher) return;
 
-    const error = examAssessment.validateQuestions(examTitle);
-    if (error) {
-      setErrorModal(error);
-      return;
-    }
+  const error = examAssessment.validateQuestions(examTitle);
+  if (error) {
+    setErrorModal(error);
+    return;
+  }
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      const totalMarks = examAssessment.questions.reduce(
-        (sum, q) => sum + (parseFloat(q.marks) || 0), 0
-      );
+  try {
+    const totalMarks = examAssessment.questions.reduce(
+      (sum, q) => sum + (parseFloat(q.marks) || 0), 0
+    );
 
-      const questionsJsonb = examAssessment.questions.map(q => ({
-        question: q.question,
-        options: q.type === "objective" ? q.options : [],
-        correct_answer: q.type === "objective" ? q.correct_answer : "",
-        marks: q.marks
-      }));
+    const questionsJsonb = examAssessment.questions.map(q => ({
+      question: q.question,
+      options: q.type === "objective" ? q.options : [],
+      correct_answer: q.type === "objective" ? q.correct_answer : "",
+      marks: q.marks
+    }));
 
-      const { data, error: rpcError } = await supabase.rpc('create_exam_with_batch', {
-        p_teacher_id: userData.user_id,
-        p_class_id: examModal.class_id,
-        p_school_id: teacher[0]?.teacher_school,
-        p_exam_title: examTitle.trim() || `Exam for ${examModal.class_name}`,
-        p_proprietor_id: teacher[0]?.teacher_proprietor ?? null,
-        p_total_marks: totalMarks,
-        p_subject_id: selectedSubjectId,
-        p_arm_ids: examAssessment.selectedArms,
-        p_questions: questionsJsonb,
-        p_term: examAssessment.term
-      });
+    const { data, error: rpcError } = await supabase.rpc('create_exam_with_batch', {
+      p_teacher_id: userData.user_id,
+      p_class_id: examModal.class_id,
+      p_school_id: teacher[0]?.teacher_school,
+      p_exam_title: examTitle.trim() || `Exam for ${examModal.class_name}`,
+      p_proprietor_id: teacher[0]?.teacher_proprietor ?? null,
+      p_total_marks: totalMarks,
+      p_subject_id: selectedSubjectId,
+      p_arm_ids: examAssessment.selectedArms,
+      p_questions: questionsJsonb,
+      p_term: examAssessment.term,
+      // FIXED: Pass security settings with correct parameter name
+      p_duration_minutes: examAssessment.durationMinutes,
+      p_security_level: examAssessment.securityLevel,  // ← FIXED: was missing/inconsistent
+      p_requires_fullscreen: examAssessment.requiresFullscreen,
+      p_allow_calculator: examAssessment.allowCalculator,
+      p_rules_text: examAssessment.rulesText
+    });
 
-      if (rpcError) throw new Error(rpcError.message);
-      if (!data.success) throw new Error(data.error);
+    if (rpcError) throw new Error(rpcError.message);
+    if (!data.success) throw new Error(data.error);
 
-      closeExamModal();
-    } catch (err) {
-      console.error("❌ Error submitting exam:", err);
-      setErrorModal(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    closeExamModal();
+  } catch (err) {
+    console.error("❌ Error submitting exam:", err);
+    setErrorModal(err.message);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const submitTest = async () => {
     if (!testModal || !teacher) return;
