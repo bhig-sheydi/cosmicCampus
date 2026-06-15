@@ -154,9 +154,9 @@ function AppContent() {
             <Route path="view-exams" element={<StudentExams />} />
             <Route path="lobby" element={<TestLobby />} />
             <Route path="elobby" element={<ExamLobby />} />
-            <Route path="/dashboard/test-completed" element={<TestCompleted />} />
-            <Route path="/dashboard/exam-completed" element={<ExamCompleted />} />
-            <Route path="/dashboard/mynotes" element={<StudentNotesApp/>} />
+            <Route path="test-completed" element={<TestCompleted />} />
+            <Route path="exam-completed" element={<ExamCompleted />} />
+            <Route path="mynotes" element={<StudentNotesApp/>} />
 
             
             {/* ─── Inventory / Store ─── */}
