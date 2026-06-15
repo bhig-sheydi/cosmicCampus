@@ -101,7 +101,7 @@ const PlaceOrder = () => {
 
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, description, price, stock_quantity, product_image")
+        .select("id, name, description, price, stock, product_image") // ✅ Fixed: stock instead of stock_quantity
         .eq("school_id", selectedSchool)
         .range(from, to);
 
@@ -198,7 +198,7 @@ const PlaceOrder = () => {
   // Add to cart modal
   // ---------------------------
   const handleAddToCart = (product) => {
-    if (product.stock_quantity <= 0) return; // stop opening modal for out-of-stock
+    if (product.stock <= 0) return; // ✅ Fixed: stock instead of stock_quantity
     setModalProduct(product);
     setShowModal(true);
   };
@@ -214,8 +214,8 @@ const PlaceOrder = () => {
       return;
     }
 
-    if (quantity > modalProduct.stock_quantity) {
-      alert(`Only ${modalProduct.stock_quantity} items are available in stock.`);
+    if (quantity > modalProduct.stock) { // ✅ Fixed: stock instead of stock_quantity
+      alert(`Only ${modalProduct.stock} items are available in stock.`); // ✅ Fixed
       return;
     }
 
@@ -303,7 +303,7 @@ const PlaceOrder = () => {
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product) => {
-                  const outOfStock = product.stock_quantity <= 0;
+                  const outOfStock = product.stock <= 0; // ✅ Fixed: stock instead of stock_quantity
                   return (
                     <div
                       key={product.id}
@@ -320,7 +320,7 @@ const PlaceOrder = () => {
                       <p className="text-sm text-gray-600">{product.description}</p>
                       <p className="font-bold">₦{product.price}</p>
                       <p className="text-sm">
-                        Stock: {product.stock_quantity}
+                        Stock: {product.stock} {/* ✅ Fixed: stock instead of stock_quantity */}
                       </p>
                       {outOfStock ? (
                         <div className="mt-2 text-center text-red-700 font-bold uppercase">

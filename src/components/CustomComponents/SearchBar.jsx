@@ -1,4 +1,4 @@
-// Split 2: SearchBar.jsx
+// components/SearchBar.jsx
 import React from "react";
 import { Button } from "@/components/ui/button";
 
@@ -9,7 +9,7 @@ const SearchBar = ({
   matchIndexes,
   currentMatchIndex,
   goToPrevMatch,
-  goToNextMatch
+  goToNextMatch,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -18,6 +18,9 @@ const SearchBar = ({
         placeholder="Search in lesson..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSearch();
+        }}
         className="flex-1 px-3 py-2 border rounded-md"
       />
       <Button onClick={handleSearch}>🔍 Search</Button>

@@ -29,9 +29,10 @@ const TeachersExams = () => {
       day: "numeric",
     });
 
-  const handleRecordScores = (examId) => {
-    navigate("/dashboard/examRecord", { state: { examId } });
-  };
+const handleRecordScores = (examId) => {
+  localStorage.setItem("record_exam_id", examId);  
+  navigate("/dashboard/examRecord", { state: { examId } });
+};
 
   /* ---------------- FETCH CLASS OPTIONS ---------------- */
   const fetchClassOptions = useCallback(async () => {

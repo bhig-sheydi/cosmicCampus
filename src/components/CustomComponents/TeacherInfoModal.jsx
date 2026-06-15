@@ -1,14 +1,14 @@
 import { useUser } from '@/components/Contexts/userContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/supabaseClient'; // Import supabase
-import { 
-  X, 
-  User, 
-  School, 
-  BookOpen, 
-  GraduationCap, 
-  Mail, 
-  Phone, 
+import {
+  X,
+  User,
+  School,
+  BookOpen,
+  GraduationCap,
+  Mail,
+  Phone,
   Trash2,
   Loader2
 } from 'lucide-react';
@@ -30,11 +30,12 @@ const TeacherInfoModal = ({ teacher, onClose, onDeleteSubject }) => {
         const { data, error } = await supabase
           .from('teacher_subjects')
           .select(`
-            subject_id,
-            subjects (
-              subject_name
-            )
-          `)
+              id,
+              subject_id,
+              subjects (
+                subject_name
+              )
+            `)
           .eq('teacher_id', teacher.teacher_id);
 
         if (error) throw error;
@@ -48,19 +49,18 @@ const TeacherInfoModal = ({ teacher, onClose, onDeleteSubject }) => {
     };
 
     fetchTeacherSubjects();
-    
+
     // Also update context flags if needed elsewhere
     setFetchFlags(prev => ({ ...prev, teacherSubjects: true }));
   }, [teacher?.teacher_id, setFetchFlags]);
 
   // Refresh subjects after deletion
-  const handleDelete = async (subjectId) => {
+  const handleDelete = async (rowId, subjectId) => {
     if (!onDeleteSubject) return;
     setDeletingSubjectId(subjectId);
     try {
-      await onDeleteSubject(teacher.teacher_id, subjectId);
-      // Remove from local state immediately for responsive UI
-      setSubjects(prev => prev.filter(s => s.subject_id !== subjectId));
+      await onDeleteSubject(rowId);
+      setSubjects(prev => prev.filter(s => s.id !== rowId));
     } finally {
       setDeletingSubjectId(null);
     }
@@ -95,12 +95,12 @@ const TeacherInfoModal = ({ teacher, onClose, onDeleteSubject }) => {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 p-4 animate-in fade-in duration-200"
       onClick={(e) => e.target === e.currentTarget && onClose?.()}
     >
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-        
+
         {/* Header with gradient */}
         <div className="bg-gradient-to-r from-blue-600 to-violet-600 p-6 text-white relative">
           <button
@@ -143,7 +143,7 @@ const TeacherInfoModal = ({ teacher, onClose, onDeleteSubject }) => {
         </div>
 
         <div className="p-6 space-y-6">
-          
+
           {/* Info Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* School */}
@@ -223,7 +223,7 @@ const TeacherInfoModal = ({ teacher, onClose, onDeleteSubject }) => {
 
                     {onDeleteSubject && (
                       <button
-                        onClick={() => handleDelete(subject.subject_id)}
+                        onClick={() => handleDelete(subject.id, subject.subject_id)}
                         disabled={deletingSubjectId === subject.subject_id}
                         className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
                         title="Remove subject"

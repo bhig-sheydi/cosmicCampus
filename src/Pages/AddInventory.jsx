@@ -11,6 +11,7 @@ const AddInventory = () => {
     name: "",
     description: "",
     price: "",
+    cost_price: "",
     category: "",
   });
 
@@ -24,6 +25,13 @@ const AddInventory = () => {
 
   // 🔹 Restock alert state
   const [showRestockAlert, setShowRestockAlert] = useState(false);
+
+  // 🔹 Phase 3: Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   // 🔹 Fetch proprietor schools
   useEffect(() => {
@@ -65,9 +73,11 @@ const AddInventory = () => {
     setProduct((prev) => ({ ...prev, [name]: value }));
   };
 
+  // 🔹 Phase 3: Cleanup old object URL before creating new one
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
       setImageFile(file);
       setPreviewUrl(URL.createObjectURL(file));
     }
@@ -93,8 +103,66 @@ const AddInventory = () => {
     }));
   };
 
+  // 🔹 Calculate total stock across all selected schools
+  const totalStock = Object.values(selectedSchools).reduce((sum, { stock }) => {
+    const num = parseInt(stock, 10);
+    return sum + (isNaN(num) ? 0 : num);
+  }, 0);
+
+  // 🔹 Calculate expected profit dynamically
+  const sellingPrice = parseFloat(product.price) || 0;
+  const costPrice = parseFloat(product.cost_price) || 0;
+  const profitPerUnit = sellingPrice - costPrice;
+  const expectedProfit = profitPerUnit * totalStock;
+
+  // 🔹 Phase 2: Client-side validation
+  const validateInputs = () => {
+    const errors = [];
+
+    if (!product.name.trim()) {
+      errors.push("Product name is required");
+    }
+
+    const priceNum = parseFloat(product.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      errors.push("Selling price must be a valid number and cannot be negative");
+    }
+
+    const costPriceNum = parseFloat(product.cost_price);
+    if (product.cost_price && (isNaN(costPriceNum) || costPriceNum < 0)) {
+      errors.push("Cost price must be a valid number and cannot be negative");
+    }
+
+    if (!isNaN(priceNum) && !isNaN(costPriceNum) && costPriceNum > priceNum) {
+      errors.push("Cost price cannot be higher than selling price");
+    }
+
+    for (const [schoolId, { stock }] of Object.entries(selectedSchools)) {
+      const stockNum = parseInt(stock, 10);
+      const schoolName =
+        schools.find((s) => s.id === parseInt(schoolId))?.name ||
+        `School ID #{schoolId}`;
+
+      if (isNaN(stockNum) || stockNum < 0) {
+        errors.push(
+          `Stock for #{schoolName} must be a valid number and cannot be negative`
+        );
+      }
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Phase 2: Run validation
+    const validationErrors = validateInputs();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join("\n"));
+      return;
+    }
+
     if (!Object.keys(selectedSchools).length) {
       alert("⚠️ Please select at least one school.");
       return;
@@ -105,11 +173,11 @@ const AddInventory = () => {
     try {
       let imageUrl = null;
 
-      // 🔹 Upload image to Products bucket
+      // Upload image to Products bucket
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `products/${fileName}`;
+        const fileName = `#{Date.now()}.#{fileExt}`;
+        const filePath = `products/#{fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("Products")
@@ -117,33 +185,43 @@ const AddInventory = () => {
 
         if (uploadError) throw uploadError;
 
-        imageUrl =
-          supabase.storage.from("Products").getPublicUrl(filePath).data.publicUrl;
+        imageUrl = supabase.storage
+          .from("Products")
+          .getPublicUrl(filePath).data.publicUrl;
       }
 
-      // 🔹 Check for duplicates first
-      for (const schoolId of Object.keys(selectedSchools)) {
-        const { data: existing } = await supabase
-          .from("products")
-          .select("id")
-          .eq("name", product.name)
-          .eq("school_id", schoolId)
-          .eq("proprietor_id", userData.user_id)
-          .maybeSingle();
+      // 🔹 Phase 6: Single query duplicate check for all selected schools
+      const selectedSchoolIds = Object.keys(selectedSchools).map(Number);
 
-        if (existing) {
-          setShowRestockAlert(true); // 🚨 trigger blinking restock button
-          setLoading(false);
-          return;
-        }
+      const { data: existingProducts, error: dupError } = await supabase
+        .from("products")
+        .select("id, school_id, schools(name)")
+        .eq("name", product.name)
+        .eq("proprietor_id", userData.user_id)
+        .in("school_id", selectedSchoolIds);
+
+      if (dupError) throw dupError;
+
+      if (existingProducts && existingProducts.length > 0) {
+        const schoolNames = existingProducts
+          .map((p) => p.schools?.name || `School ID #{p.school_id}`)
+          .join(", ");
+
+        alert(
+          `⚠️ "#{product.name}" already exists at: #{schoolNames}. Please restock instead.`
+        );
+        setShowRestockAlert(true);
+        setLoading(false);
+        return;
       }
 
-      // 🔹 Prepare product rows
+      // Prepare and insert product rows
       const productsToInsert = Object.entries(selectedSchools).map(
         ([schoolId, { stock }]) => ({
           name: product.name,
           description: product.description,
           price: parseFloat(product.price),
+          cost_price: product.cost_price ? parseFloat(product.cost_price) : null,
           stock: parseInt(stock, 10) || 0,
           category_id: product.category,
           proprietor_id: userData.user_id,
@@ -159,12 +237,18 @@ const AddInventory = () => {
       if (productError) throw productError;
 
       alert("✅ Product(s) added successfully to selected schools!");
-      setProduct({ name: "", description: "", price: "", category: "" });
+
+      // Phase 3: Clean up blob URL from memory
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+      // Reset form
+      setProduct({ name: "", description: "", price: "", cost_price: "", category: "" });
       setImageFile(null);
       setPreviewUrl(null);
       setSelectedSchools({});
     } catch (err) {
       console.error("Error adding product:", err.message);
+      alert(`❌ Failed to add product: #{err.message}`);
     } finally {
       setLoading(false);
     }
@@ -176,7 +260,7 @@ const AddInventory = () => {
       <div className="absolute top-0 right-0">
         <button
           onClick={() => navigate("/dashboard/restock")}
-          className={`px-4 py-2 rounded-lg font-bold text-white transition ${
+          className={`px-4 py-2 rounded-lg font-bold text-white transition #{
             showRestockAlert
               ? "bg-red-600 animate-pulse"
               : "bg-green-600 hover:bg-green-700"
@@ -216,15 +300,27 @@ const AddInventory = () => {
             className="w-full border rounded-lg px-4 py-2"
             rows="4"
           />
-          <input
-            type="number"
-            name="price"
-            placeholder="Price ($)"
-            value={product.price}
-            onChange={handleChange}
-            className="w-full border rounded-lg px-4 py-2"
-            required
-          />
+
+          {/* Price inputs row */}
+          <div className="grid grid-cols-2 gap-4">
+            <input
+              type="number"
+              name="cost_price"
+              placeholder="Cost Price (#)"
+              value={product.cost_price}
+              onChange={handleChange}
+              className="w-full border rounded-lg px-4 py-2"
+            />
+            <input
+              type="number"
+              name="price"
+              placeholder="Selling Price (#)"
+              value={product.price}
+              onChange={handleChange}
+              className="w-full border rounded-lg px-4 py-2"
+              required
+            />
+          </div>
 
           {/* Category Dropdown */}
           <select
@@ -286,6 +382,33 @@ const AddInventory = () => {
             </div>
           </div>
 
+          {/* Dynamic Profit Calculation */}
+          {sellingPrice > 0 && costPrice > 0 && totalStock > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <h4 className="font-semibold text-emerald-800 mb-2">
+                📊 Expected Profit
+              </h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Profit per unit</p>
+                  <p className={`font-bold #{profitPerUnit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    #{profitPerUnit.toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total stock</p>
+                  <p className="font-bold text-gray-800">{totalStock} units</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Expected profit</p>
+                  <p className={`font-bold text-lg #{expectedProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    #{expectedProfit.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -316,9 +439,16 @@ const AddInventory = () => {
             <p className="text-sm text-gray-600">
               {product.description || "Product description goes here..."}
             </p>
-            <p className="text-blue-600 font-bold mt-2">
-              {product.price ? `$${product.price}` : "$0.00"}
-            </p>
+            <div className="flex items-center gap-4 mt-2">
+              <p className="text-blue-600 font-bold">
+                {product.price ? `##{product.price}` : "#0.00"}
+              </p>
+              {product.cost_price && (
+                <p className="text-sm text-gray-400">
+                  Cost: #{product.cost_price}
+                </p>
+              )}
+            </div>
             <p className="text-sm text-gray-500">
               Category:{" "}
               {categories.find((c) => c.id === product.category)?.name || "N/A"}

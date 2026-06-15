@@ -290,22 +290,20 @@ const TeacherList = () => {
     refetch();
   };
 
-  const deleteTeacherSubject = async (subjectId) => {
-    if (!window.confirm('Remove this subject from teacher?')) return;
-    
-    const { error } = await supabase
-      .from('teacher_subjects')
-      .delete()
-      .eq('teacher_id', selectedTeacher.teacher_id)
-      .eq('subject_id', subjectId);
+const deleteTeacherSubject = async (rowId) => {
+  if (!window.confirm('Remove this subject from teacher?')) return;
+  
+  const { error } = await supabase
+    .from('teacher_subjects')
+    .delete()
+    .eq('id', rowId);          // serial integer PK — no type mismatch
 
-    if (error) {
-      alert('Failed to remove subject');
-      return;
-    }
-    
-    refetch();
-  };
+  if (error) {
+    alert('Failed to remove subject');
+    return;
+  }
+  refetch();
+};
 
   const fetchArms = useCallback(async (classId) => {
     if (!classId || !userSchools?.[0]?.id) return;

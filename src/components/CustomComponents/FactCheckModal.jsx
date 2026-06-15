@@ -1,10 +1,12 @@
+// components/FactCheckModal.jsx
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-const FactCheckModal = ({ open, onClose, result, onApplyCorrection, onBringUpToSpeed   }) => {
+// FIX: Added isImproving prop for loading state
+const FactCheckModal = ({ open, onClose, result, onBringUpToSpeed, isImproving = false }) => {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-xl rounded-2xl border border-purple-200 shadow-lg bg-white dark:bg-zinc-900">
@@ -27,14 +29,14 @@ const FactCheckModal = ({ open, onClose, result, onApplyCorrection, onBringUpToS
           <Button variant="outline" onClick={onClose}>
             ❌ Close
           </Button>
-<Button
-  className="bg-purple-700 text-white hover:bg-purple-800"
-  onClick={onBringUpToSpeed}
->
-  🪄 Bring Up to Speed
-</Button>
-
-
+          {/* FIX: Disable button and show loading state during improvement */}
+          <Button
+            className="bg-purple-700 text-white hover:bg-purple-800"
+            onClick={onBringUpToSpeed}
+            disabled={isImproving}
+          >
+            {isImproving ? "⏳ Improving..." : "🪄 Bring Up to Speed"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

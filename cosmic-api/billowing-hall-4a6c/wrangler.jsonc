@@ -1,0 +1,61 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "notes-api",
+  "main": "src/workers/notes-worker.ts",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "assets": {
+    "directory": "./public"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "upload_source_maps": true,
+  "env": {
+    "production": {
+      "vars": {
+        "SUPABASE_URL": "https://sfpgcjkmpqijniyzykau.supabase.co",
+        "MAX_REQUEST_SIZE": "10485760",
+        "RATE_LIMIT_WINDOW": "60",
+        "RATE_LIMIT_MAX": "1000",
+        "AI_RATE_LIMIT_MAX": "5",
+        "BURST_LIMIT": "50",
+        "CACHE_TTL": "3600"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "RATE_LIMIT_KV",
+          "id": "0cfaa57897b8406dbbedff0ee32eedd1"
+        },
+        {
+          "binding": "CACHE_KV",
+          "id": "54b56bf6a0404d958c6cf79d0eeffab3"
+        }
+      ]
+    },
+    "staging": {
+      "vars": {
+        "SUPABASE_URL": "https://sfpgcjkmpqijniyzykau.supabase.co",
+        "MAX_REQUEST_SIZE": "10485760",
+        "RATE_LIMIT_WINDOW": "60",
+        "RATE_LIMIT_MAX": "1000",
+        "AI_RATE_LIMIT_MAX": "5",
+        "BURST_LIMIT": "50",
+        "CACHE_TTL": "3600"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "RATE_LIMIT_KV",
+          "id": "495d0daef56d4ec7bb397415e8cfe079"
+        },
+        {
+          "binding": "CACHE_KV",
+          "id": "b3e0263d578546349a99cee34a06f412"
+        }
+      ]
+    }
+  }
+}

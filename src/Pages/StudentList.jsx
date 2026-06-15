@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useUser } from '@/components/Contexts/userContext';
 import { Users, TrendingUp } from 'lucide-react';
 import { useStudents } from '@/components/hooks/useStudents';
 import { usePromotion } from '@/components/hooks/usePromotion';
+import { debounce } from 'lodash';
 import SearchFilterBar from '@/components/CustomComponents/SearchFilterBar';
 import StudentsTable from '@/components/CustomComponents/StudentsTable';
 import StudentCards from '@/components/CustomComponents/StudentCards';
@@ -52,29 +53,74 @@ const StudentsList = () => {
   } = usePromotion(userData, students, classes, setFetchFlags);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedStudentForAssign, setSelectedStudentForAssign] = useState(null); // ← CHANGED: Store full student, not just ID
+  const [selectedStudentForAssign, setSelectedStudentForAssign] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const studentsPerPage = 20;
 
-  // ← CHANGED: Now receives full student object
-  const handleAssignClass = (student) => {
-    console.log("Opening assign modal for:", student); // DEBUG
-    setSelectedStudentForAssign(student); // ← Store full student object
-    setShowAssignModal(true);
-  };
-
-  const handleStudentClick = (student) => setSelectedStudent(student);
-  const closeInfoCard = () => setSelectedStudent(null);
-
-  // Client-side pagination of filtered results
-  const totalStudents = filteredStudents.length;
-  const paginatedStudents = filteredStudents.slice(
-    (currentPage - 1) * studentsPerPage,
-    currentPage * studentsPerPage
+  // ─── Debounced search (prevents filtering 1000 items every keystroke) ───
+  const debouncedSetSearch = useMemo(
+    () => debounce((value) => setSearchQuery(value), 300),
+    [setSearchQuery]
   );
 
-  // Loading state
-  if (!students || students.length === 0) {
+  const handleSearchInputChange = useCallback((value) => {
+    setSearchInput(value);
+    debouncedSetSearch(value);
+    setCurrentPage(1);
+  }, [debouncedSetSearch, setSearchInput]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => debouncedSetSearch.cancel();
+  }, [debouncedSetSearch]);
+
+  // ─── Stable callbacks (required for StudentsTable memo to work) ───
+  const handleAssignClass = useCallback((student) => {
+    console.log("Opening assign modal for:", student);
+    setSelectedStudentForAssign(student);
+    setShowAssignModal(true);
+  }, []);
+
+  const handleStudentClick = useCallback((student) => {
+    setSelectedStudent(student);
+  }, [setSelectedStudent]);
+
+  const closeInfoCard = useCallback(() => {
+    setSelectedStudent(null);
+  }, [setSelectedStudent]);
+
+  const handleMassPromoteOpen = useCallback(() => {
+    setShowMassPromoteModal(true);
+  }, []);
+
+  const handlePageChange = useCallback((page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // ─── Memoized pagination ───
+  const totalStudents = filteredStudents.length;
+  
+  const paginatedStudents = useMemo(() => 
+    filteredStudents.slice(
+      (currentPage - 1) * studentsPerPage,
+      currentPage * studentsPerPage
+    ),
+    [filteredStudents, currentPage]
+  );
+
+  const totalPages = useMemo(() => 
+    Math.ceil(totalStudents / studentsPerPage),
+    [totalStudents]
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClass, selectedSchool, ageFilter, searchQuery]);
+
+  // ─── Loading state (only true null/undefined, not empty array) ───
+  if (students === null || students === undefined) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -91,12 +137,12 @@ const StudentsList = () => {
         
         <Header 
           totalStudents={totalStudents} 
-          onMassPromote={() => setShowMassPromoteModal(true)} 
+          onMassPromote={handleMassPromoteOpen} 
         />
 
         <SearchFilterBar
           searchInput={searchInput}
-          setSearchInput={setSearchInput}
+          setSearchInput={handleSearchInputChange}
           showFilters={showFilters}
           setShowFilters={setShowFilters}
           selectedClass={selectedClass}
@@ -121,7 +167,7 @@ const StudentsList = () => {
                 onStudentClick={handleStudentClick}
                 onPromote={promoteStudent}
                 onDemote={demoteStudent}
-                onAssign={handleAssignClass}  // ← Now passes full student
+                onAssign={handleAssignClass}
               />
             </div>
             <div className="lg:hidden">
@@ -130,7 +176,7 @@ const StudentsList = () => {
                 onStudentClick={handleStudentClick}
                 onPromote={promoteStudent}
                 onDemote={demoteStudent}
-                onAssign={handleAssignClass}  // ← Now passes full student
+                onAssign={handleAssignClass}
               />
             </div>
           </>
@@ -139,8 +185,8 @@ const StudentsList = () => {
         {totalStudents > studentsPerPage && (
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(totalStudents / studentsPerPage)}
-            onPageChange={setCurrentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
             totalItems={totalStudents}
             itemsPerPage={studentsPerPage}
           />
@@ -173,7 +219,7 @@ const StudentsList = () => {
         {showAssignModal && (
           <AssignClassModal
             classes={classes}
-            currentStudent={selectedStudentForAssign}  // ← CHANGED: Pass full student object
+            currentStudent={selectedStudentForAssign}
             onSuccess={(assignmentData) => {
               console.log("Assignment successful:", assignmentData);
               setFetchFlags(prev => ({ ...prev, students: true }));

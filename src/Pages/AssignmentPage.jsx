@@ -30,6 +30,7 @@ const AssignmentPage = () => {
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogType, setDialogType] = useState('info'); // 'info' | 'success' | 'error'
   const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [processingAnswer, setProcessingAnswer] = useState(false); // NEW: Prevent double-clicks
   const { oneStudent, setFetchFlags } = useUser();
 
   useEffect(() => {
@@ -139,13 +140,20 @@ const AssignmentPage = () => {
     );
   }, [current]);
 
+  // UPDATED: Added processing state to prevent double-clicks
   const handleAnswer = useCallback((option) => {
-    if (!current) return;
+    if (!current || processingAnswer) return; // Prevent double-clicks
+    
+    setProcessingAnswer(true);
     const questionId = current.question_id;
+    
     setAnswers((prev) => ({ ...prev, [questionId]: option }));
     // Remove bookmark when answered
     setBookmarkedQuestions((prev) => prev.filter((id) => id !== questionId));
-  }, [current]);
+    
+    // Small delay to prevent rapid clicking
+    setTimeout(() => setProcessingAnswer(false), 150);
+  }, [current, processingAnswer]);
 
   const clearAnswer = useCallback(() => {
     if (!current) return;
@@ -365,7 +373,7 @@ const AssignmentPage = () => {
             </div>
           </div>
 
-          {/* Options */}
+          {/* Options - UPDATED with disabled state */}
           <div className="p-6 space-y-3">
             {current.options.map((option, index) => {
               const isSelected = answers[current.question_id] === option;
@@ -375,11 +383,12 @@ const AssignmentPage = () => {
                 <button
                   key={index}
                   onClick={() => handleAnswer(option)}
+                  disabled={processingAnswer} // Disable while processing
                   className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-center gap-4 ${
                     isSelected
                       ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md'
                       : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                  }`}
+                  } ${processingAnswer ? 'opacity-50 cursor-not-allowed' : ''}`} // Visual feedback
                 >
                   <span className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${
                     isSelected
@@ -402,7 +411,10 @@ const AssignmentPage = () => {
             <div className="px-6 pb-2">
               <button
                 onClick={clearAnswer}
-                className="text-sm text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"
+                disabled={processingAnswer} // Also disable clear while processing
+                className={`text-sm text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1 ${
+                  processingAnswer ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <RotateCcw className="w-4 h-4" />
                 Clear answer

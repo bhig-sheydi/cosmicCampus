@@ -64,7 +64,9 @@ const AssignmentHistory = () => {
   }, []);
 
   const handleRecordScores = useCallback((assignmentId) => {
-    navigate("/dashboard/asignmentRecord", { state: { assignmentId } });
+    // Store assignmentId in localStorage before navigating
+    localStorage.setItem("record_assignment_id", assignmentId);
+    navigate("/dashboard/asignmentRecord");
   }, [navigate]);
 
   // Fetch class options (cached)

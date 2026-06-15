@@ -3,40 +3,43 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/supabaseClient";
 import { useUser } from "@/components/Contexts/userContext";
 
-/**
- * CartPage - DB-only cart + checkout UI (Paystack-ready)
- *
- * Notes:
- * - This expects a Supabase Edge Function endpoint (server-side) that initializes Paystack.
- * - The function URL should be in REACT_APP_PAYSTACK_INIT_URL or it will use a sensible default.
- * - The front-end sends an Authorization bearer token (current session access token) to the edge function.
- * - The payload sent includes order_id and items (client-side values used only for cross-check; server MUST validate).
- *
- * CHANGE LOG (safe / minimal):
- * - Added `school_id` to the orders select so we can group orders by school on the client.
- * - Implemented client-side splitting: when multiple schools are present we initialize a Paystack transaction
- *   per school. If a single school exists, behavior is unchanged (redirect to Paystack).
- * - When multiple schools return authorization URLs, each URL is opened in a new tab (so the user can complete each payment).
- *   This keeps UX simple and avoids interrupting other initializations.
- */
-
 const CartPage = () => {
   const { userData } = useUser();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
 
-  // checkout form state
   const [billingName, setBillingName] = useState("");
   const [billingEmail, setBillingEmail] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("paystack"); // 'paystack' | 'transfer'
+  const [paymentMethod, setPaymentMethod] = useState("paystack");
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // ENV: paystack init URL (Supabase Edge Function)
   const PAYSTACK_INIT_URL =
     "https://sfpgcjkmpqijniyzykau.supabase.co/functions/v1/initiate-payment";
 
-  // -------------------- Load Cart --------------------
+  const loadProfile = async () => {
+    if (!userData?.user_id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("name, email")
+        .eq("user_id", userData.user_id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setProfile(data);
+        setBillingName(data.name || "");
+        setBillingEmail(data.email || "");
+      }
+    } catch (err) {
+      console.error("Error loading profile:", err?.message || err);
+    }
+  };
+
   const loadCart = async () => {
     setLoading(true);
     try {
@@ -64,8 +67,9 @@ const CartPage = () => {
         `
         )
         .eq("parent_id", userData.user_id)
-        .eq("status", "pending") // ✅ Only fetch pending orders
-        .order("created_at", { ascending: false });
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(50); // ✅ Added limit
 
       if (error) throw error;
       setOrders(data || []);
@@ -78,11 +82,11 @@ const CartPage = () => {
   };
 
   useEffect(() => {
+    loadProfile();
     loadCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData]);
 
-  // -------------------- Compute totals --------------------
   const computeOrderTotal = (order) =>
     (order?.order_items || []).reduce(
       (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0),
@@ -91,7 +95,6 @@ const CartPage = () => {
 
   const grandTotal = (orders || []).reduce((g, order) => g + computeOrderTotal(order), 0);
 
-  // -------------------- Remove item --------------------
   const handleRemove = async (orderId, productId) => {
     try {
       setIsProcessing(true);
@@ -105,7 +108,6 @@ const CartPage = () => {
 
       if (error) throw error;
 
-      // Cleanup order if empty
       const { count, error: cntErr } = await supabase
         .from("order_items")
         .select("*", { count: "exact", head: true })
@@ -118,7 +120,6 @@ const CartPage = () => {
         if (delOrderErr) console.warn("Failed to delete empty order:", delOrderErr);
       }
 
-      // Refresh UI
       await loadCart();
       setMessage({ type: "success", text: "Item removed." });
     } catch (err) {
@@ -129,12 +130,8 @@ const CartPage = () => {
     }
   };
 
-  // -------------------- Dummy fallback (dev only) --------------------
-  // When the real payment flow is not available (dev), this gives developer peace of mind.
-  // This DOES NOT call Paystack or modify DB state. It's purely client-side message simulation.
   const simulateDummyPayment = async () => {
     try {
-      // small delay to simulate network
       await new Promise((res) => setTimeout(res, 700));
       setMessage({
         type: "success",
@@ -148,7 +145,6 @@ const CartPage = () => {
     }
   };
 
-  // -------------------- Helpers --------------------
   const groupOrdersBySchool = (ordersArray) => {
     const map = new Map();
     for (const o of ordersArray) {
@@ -156,10 +152,9 @@ const CartPage = () => {
       if (!map.has(sid)) map.set(sid, []);
       map.get(sid).push(o);
     }
-    return map; // Map<school_id, orders[]>
+    return map;
   };
 
-  // -------------------- Payment initiation (split client-side) --------------------
   const startPayment = async () => {
     if (!userData?.user_id) {
       setMessage({ type: "error", text: "You must be signed in to pay." });
@@ -170,8 +165,12 @@ const CartPage = () => {
       setMessage({ type: "error", text: "No orders to pay for." });
       return;
     }
-    if (!billingEmail || !billingName) {
-      setMessage({ type: "error", text: "Please provide name and email for billing." });
+
+    const name = billingName || profile?.name;
+    const email = billingEmail || profile?.email;
+
+    if (!email || !name) {
+      setMessage({ type: "error", text: "Missing billing info. Please update your profile." });
       return;
     }
 
@@ -179,7 +178,6 @@ const CartPage = () => {
     setMessage(null);
 
     try {
-      // Get the current user's access token from Supabase client
       const {
         data: { session },
         error: sessionErr,
@@ -191,15 +189,12 @@ const CartPage = () => {
 
       const token = session?.access_token;
       if (!token) {
-        // If token is missing, we can't call protected edge function
         throw new Error("Missing auth token. Please re-login and try again.");
       }
 
-      // Group orders by school
       const grouped = groupOrdersBySchool(orders);
       const schoolCount = grouped.size;
 
-      // If only one school -> preserve existing single-call behavior (redirect)
       if (schoolCount === 1) {
         const [, singleOrders] = grouped.entries().next().value;
         const amountNaira = singleOrders.reduce((sum, o) => sum + computeOrderTotal(o), 0);
@@ -218,8 +213,8 @@ const CartPage = () => {
 
         const bodyPayload = {
           amount: amountKobo,
-          email: billingEmail,
-          name: billingName,
+          email,
+          name,
           metadata,
           order_ids: singleOrders.map((o) => o.id),
         };
@@ -258,7 +253,6 @@ const CartPage = () => {
           payload?.data?.url;
 
         if (authorizationUrl) {
-          // Redirect user to Paystack checkout page (existing behavior)
           window.location.href = authorizationUrl;
           return;
         }
@@ -277,8 +271,6 @@ const CartPage = () => {
         return;
       }
 
-      // If multiple schools -> initialize one request per school
-      // We'll open each returned authorization_url in a new tab (so the user can pay each school's checkout)
       const results = [];
       for (const [schoolId, schoolOrders] of grouped.entries()) {
         const amountNaira = schoolOrders.reduce((sum, o) => sum + computeOrderTotal(o), 0);
@@ -297,8 +289,8 @@ const CartPage = () => {
 
         const bodyPayload = {
           amount: amountKobo,
-          email: billingEmail,
-          name: billingName,
+          email,
+          name,
           metadata,
           order_ids: schoolOrders.map((o) => o.id),
         };
@@ -336,12 +328,10 @@ const CartPage = () => {
           const reference = payload?.data?.reference || payload?.reference || payload?.data?.reference;
 
           if (authorizationUrl) {
-            // open in new tab so user can complete each school's payment separately
             try {
               window.open(authorizationUrl, "_blank");
               results.push({ schoolId, ok: true, authorizationUrl, reference });
             } catch (openErr) {
-              // If popup blocked, still record the url and show to user
               results.push({ schoolId, ok: true, authorizationUrl, reference, opened: false });
             }
           } else if (reference) {
@@ -353,20 +343,18 @@ const CartPage = () => {
           console.error(`Error initiating payment for school ${schoolId}:`, err);
           results.push({ schoolId, ok: false, reason: String(err) });
         }
-      } // end for
+      }
 
-      // Summarize results to user
       const successes = results.filter((r) => r.ok);
       const failures = results.filter((r) => !r.ok);
 
       if (successes.length > 0 && failures.length === 0) {
-        // If all succeeded and at least one had a url opened in new tab, inform user
         setMessage({
           type: "success",
           text:
             successes.length === 1
               ? `Payment initialized for 1 school. Complete checkout in the opened tab.`
-              : `Payment initialized for ${successes.length} schools. Checkout pages opened in new tabs (or available as references).`,
+              : `Payment initialized for ${successes.length} schools. Checkout pages opened in new tabs.`,
         });
       } else if (successes.length > 0 && failures.length > 0) {
         setMessage({
@@ -375,13 +363,11 @@ const CartPage = () => {
         });
         console.warn("Payment init mixed results:", { results });
       } else {
-        // All failed
         setMessage({
           type: "error",
           text: `Failed to initialize payments for all schools. Check console for details.`,
         });
         console.warn("Payment init failures:", { results });
-        // Consider a safe dummy fallback if server errors are present
         const hasServerError = failures.some((f) => f.status >= 500 || f.status === 0 || /server/i.test(String(f.detail || f.reason || "")));
         if (hasServerError) {
           await simulateDummyPayment();
@@ -393,8 +379,6 @@ const CartPage = () => {
         type: "error",
         text: `Payment initiation failed: ${err?.message || "Unknown error"}`,
       });
-
-      // Try a safe dummy fallback (dev convenience)
       await simulateDummyPayment();
     } finally {
       setIsProcessing(false);
@@ -406,7 +390,6 @@ const CartPage = () => {
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: orders list */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-3xl font-bold text-gray-800">Your Cart</h2>
 
@@ -483,7 +466,6 @@ const CartPage = () => {
           )}
         </div>
 
-        {/* Right: summary & payment */}
         <aside className="bg-white rounded-2xl shadow p-5 sticky top-6">
           <h3 className="text-xl font-semibold text-gray-700 mb-3">Order Summary</h3>
 
@@ -500,20 +482,30 @@ const CartPage = () => {
 
           <div className="border-t pt-4">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Billing</h4>
-            <label className="text-xs text-gray-500">Full name</label>
-            <input
-              value={billingName}
-              onChange={(e) => setBillingName(e.target.value)}
-              className="w-full mt-1 mb-3 p-2 border rounded-md text-sm"
-              placeholder="Your full name"
-            />
-            <label className="text-xs text-gray-500">Email</label>
-            <input
-              value={billingEmail}
-              onChange={(e) => setBillingEmail(e.target.value)}
-              className="w-full mt-1 mb-3 p-2 border rounded-md text-sm"
-              placeholder="you@example.com"
-            />
+            
+            {profile ? (
+              <div className="space-y-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                <p><span className="font-medium text-gray-700">Name:</span> {billingName}</p>
+                <p><span className="font-medium text-gray-700">Email:</span> {billingEmail}</p>
+              </div>
+            ) : (
+              <>
+                <label className="text-xs text-gray-500">Full name</label>
+                <input
+                  value={billingName}
+                  onChange={(e) => setBillingName(e.target.value)}
+                  className="w-full mt-1 mb-3 p-2 border rounded-md text-sm"
+                  placeholder="Your full name"
+                />
+                <label className="text-xs text-gray-500">Email</label>
+                <input
+                  value={billingEmail}
+                  onChange={(e) => setBillingEmail(e.target.value)}
+                  className="w-full mt-1 mb-3 p-2 border rounded-md text-sm"
+                  placeholder="you@example.com"
+                />
+              </>
+            )}
           </div>
 
           <div className="mt-4">
@@ -574,8 +566,7 @@ const CartPage = () => {
           </div>
 
           <p className="mt-3 text-xs text-gray-500">
-            By clicking Pay Now you'll be redirected to the payment gateway. Ensure your server endpoint is set in{" "}
-            <code className="bg-gray-100 px-1 rounded">REACT_APP_PAYSTACK_INIT_URL</code>.
+            Payment processed securely via Paystack. No card details stored on our servers.
           </p>
         </aside>
       </div>

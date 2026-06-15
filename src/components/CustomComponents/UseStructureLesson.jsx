@@ -1,4 +1,5 @@
-import { useState } from "react";
+// useStructuredLesson.js
+import { useState, useCallback } from "react";
 
 export const useStructuredLesson = () => {
   const [chunks, setChunks] = useState([]);
@@ -12,11 +13,20 @@ export const useStructuredLesson = () => {
     return [];
   };
 
-  const parseEditorContent = (json) => {
+  const generateSectionId = (title, index, savedChunks) => {
+    const matched = savedChunks.find((s) => s.title === title);
+    if (matched?.sectionId) return matched.sectionId;
+
+    const safeTitle = title.slice(0, 30).replace(/[^a-zA-Z0-9]/g, "_");
+    return `sec_${index}_${safeTitle}`;
+  };
+
+  const parseEditorContent = useCallback((json) => {
     const output = [];
     const toc = [];
     const savedChunks = getSavedChunksFromLocalStorage();
     let currentSection = null;
+    let sectionIndex = 0;
 
     json?.content?.forEach((node) => {
       // ✅ HEADINGS
@@ -26,30 +36,33 @@ export const useStructuredLesson = () => {
         const isMeaningful = /[\p{L}\p{N}]/u.test(text);
         if (!isMeaningful) return;
 
-        const matched = savedChunks.find((s) => s.title === text);
-        const sectionId = matched?.sectionId || crypto.randomUUID();
+        const sectionId = generateSectionId(text, sectionIndex, savedChunks);
+        sectionIndex++;
 
         currentSection = {
           sectionId,
           title: text,
+          order_index: sectionIndex, // NEW: assign order for sorting
           body: [],
         };
 
         output.push(currentSection);
-        toc.push({ id: sectionId, title: text });
+        toc.push({ sectionId, title: text, order_index: sectionIndex });
         return;
       }
 
       // ✅ Ensure every non-heading node belongs to a section
       if (!currentSection) {
-        // Optionally: auto-wrap in dummy section
+        const fallbackId = `sec_fallback_${sectionIndex}`;
+        sectionIndex++;
         currentSection = {
-          sectionId: crypto.randomUUID(),
+          sectionId: fallbackId,
           title: "Untitled Section",
+          order_index: sectionIndex, // NEW
           body: [],
         };
         output.push(currentSection);
-        toc.push({ id: currentSection.sectionId, title: "Untitled Section" });
+        toc.push({ sectionId: fallbackId, title: "Untitled Section", order_index: sectionIndex });
         console.warn("⚠️ Node found outside any section. Auto-wrapping it.");
       }
 
@@ -106,7 +119,7 @@ export const useStructuredLesson = () => {
 
     setChunks(output);
     setTableOfContents(toc);
-  };
+  }, []);
 
   return {
     chunks,

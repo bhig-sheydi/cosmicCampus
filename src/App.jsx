@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, BrowserRouter as Router, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/Contexts/ThemeProvider';
 import { AuthProvider } from './components/Contexts/AuthContext';
 import Home from './Pages/Home';
@@ -41,7 +42,6 @@ import PlaceOrder from './Pages/PlaceOrder';
 import CartPage from './Pages/CartPage';
 import ReceiptPage from './Pages/ReceiptPage';
 import SchoolAccountSetup from './Pages/AddAccounts';
-import SchoolFees from './Pages/SchoolFees';
 import GuardianFees from './Pages/GuardianFees';
 import CreateDependentChild from './components/CustomComponents/CreateDependentChild';
 import UpgradeManagedStudent from './components/CustomComponents/UpgradeManagedStudent';
@@ -60,7 +60,25 @@ import TestCompleted from './TestCompleted';
 import ExamLobby from './Pages/ExamLobby';
 import TakeExam from './Pages/TakeExam';
 import TeacherExamMonitoringDashboard from './Pages/TeacherExamMonitoringDashboard';
+import ExamCompleted from './Pages/ExamCompleted';
+import AcademicHistory from './Pages/AchademicHistory';
+import RecordTests from './Pages/RecordTests';
+import RecordExams from './RecordExams';
+import FeeTemplateManager from './Pages/SchoolFees';
+import SchoolAnalyticsDashboard from './SchoolFeeAnalysis';
+import StudentNotesApp from './Pages/ContentRender';
 
+// Create QueryClient instance for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60 * 1000, // 2 minutes before data is considered stale
+      cacheTime: 10 * 60 * 1000, // 10 minutes before cache is garbage collected
+      refetchOnWindowFocus: false, // Don't refetch when user returns to tab
+      retry: 2, // Retry failed queries 2 times
+    },
+  },
+});
 
 // Wrapper component to conditionally show footer
 function AppContent() {
@@ -79,8 +97,8 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/update" element={<UpdatePassword />} />
-             <Route path="take-test" element={<TakeTest/>} />
-              <Route path="take-exam" element={<TakeExam/>} />
+          <Route path="take-test" element={<TakeTest />} />
+          <Route path="take-exam" element={<TakeExam />} />
           
           {/* ==================== DASHBOARD ROUTES ==================== */}
           <Route path="/dashboard" element={<Dashboard />}>
@@ -97,7 +115,8 @@ function AppContent() {
             <Route path="classsubject" element={<TeacherAssign />} />
             <Route path="attendanceQR" element={<FixedQRCode />} />
             <Route path="bank-account-setup" element={<SchoolAccountSetup />} />
-            <Route path="fee-payments-structure" element={<SchoolFees />} />
+            <Route path="fee-payments-structure" element={<FeeTemplateManager />} />
+            <Route path="fee-payments-details" element={<SchoolAnalyticsDashboard/>} />
             <Route path="GeneralAssignments" element={<GeneralAssignments />} />
             <Route path="createBatch" element={<BatchDashboard />} />
             <Route path="createArm" element={<DuplicateClassToArm />} />
@@ -110,10 +129,10 @@ function AppContent() {
             <Route path="teachersExams" element={<TeachersExams />} />
             <Route path="teachersTests" element={<TeachersTests />} />
             <Route path="asignmentRecord" element={<RecordAssignments />} />
-            <Route path="monitoring" element={<TeacherMonitoringDashboard/>} />
-             <Route path="emonitoring" element={<TeacherExamMonitoringDashboard/>} />
-            
-            
+            <Route path="testRecord" element={<RecordTests/>}/>
+             <Route path="examRecord" element={  <RecordExams/>} />
+            <Route path="monitoring" element={<TeacherMonitoringDashboard />} />
+            <Route path="emonitoring" element={<TeacherExamMonitoringDashboard />} />
             
             {/* ─── Parent/Guardian Features ─── */}
             <Route path="dependent" element={<CreateDependentChild />} />
@@ -125,20 +144,20 @@ function AppContent() {
             <Route path="rsppd" element={<ResetChildPasswordFromParentPortal />} />
             <Route path="upgradestudent" element={<UpgradeManagedStudent />} />
             <Route path="monitorHomework" element={<Monitor />} />
+            <Route path="academic-history" element={<AcademicHistory />} />
             
             {/* ─── Student Features ─── */}
             <Route path="studentAssignment" element={<StudentAssingnments />} />
             <Route path="homework" element={<AssignmentPage />} />
             <Route path="c_assessment" element={<StudentAcessment />} />
-            <Route path="view-tests" element={<StudentTests/>} />
-            <Route path="view-exams" element={<StudentExams/>} />
-              <Route path="lobby" element={<TestLobby/>} />
-              <Route path="elobby" element={<ExamLobby/>} />
-                <Route path="/dashboard/test-completed" element={<TestCompleted/>} />
+            <Route path="view-tests" element={<StudentTests />} />
+            <Route path="view-exams" element={<StudentExams />} />
+            <Route path="lobby" element={<TestLobby />} />
+            <Route path="elobby" element={<ExamLobby />} />
+            <Route path="/dashboard/test-completed" element={<TestCompleted />} />
+            <Route path="/dashboard/exam-completed" element={<ExamCompleted />} />
+            <Route path="/dashboard/mynotes" element={<StudentNotesApp/>} />
 
-
-            
-            
             
             {/* ─── Inventory / Store ─── */}
             <Route path="inventory" element={<SchoolsInventory />} />
@@ -163,14 +182,16 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <AuthProvider>
-        <Toaster />
-        <Router>
-          <AppContent />
-        </Router>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <AuthProvider>
+          <Toaster />
+          <Router>
+            <AppContent />
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

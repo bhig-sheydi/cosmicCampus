@@ -16,7 +16,6 @@ import {
   School,
   PowerOff,
   XCircle,
-  Power,
   RefreshCw
 } from "lucide-react";
 
@@ -32,11 +31,9 @@ const BatchDashboard = () => {
   const [massLoading, setMassLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [deactivatingBatch, setDeactivatingBatch] = useState(null);
-  const [reactivatingBatch, setReactivatingBatch] = useState(null); // NEW: Track reactivation loading
+  const [reactivatingBatch, setReactivatingBatch] = useState(null);
 
-  // ===============================
-  // 🔹 Fetch proprietor schools
-  // ===============================
+  // Fetch proprietor schools
   useEffect(() => {
     const fetchSchools = async () => {
       if (!userData?.user_id) return;
@@ -63,9 +60,7 @@ const BatchDashboard = () => {
     fetchSchools();
   }, [userData]);
 
-  // ===============================
-  // 🔹 Fetch ALL classes with batch status for selected school
-  // ===============================
+  // Fetch ALL classes with batch status (arm-aware, class-level aggregation)
   const fetchClassesWithStatus = useCallback(async () => {
     if (!selectedSchool || !sessionRegex.test(session)) {
       setClasses([]);
@@ -74,10 +69,10 @@ const BatchDashboard = () => {
 
     setIsValidating(true);
     
-    // Get all batches for this school/session to check active/inactive status
+    // Get all batches for this school/session (now includes arm_id)
     const { data: batchesData, error: batchesError } = await supabase
       .from("batches")
-      .select("batch_id, class_id, batch_name, is_active, created_at")
+      .select("batch_id, class_id, arm_id, batch_name, is_active, created_at")
       .eq("school_id", parseInt(selectedSchool))
       .eq("batch_name", session)
       .order("created_at", { ascending: false });
@@ -104,26 +99,35 @@ const BatchDashboard = () => {
       return;
     }
 
-    // Merge classes with batch data
+    // Merge classes with batch data (class-level aggregation)
     const mergedClasses = classesData.map(cls => {
       const classBatches = batchesData?.filter(b => b.class_id === cls.class_id) || [];
-      const activeBatch = classBatches.find(b => b.is_active);
+      const activeBatches = classBatches.filter(b => b.is_active);
       const inactiveBatches = classBatches.filter(b => !b.is_active);
       
-      // NEW: Get the most recent inactive batch for reactivation
+      // Class is "active" if at least one arm has an active batch
+      const hasActiveBatch = activeBatches.length > 0;
+      
+      // Count arms covered
+      const totalArmsInClass = classBatches.length; // approximate, or fetch separately
+      const activeArmCount = activeBatches.length;
+      
+      // Most recent inactive batch for reactivation (any arm)
       const mostRecentInactive = inactiveBatches.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
       )[0];
 
       return {
         ...cls,
-        batch_exists: !!activeBatch,
-        batch_id: activeBatch?.batch_id || null,
-        is_active: activeBatch?.is_active || false,
+        batch_exists: hasActiveBatch,
+        active_batch_count: activeArmCount,
+        total_batch_count: classBatches.length,
+        batch_id: mostRecentInactive?.batch_id || activeBatches[0]?.batch_id || null,
+        is_active: hasActiveBatch,
         has_inactive: inactiveBatches.length > 0,
         inactive_count: inactiveBatches.length,
         all_batches: classBatches,
-        most_recent_inactive_batch_id: mostRecentInactive?.batch_id || null // NEW: For reactivation
+        most_recent_inactive_batch_id: mostRecentInactive?.batch_id || null
       };
     });
 
@@ -135,9 +139,7 @@ const BatchDashboard = () => {
     fetchClassesWithStatus();
   }, [fetchClassesWithStatus]);
 
-  // ===============================
-  // 🔹 Mass batch creation with auto-deactivation
-  // ===============================
+  // Mass batch creation with auto-deactivation (deactivates ALL arms per class)
   const handleMassCreate = async () => {
     if (!selectedSchool || !session) {
       toast.error("Select school and batch name");
@@ -159,25 +161,32 @@ const BatchDashboard = () => {
     setMassLoading(true);
 
     try {
-      // Step 1: Deactivate all existing active batches for this school/session
-      const classesWithActiveBatches = classes.filter(c => c.batch_exists && c.batch_id);
+      // Step 1: Deactivate ALL existing active batches for this school/session (all arms)
+      const classesWithActiveBatches = classes.filter(c => c.batch_exists);
       
       if (classesWithActiveBatches.length > 0) {
-        toast.info(`Deactivating ${classesWithActiveBatches.length} existing batches...`);
+        // Collect ALL active batch IDs across all arms in all classes
+        const allActiveBatchIds = classesWithActiveBatches.flatMap(cls => 
+          cls.all_batches.filter(b => b.is_active).map(b => b.batch_id)
+        );
         
-        for (const cls of classesWithActiveBatches) {
+        if (allActiveBatchIds.length > 0) {
+          toast.info(`Deactivating ${allActiveBatchIds.length} existing batches...`);
+          
+          // Bulk deactivate all at once
           const { error: deactivateError } = await supabase
             .from("batches")
             .update({ is_active: false, updated_at: new Date().toISOString() })
-            .eq("batch_id", cls.batch_id);
+            .in("batch_id", allActiveBatchIds);
 
           if (deactivateError) {
-            console.error(`Failed to deactivate batch for ${cls.class_name}:`, deactivateError);
+            console.error("Failed to deactivate batches:", deactivateError);
+            toast.error("Some batches failed to deactivate");
           }
         }
       }
 
-      // Step 2: Create new batches via RPC
+      // Step 2: Create new batches via RPC (creates one per arm automatically)
       const { data, error } = await supabase.rpc("mass_create_batches", {
         p_school_id: parseInt(selectedSchool),
         p_batch_name: session,
@@ -191,11 +200,11 @@ const BatchDashboard = () => {
       }
 
       if (data.inserted > 0) {
-        toast.success(`Created ${data.inserted} new batches. Previous batches deactivated.`);
+        toast.success(`Created ${data.inserted} new batches across all classes and arms.`);
       }
       
       if (data.skipped > 0) {
-        toast.info(`Skipped ${data.skipped} classes`);
+        toast.info(`Skipped ${data.skipped} existing batches`);
       }
       
       if (data.errors?.length > 0) {
@@ -212,26 +221,25 @@ const BatchDashboard = () => {
     }
   };
 
-  // ===============================
-  // 🔹 Manual deactivate (for individual control)
-  // ===============================
-  const handleDeactivateBatch = async (classId, batchId, className) => {
-    if (!confirm(`Deactivate batch for ${className}? Students will remain enrolled but no new promotions will be allowed.`)) {
+  // Manual deactivate (deactivates ALL batches for the class - all arms)
+  const handleDeactivateBatch = async (classId, className) => {
+    if (!confirm(`Deactivate ALL batches for ${className}? This affects all arms in this class.`)) {
       return;
     }
 
     setDeactivatingBatch(classId);
 
     try {
+      // Deactivate ALL batches for this class (all arms)
       const { error } = await supabase
         .from("batches")
         .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq("batch_id", batchId)
-        .eq("school_id", parseInt(selectedSchool));
+        .eq("school_id", parseInt(selectedSchool))
+        .eq("class_id", classId);
 
       if (error) throw error;
 
-      toast.success(`Batch for ${className} deactivated`);
+      toast.success(`All batches for ${className} deactivated`);
       await fetchClassesWithStatus();
       
     } catch (error) {
@@ -242,39 +250,26 @@ const BatchDashboard = () => {
     }
   };
 
-  // ===============================
-  // 🔹 NEW: Reactivate batch
-  // ===============================
-  const handleReactivateBatch = async (classId, batchId, className) => {
-    if (!confirm(`Reactivate batch for ${className}? This will allow promotions for this class again.`)) {
+  // Reactivate batch (reactivates ALL batches for the class - all arms)
+  const handleReactivateBatch = async (classId, className) => {
+    if (!confirm(`Reactivate ALL batches for ${className}? This affects all arms in this class.`)) {
       return;
     }
 
     setReactivatingBatch(classId);
 
     try {
-      // First deactivate any currently active batch for this class to avoid unique constraint violation
-      const { error: deactivateError } = await supabase
-        .from("batches")
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq("school_id", parseInt(selectedSchool))
-        .eq("class_id", classId)
-        .eq("is_active", true);
-
-      if (deactivateError) {
-        console.error("Error deactivating current batch:", deactivateError);
-      }
-
-      // Now reactivate the selected batch
+      // Reactivate ALL inactive batches for this class (all arms)
       const { error } = await supabase
         .from("batches")
         .update({ is_active: true, updated_at: new Date().toISOString() })
-        .eq("batch_id", batchId)
-        .eq("school_id", parseInt(selectedSchool));
+        .eq("school_id", parseInt(selectedSchool))
+        .eq("class_id", classId)
+        .eq("is_active", false);
 
       if (error) throw error;
 
-      toast.success(`Batch for ${className} reactivated`);
+      toast.success(`All batches for ${className} reactivated`);
       await fetchClassesWithStatus();
       
     } catch (error) {
@@ -400,7 +395,7 @@ const BatchDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Class List with Batch Status - NOW SHOWS INACTIVE IN RED WITH REACTIVATE BUTTON */}
+        {/* Class List with Batch Status */}
         {selectedSchool && isSessionValid && classes.length > 0 && (
           <Card className="border-0 shadow-xl shadow-gray-100/50 overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-blue-500 to-violet-500" />
@@ -414,20 +409,17 @@ const BatchDashboard = () => {
 
               <div className="grid gap-3">
                 {classes.map((cls) => {
-                  // Determine status styling
-                  let statusColor = "border-gray-200 bg-gray-50/50"; // no batch
+                  let statusColor = "border-gray-200 bg-gray-50/50";
                   let iconColor = "bg-gray-100 text-gray-400";
                   let statusText = "No batch created";
                   let StatusIcon = () => <span className="text-lg font-bold">{cls.class_name.charAt(0)}</span>;
                   
                   if (cls.batch_exists && cls.is_active) {
-                    // Active batch - GREEN
                     statusColor = "border-green-200 bg-green-50/50";
                     iconColor = "bg-green-100 text-green-600";
-                    statusText = "Batch active";
+                    statusText = `${cls.active_batch_count}/${cls.total_batch_count || '?'} arms active`;
                     StatusIcon = () => <CheckCircle2 className="w-6 h-6" />;
                   } else if (cls.has_inactive) {
-                    // Has inactive batch(es) - RED
                     statusColor = "border-red-200 bg-red-50/50";
                     iconColor = "bg-red-100 text-red-600";
                     statusText = `${cls.inactive_count} inactive batch${cls.inactive_count > 1 ? 'es' : ''}`;
@@ -457,10 +449,10 @@ const BatchDashboard = () => {
                       </div>
 
                       <div className="flex gap-2">
-                        {/* Show reactivate button for inactive batches */}
-                        {cls.has_inactive && cls.most_recent_inactive_batch_id && !cls.batch_exists && (
+                        {/* Reactivate: only if has inactive AND no active */}
+                        {cls.has_inactive && !cls.batch_exists && (
                           <Button
-                            onClick={() => handleReactivateBatch(cls.class_id, cls.most_recent_inactive_batch_id, cls.class_name)}
+                            onClick={() => handleReactivateBatch(cls.class_id, cls.class_name)}
                             disabled={reactivatingBatch === cls.class_id}
                             variant="outline"
                             size="sm"
@@ -477,10 +469,10 @@ const BatchDashboard = () => {
                           </Button>
                         )}
 
-                        {/* Show deactivate button only for active batches */}
-                        {cls.batch_exists && cls.is_active && cls.batch_id && (
+                        {/* Deactivate: only if has active */}
+                        {cls.batch_exists && cls.is_active && (
                           <Button
-                            onClick={() => handleDeactivateBatch(cls.class_id, cls.batch_id, cls.class_name)}
+                            onClick={() => handleDeactivateBatch(cls.class_id, cls.class_name)}
                             disabled={deactivatingBatch === cls.class_id}
                             variant="outline"
                             size="sm"
@@ -505,7 +497,7 @@ const BatchDashboard = () => {
           </Card>
         )}
 
-        {/* Mass Create Action - AUTO DEACTIVATES OLD BATCHES */}
+        {/* Mass Create Action */}
         {selectedSchool && isSessionValid && (
           <Card className="border-0 shadow-lg shadow-gray-100/50 hover:shadow-xl transition-shadow relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-200/30 to-purple-200/30 rounded-full blur-3xl -mr-16 -mt-16" />
@@ -518,7 +510,7 @@ const BatchDashboard = () => {
                 <div>
                   <h3 className="font-semibold text-gray-800">Mass Creation</h3>
                   <p className="text-xs text-gray-500">
-                    Creates new batches and auto-deactivates old ones
+                    Creates new batches for all arms and auto-deactivates old ones
                   </p>
                 </div>
               </div>
@@ -529,21 +521,21 @@ const BatchDashboard = () => {
                   <div className="space-y-1">
                     {newCount > 0 ? (
                       <p className="text-sm font-medium text-gray-800">
-                        Will create {newCount} new batches
+                        Will create batches for {newCount} classes
                       </p>
                     ) : (
                       <p className="text-sm font-medium text-gray-800">
-                        All classes have batches
+                        All classes have active batches
                       </p>
                     )}
                     {existingCount > 0 && (
                       <p className="text-xs text-red-600 font-medium">
-                        ⚠️ {existingCount} existing active batches will be deactivated
+                        ⚠️ Existing batches will be deactivated
                       </p>
                     )}
                     {inactiveCount > 0 && (
                       <p className="text-xs text-gray-500">
-                        {inactiveCount} classes already have inactive batches
+                        {inactiveCount} classes have inactive batches
                       </p>
                     )}
                   </div>
@@ -560,7 +552,7 @@ const BatchDashboard = () => {
                 ) : (
                   <>
                     <Layers className="w-4 h-4 mr-2" />
-                    {newCount > 0 ? `Create ${newCount} Batches` : "All Batches Created"}
+                    {newCount > 0 ? `Create Batches for ${newCount} Classes` : "All Batches Created"}
                   </>
                 )}
               </Button>

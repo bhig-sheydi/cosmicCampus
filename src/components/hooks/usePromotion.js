@@ -11,15 +11,8 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
   const safeStudents = useMemo(() => Array.isArray(students) ? students : [], [students]);
   const safeClasses = useMemo(() => Array.isArray(classes) ? classes : [], [classes]);
 
-  // Get current user ID for tracking who performed promotions (optional)
-  const getCurrentUserId = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id || null;
-    } catch {
-      return null;
-    }
-  };
+  // Use userData.user_id directly instead of fetching from auth
+  const currentUserId = userData?.user_id || null;
 
   // DIAGNOSTIC: Log students data structure
   useEffect(() => {
@@ -44,20 +37,9 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
       
       const schoolId = parseInt(massPromoteSchool);
       
-      // DIAGNOSTIC: Check students before filtering
-      console.log('[DIAGNOSTIC] Checking students for school:', schoolId);
-      console.log('[DIAGNOSTIC] Total students:', safeStudents.length);
-      console.log('[DIAGNOSTIC] Students with school_id:', safeStudents.filter(s => s?.school_id).length);
-      console.log('[DIAGNOSTIC] Students matching school:', safeStudents.filter(s => s?.school_id === schoolId).length);
-      
       const classesInSchool = [...new Set(safeStudents
-        .filter(s => {
-          const match = s?.school_id === schoolId && s?.class_id;
-          return match;
-        })
+        .filter(s => s?.school_id === schoolId && s?.class_id)
         .map(s => s.class_id))];
-      
-      console.log('[DIAGNOSTIC] Found classes in school:', classesInSchool);
 
       const newStatus = {};
       
@@ -91,7 +73,6 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
         .map(s => s.class_id))]
       .map(classId => {
         const classInfo = safeClasses.find(c => c?.class_id === classId);
-        // Filter out graduated students from count
         const activeStudents = safeStudents.filter(s => 
           s?.school_id === schoolId && 
           s?.class_id === classId &&
@@ -120,19 +101,16 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
       return;
     }
 
-    // Prevent promoting already graduated students
     if (student?.account_status === 'graduated') {
       alert('Student has already graduated');
       return;
     }
 
     try {
-      const createdBy = await getCurrentUserId();
-      
       const { data, error } = await supabase.rpc('promote_single_student', {
         p_student_id: student.id,
         p_school_id: schoolId,
-        p_created_by: createdBy
+        p_created_by: currentUserId
       });
 
       if (error) throw error;
@@ -161,12 +139,10 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
     }
 
     try {
-      const createdBy = await getCurrentUserId();
-      
       const { data, error } = await supabase.rpc('demote_single_student', {
         p_student_id: student.id,
         p_school_id: schoolId,
-        p_created_by: createdBy
+        p_created_by: currentUserId
       });
 
       if (error) throw error;
@@ -191,7 +167,6 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
     const schoolId = parseInt(massPromoteSchool);
     const classId = parseInt(selectedPromoteClass);
     
-    // Get current session/year for new batch name
     const currentYear = new Date().getFullYear();
     const nextYear = currentYear + 1;
     const batchName = `${currentYear}/${nextYear}`;
@@ -199,13 +174,11 @@ export const usePromotion = (userData, students, classes, setFetchFlags) => {
     setPromotingClass(classId);
     
     try {
-      const createdBy = await getCurrentUserId();
-      
-      const { data, error } = await supabase.rpc('mass_promote_students', {
+      const { data, error } = await supabase.rpc('queue_mass_promotion', {
         p_school_id: schoolId,
         p_class_id: classId,
         p_new_batch_name: batchName,
-        p_created_by: createdBy
+        p_created_by: currentUserId
       });
 
       if (error) throw error;

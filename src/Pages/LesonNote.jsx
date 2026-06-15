@@ -1,7 +1,7 @@
-// GuidedLessonEditor.jsx
-import React, { useEffect, useState } from "react";
+"use client";
+
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import Typo from "typo-js";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
@@ -27,15 +27,10 @@ import RightClickFactCheckMenu from "../components/CustomComponents/RightClickFa
 import FactCheckModal from "../components/CustomComponents/FactCheckModal";
 import SaveNoteModal from "./SaveModal";
 
-
-
-
-
-
-
+const AI_BASE_URL = "https://notes-api-production.cosmic-campus-api.workers.dev";
 const GuidedLessonEditor = () => {
   const [saving, setSaving] = useState(false);
-  const { userData } = useUser()
+  const { userData } = useUser();
   const [lessonId, setLessonId] = useState(null);
   const [lastList, setLastList] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -50,25 +45,25 @@ const GuidedLessonEditor = () => {
   const [contextMenuPosition, setContextMenuPosition] = useState(null);
   const [factCheckResult, setFactCheckResult] = useState("");
   const [showFactModal, setShowFactModal] = useState(false);
-  const [selectedText, setSelectedText] = useState(""); // already used
+  const [selectedText, setSelectedText] = useState("");
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [noteTitle, setNoteTitle] = useState(null);
   const [subjectId, setSubjectId] = useState(null);
-const [rightClickPosition, setRightClickPosition] = useState(null);
-
-
-
+  const [classId, setClassId] = useState(null); // NEW: class_id state
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
+  const lastSavedContentRef = useRef(null);
+  const autoSaveRef = useRef(null);
+  const debounceRef = useRef(null);
+  const hasInitialized = useRef(false);
+  const editorContainerRef = useRef(null);
 
   const [teacherMeta, setTeacherMeta] = useState({
     proprietor_id: null,
     school_id: null,
   });
 
-
-
-
   const { chunks, setChunks, tableOfContents, parseEditorContent } = useStructuredLesson();
-
 
   const {
     saveChunksToSupabase,
@@ -78,15 +73,13 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
     upsertChunkToSupabase,
   } = useLessonPersistence();
 
-
-
+  const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
   const convertChunksToTipTapJSON = (chunks) => {
     const content = [];
 
     chunks.forEach((chunk) => {
       if (chunk.title && Array.isArray(chunk.body)) {
-        // This is a section
         content.push({
           type: "heading",
           attrs: { level: 2 },
@@ -124,30 +117,32 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
           }
 
           if (item.type === "table") {
-            content.push(item.raw); // Assuming item.raw is TipTap JSON
+            content.push(item.raw);
           }
         });
       }
     });
 
-    return {
-      type: "doc",
-      content,
-    };
+    return { type: "doc", content };
   };
 
-
-
-
-
-
-
+  const normalizeText = (str) => {
+    if (typeof str !== "string") return "";
+    return str.replace(/\s+/g, " ").trim().toLowerCase();
+  };
 
   const handleBringUpToSpeed = async () => {
     if (!selectedText || chunks.length === 0) {
       alert("⚠️ No text selected or no content to improve.");
       return;
     }
+
+    if (!editor) {
+      alert("Editor not ready.");
+      return;
+    }
+
+    setIsImproving(true);
 
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -159,38 +154,40 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
         return;
       }
 
-      const matchIndex = chunks.findIndex((section) =>
+      const normalizedSelected = normalizeText(selectedText);
+
+      const foundChunkIndex = chunks.findIndex((section) =>
         Array.isArray(section.body) &&
         section.body.some((item) => {
           if ((item.type === "body" || item.type === "explanation") && typeof item.content === "string") {
-            return item.content.includes(selectedText);
+            return normalizeText(item.content).includes(normalizedSelected);
           }
           if (item.type === "list" && Array.isArray(item.items)) {
-            return item.items.some((listItem) => typeof listItem === "string" && listItem.includes(selectedText));
+            return item.items.some((listItem) => 
+              typeof listItem === "string" && normalizeText(listItem).includes(normalizedSelected)
+            );
           }
           return false;
         })
       );
 
-
-
-      if (matchIndex === -1) {
+      if (foundChunkIndex === -1) {
         alert("⚠️ Could not find matching chunk for selected text.");
         return;
       }
 
-      const matchingChunk = chunks[matchIndex];
+      const matchingChunk = chunks[foundChunkIndex];
 
-      const response = await fetch("https://sfpgcjkmpqijniyzykau.supabase.co/functions/v1/bright-action", {
+      const response = await fetch(`${AI_BASE_URL}/bright-action`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          action: "improve_chunk", // singular
+          action: "improve_chunk",
           selectedText,
-          chunk: matchingChunk, // singular chunk
+          chunk: matchingChunk,
         }),
       });
 
@@ -211,18 +208,18 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
           return;
         }
 
-        const updatedChunks = [...chunks];
-        const matchIndex = updatedChunks.findIndex(
+        const updatedChunks = deepClone(chunks);
+        const improvedIndex = updatedChunks.findIndex(
           (section) => section.sectionId === improvedChunk.sectionId
         );
 
-        if (matchIndex === -1) {
+        if (improvedIndex === -1) {
           alert("⚠️ Could not match improved section to original content.");
           return;
         }
 
         let replaced = false;
-        const originalSection = updatedChunks[matchIndex];
+        const originalSection = updatedChunks[improvedIndex];
 
         for (let i = 0; i < originalSection.body.length; i++) {
           const item = originalSection.body[i];
@@ -230,24 +227,24 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
           if (
             (item.type === "body" || item.type === "explanation") &&
             typeof item.content === "string" &&
-            item.content.includes(selectedText)
+            normalizeText(item.content).includes(normalizedSelected)
           ) {
-            const improvedItem = improvedChunk.body.find(
-              (im) => im.type === item.type
-            );
+            const improvedItem = improvedChunk.body.find((im) => im.type === item.type);
             if (improvedItem?.content) {
-              updatedChunks[matchIndex].body[i].content = improvedItem.content;
+              updatedChunks[improvedIndex].body[i].content = improvedItem.content;
               replaced = true;
               break;
             }
           }
 
           if (item.type === "list" && Array.isArray(item.items)) {
-            const improvedList = improvedChunk.body.find(im => im.type === "list");
+            const improvedList = improvedChunk.body.find((im) => im.type === "list");
             if (improvedList && Array.isArray(improvedList.items)) {
-              const matchIndexInList = item.items.findIndex(str => str.includes(selectedText));
+              const matchIndexInList = item.items.findIndex(
+                (str) => normalizeText(str).includes(normalizedSelected)
+              );
               if (matchIndexInList !== -1) {
-                updatedChunks[matchIndex].body[i].items[matchIndexInList] =
+                updatedChunks[improvedIndex].body[i].items[matchIndexInList] =
                   improvedList.items[matchIndexInList];
                 replaced = true;
                 break;
@@ -259,18 +256,15 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
         if (replaced) {
           setChunks(updatedChunks);
 
-          // ✅ update editor
           const editorJSON = convertChunksToTipTapJSON(updatedChunks);
           if (editorJSON) editor?.commands.setContent(editorJSON);
           const json = editor.getJSON();
-          saveToLocal(json);
+          saveToLocal(json, lessonId);
           parseEditorContent(json);
 
-
-          // ✅ persist this improved section to Supabase
           await upsertChunkToSupabase({
             lessonId,
-            section: updatedChunks[matchIndex],
+            section: updatedChunks[improvedIndex],
           });
 
           console.log("✅ Sentence replaced with improved version:", selectedText);
@@ -283,14 +277,10 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
     } catch (err) {
       console.error("🔴 Bring up to speed failed:", err);
       alert("Something went wrong while improving the content.");
+    } finally {
+      setIsImproving(false);
     }
   };
-
-
-
-
-
-
 
   const handleNewLesson = () => {
     const confirmReset = window.confirm("Start a new lesson? This will clear current content.");
@@ -302,32 +292,31 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
     setChunks([]);
     setNoteTitle(null);
     setSubjectId(null);
+    setClassId(null); // NEW: reset classId
+    hasInitialized.current = false;
 
     if (editor) {
       editor.commands.setContent({ type: "doc", content: [] });
-      saveToLocal({ type: "doc", content: [] });
+      saveToLocal({ type: "doc", content: [] }, newId);
     }
 
     alert("🆕 New lesson created!");
   };
-
-
-
-
-
-
-
 
   const handleFactCheck = async () => {
     if (!selectedText) return;
     setContextMenuPosition(null);
 
     try {
-      const token = await supabase.auth.getSession().then(
-        res => res.data.session?.access_token
-      );
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
-      const res = await fetch("https://sfpgcjkmpqijniyzykau.supabase.co/functions/v1/bright-action", {
+      if (!token) {
+        alert("You are not logged in.");
+        return;
+      }
+
+      const res = await fetch(`${AI_BASE_URL}/bright-action`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -343,11 +332,8 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
 
       if (data.result) {
         setFactCheckResult(data.result);
-
-        // ✅ Blur the editor before showing modal
         const editorDOM = document.querySelector(".ProseMirror");
         editorDOM?.blur();
-
         setShowFactModal(true);
       } else {
         setFactCheckResult("❌ No result returned from AI.");
@@ -360,109 +346,86 @@ const [rightClickPosition, setRightClickPosition] = useState(null);
     }
   };
 
-
-
-const handleGrammarFix = async () => {
-  if (!selectedText) {
-    console.warn("⚠️ No selectedText found.");
-    return;
-  }
-
-  setContextMenuPosition(null);
-  console.log("🔍 Selected text:", selectedText);
-
-  try {
-    const token = await supabase.auth.getSession().then(
-      res => res.data.session?.access_token
-    );
-
-    const res = await fetch("https://sfpgcjkmpqijniyzykau.supabase.co/functions/v1/spellCheck-", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        action: "fix_grammar",
-        selectedText,
-      }),
-    });
-
-    const data = await res.json();
-    const fixedText = data.result;
-
-    if (!fixedText) {
-      alert("❌ No improvement returned.");
+  const handleGrammarFix = async () => {
+    if (!selectedText) {
+      console.warn("⚠️ No selectedText found.");
       return;
     }
 
-    const updatedChunks = [...chunks];
-    let found = false;
+    setContextMenuPosition(null);
 
-    for (const section of updatedChunks) {
-      console.log("🔎 Checking section:", section.title || "[no title]");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
-      if (!Array.isArray(section.body)) {
-        console.warn("🚫 Skipping section — no body:", section);
-        continue;
+      if (!token) {
+        alert("You are not logged in.");
+        return;
       }
 
-      for (let i = 0; i < section.body.length; i++) {
-        const item = section.body[i];
+      const res = await fetch(`${AI_BASE_URL}/spellCheck-`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "fix_grammar",
+          selectedText,
+        }),
+      });
 
-        if (item.type === "body" || item.type === "explanation") {
-          console.log("   ➤ Checking", item.type, ":", item.content);
-          if (item.content.includes(selectedText)) {
-            console.log("✅ Found match in", item.type, ":", item.content);
-            item.content = fixedText;
-            found = true;
-            break;
-          }
-        }
+      const data = await res.json();
+      const fixedText = data.result;
 
-        if (item.type === "list") {
-          for (let j = 0; j < item.items.length; j++) {
-            const li = item.items[j];
-            console.log("   ➤ Checking list item:", li);
-            if (li.includes(selectedText)) {
-              console.log("✅ Found match in list item:", li);
-              item.items[j] = fixedText;
+      if (!fixedText) {
+        alert("❌ No improvement returned.");
+        return;
+      }
+
+      let found = false;
+      const updatedChunks = chunks.map((section) => {
+        if (found || !Array.isArray(section.body)) return section;
+
+        const newBody = section.body.map((item) => {
+          if (found) return item;
+
+          if (item.type === "body" || item.type === "explanation") {
+            if (typeof item.content === "string" && item.content.includes(selectedText)) {
               found = true;
-              break;
+              return { ...item, content: fixedText };
             }
           }
-        }
 
-        if (found) break;
+          if (item.type === "list" && Array.isArray(item.items)) {
+            const itemIndex = item.items.findIndex((li) => li.includes(selectedText));
+            if (itemIndex !== -1) {
+              found = true;
+              const newItems = [...item.items];
+              newItems[itemIndex] = fixedText;
+              return { ...item, items: newItems };
+            }
+          }
+
+          return item;
+        });
+
+        return { ...section, body: newBody };
+      });
+
+      if (found) {
+        setChunks(updatedChunks);
+        editor.commands.setContent(convertChunksToTipTapJSON(updatedChunks));
+        alert("✅ Text updated with grammar improvements.");
+      } else {
+        console.warn("🚫 Could not find selectedText in any chunk or list.");
+        alert("⚠️ Couldn't find the selected text.");
       }
-
-      if (found) break;
+    } catch (err) {
+      console.error("Grammar fix error:", err);
+      alert("❌ Could not connect to grammar service.");
     }
-
-    if (found) {
-      setChunks(updatedChunks);
-      editor.commands.setContent(convertChunksToTipTapJSON(updatedChunks));
-      alert("✅ Text updated with grammar improvements.");
-    } else {
-      console.warn("🚫 Could not find selectedText in any chunk or list.");
-      alert("⚠️ Couldn't find the selected text.");
-    }
-
-  } catch (err) {
-    console.error("Grammar fix error:", err);
-    alert("❌ Could not connect to grammar service.");
-  }
-};
-
-
-
-
-
-
-
-
-
-
+  };
 
   useEffect(() => {
     const fetchTeacherMeta = async () => {
@@ -488,46 +451,126 @@ const handleGrammarFix = async () => {
     fetchTeacherMeta();
   }, [userData?.user_id]);
 
+  const uploadBase64Images = async (editorJSON) => {
+    const json = deepClone(editorJSON);
+    let modified = false;
 
+    const walkNodes = async (nodes) => {
+      for (const node of nodes) {
+        if (node.type === "image" && node.attrs?.src?.startsWith("data:")) {
+          const base64 = node.attrs.src;
+          const alt = node.attrs.alt || "image";
+          const match = base64.match(/^data:(.+);base64,(.+)$/);
+          if (!match) continue;
 
+          const mimeType = match[1];
+          const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
+          const ext = mimeType.split("/").pop() || "png";
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${ext}`;
 
+          const { data, error } = await supabase.storage
+            .from("Notes")
+            .upload(fileName, bytes, {
+              contentType: mimeType,
+              cacheControl: "3600",
+              upsert: false,
+            });
 
+          if (error) {
+            console.error("Image upload failed:", error);
+            continue;
+          }
 
-  const saveToSupabase = async () => {
-    if (!noteTitle || !subjectId) {
-      alert("Please provide note title and subject.");
+          const { data: urlData } = supabase.storage
+            .from("Notes")
+            .getPublicUrl(data.path);
+
+          node.attrs.src = urlData.publicUrl;
+          node.attrs.alt = alt;
+          modified = true;
+        }
+        if (node.content) await walkNodes(node.content);
+      }
+    };
+
+    await walkNodes(json.content || []);
+    return { json, modified };
+  };
+
+  // ==========================================
+  // UPDATED: saveToSupabase with class_id
+  // ==========================================
+  const saveToSupabase = async (overrideTitle, overrideSubjectId, overrideClassId) => {
+    const title = overrideTitle ?? noteTitle;
+    const subject = overrideSubjectId ?? subjectId;
+    const cls = overrideClassId ?? classId;
+
+    if (!title || !subject || !cls) {
+      alert("Please provide note title, subject, and class.");
       return;
     }
 
     setSaving(true);
 
-    const { error } = await saveChunksToSupabase({
-      lessonId,
-      chunks,
-      title: noteTitle,
-      subject_id: subjectId,
-      school_id: teacherMeta.school_id,
-      proprietor_id: teacherMeta.proprietor_id,
-      teacher_id: userData.user_id,
-    });
+    try {
+      const editorJSON = editor.getJSON();
+      const { json: cleanedJSON, modified } = await uploadBase64Images(editorJSON);
 
-    for (const section of chunks) {
-      await upsertChunkToSupabase({ lessonId, section });
-    }
+      if (modified) {
+        editor.commands.setContent(cleanedJSON);
+        parseEditorContent(cleanedJSON);
+        saveToLocal(cleanedJSON, lessonId);
+      }
 
-    setSaving(false);
+      const { error } = await saveChunksToSupabase({
+        lessonId,
+        chunks,
+        title,
+        subject_id: subject,
+        class_id: cls,        // NEW: save class_id
+        school_id: teacherMeta.school_id,
+        proprietor_id: teacherMeta.proprietor_id,
+        teacher_id: userData.user_id,
+      });
 
-    if (!error) {
+      if (error) throw error;
+
+      for (const section of chunks) {
+        await upsertChunkToSupabase({ lessonId, section });
+      }
+
+      lastSavedContentRef.current = JSON.stringify(editor?.getJSON());
+      setHasUnsavedChanges(false);
       alert("✅ Lesson saved!");
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("❌ Failed to save lesson.");
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleEditorUpdate = useCallback(({ editor: ed }) => {
+    const json = ed.getJSON();
 
+    const contentString = JSON.stringify(json);
+    if (contentString !== lastSavedContentRef.current) {
+      setHasUnsavedChanges(true);
+    }
 
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      saveToLocal(json, lessonId);
+      parseEditorContent(json);
+    }, 500);
+  }, [lessonId, parseEditorContent, saveToLocal]);
 
-
-
-
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -546,53 +589,9 @@ const handleGrammarFix = async () => {
       OrderedList.configure({ keepMarks: true }),
       ListItem,
     ],
-    content: loadFromLocal(),
-    onUpdate({ editor }) {
-      const json = editor.getJSON();
-      saveToLocal(json);
-      parseEditorContent(json);
-    },
+    content: loadFromLocal(lessonId),
+    onUpdate: handleEditorUpdate,
   });
-
-
-
-useEffect(() => {
-  if (!editor) return;
-
-  const loadSpellChecker = async () => {
-    const aff = await fetch("/dictionaries/en_US.aff").then((res) => res.text());
-    const dic = await fetch("/dictionaries/en_US.dic").then((res) => res.text());
-
-    const dictionary = new Typo("en_US", aff, dic, {
-      platform: "any",
-    });
-
-    const spellCheckPlugin = {
-      decorations: ({ doc }) => {
-        const decorations = [];
-
-        doc.descendants((node, pos) => {
-          if (node.type.name === "text") {
-            decorations.push(
-              ...getSpellErrorDecorations(node, pos, dictionary),
-              ...getPunctuationErrorDecorations(node, pos, dictionary)
-            );
-          }
-        });
-
-        return DecorationSet.create(doc, decorations);
-      },
-    };
-
-    editor.registerPlugin(spellCheckPlugin);
-  };
-
-  loadSpellChecker();
-}, [editor]);
-
-
-
-
 
   useEffect(() => {
     const handleContextMenu = (e) => {
@@ -613,9 +612,12 @@ useEffect(() => {
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, [editor]);
+
   useEffect(() => {
     const initEditorContent = async () => {
-      let initialContent = loadFromLocal(); // fallback
+      if (hasInitialized.current) return;
+
+      let initialContent = loadFromLocal(lessonId);
 
       if (lessonId) {
         const savedChunks = await loadChunksFromSupabase(lessonId);
@@ -627,18 +629,15 @@ useEffect(() => {
 
       if (editor && initialContent) {
         editor.commands.setContent(initialContent);
-        parseEditorContent(initialContent); // ✅ this makes sure `chunks` is populated even if user doesn't edit
+        parseEditorContent(initialContent);
+        hasInitialized.current = true;
       }
     };
-
 
     if (editor && lessonId) {
       initEditorContent();
     }
   }, [editor, lessonId]);
-
-
-
 
   useEffect(() => {
     if (!lessonId && teacherMeta.school_id && teacherMeta.proprietor_id) {
@@ -654,39 +653,49 @@ useEffect(() => {
     }
   }, [lessonId, teacherMeta]);
 
-
-
-  useEffect(() => {
-    if (noteTitle && subjectId && saving === false) {
-      saveToSupabase();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteTitle, subjectId]);
-
+  // ==========================================
+  // UPDATED: handleSaveFromModal with class_id
+  // ==========================================
+  const handleSaveFromModal = ({ title, subject_id, class_id }) => {
+    setNoteTitle(title);
+    setSubjectId(subject_id);
+    setClassId(class_id); // NEW: set classId
+    saveToSupabase(title, subject_id, class_id);
+  };
 
   const handleSearch = () => {
     if (!editor || !searchTerm.trim()) return;
-    const text = editor.getText().toLowerCase();
+
     const term = searchTerm.toLowerCase();
-    const indexes = [];
-    let i = 0;
-    while (i < text.length) {
-      const index = text.indexOf(term, i);
-      if (index === -1) break;
-      indexes.push(index);
-      i = index + term.length;
-    }
-    setMatchIndexes(indexes);
+    const matches = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText) {
+        const text = node.text.toLowerCase();
+        let index = text.indexOf(term);
+        while (index !== -1) {
+          const from = pos + index;
+          const to = from + term.length;
+          matches.push({ from, to });
+          index = text.indexOf(term, index + term.length);
+        }
+      }
+    });
+
+    setMatchIndexes(matches);
     setCurrentMatchIndex(0);
-    if (indexes.length > 0) scrollToMatch(indexes[0]);
-    else alert("No matches found.");
+
+    if (matches.length > 0) {
+      scrollToMatch(matches[0]);
+    } else {
+      alert("No matches found.");
+    }
   };
 
-  const scrollToMatch = (fromIndex) => {
-    if (!editor || fromIndex === undefined) return;
-    const toIndex = fromIndex + searchTerm.length;
+  const scrollToMatch = (match) => {
+    if (!editor || !match) return;
     editor.commands.focus();
-    editor.commands.setTextSelection({ from: fromIndex + 1, to: toIndex });
+    editor.commands.setTextSelection({ from: match.from, to: match.to });
   };
 
   const goToNextMatch = () => {
@@ -711,14 +720,6 @@ useEffect(() => {
     if (showDropdown) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown]);
-
-
-  //   useEffect(() => {
-  //   if (chunks.length > 0) {
-  //     saveToSupabase();
-  //   }
-  // }, [chunks]);
-
 
   const handleSelectSuggestion = (index) => {
     const selected = lastList?.items?.[index];
@@ -761,6 +762,9 @@ useEffect(() => {
     <div className="w-full max-w-4xl mx-auto bg-white shadow-md rounded-xl p-6 border space-y-4 relative">
       <h2 className="text-2xl font-bold text-center text-gray-800">
         📘 Guided Lesson Writer
+        {hasUnsavedChanges && (
+          <span className="text-sm font-normal text-orange-500 ml-2">● unsaved</span>
+        )}
       </h2>
 
       <SmartMenuBar
@@ -778,22 +782,17 @@ useEffect(() => {
       />
 
       <Button onClick={() => setShowSaveModal(true)} disabled={saving}>
-
         {saving ? "Saving..." : "💾 Save Lesson"}
       </Button>
 
-      <Button
-        className=" ml-2"
-        onClick={handleNewLesson}
-        disabled={saving}
-      >
+      <Button className="ml-2" onClick={handleNewLesson} disabled={saving}>
         🆕 New Lesson
       </Button>
 
-
-
-
-      <div className="min-h-[350px] max-h-[500px] overflow-y-auto rounded-xl p-4 border-2 border-dashed border-gray-300 bg-gray-50 prose max-w-none relative">
+      <div 
+        ref={editorContainerRef}
+        className="min-h-[350px] max-h-[500px] overflow-y-auto rounded-xl p-4 border-2 border-dashed border-gray-300 bg-gray-50 prose max-w-none relative"
+      >
         <style jsx global>{`
           .ProseMirror ol {
             list-style-type: decimal !important;
@@ -823,12 +822,12 @@ useEffect(() => {
           }
 
           .spell-error {
-  text-decoration: red wavy underline;
-}
+            text-decoration: red wavy underline;
+          }
 
-    .punctuation-error {
-  text-decoration: blue wavy underline;
-}
+          .punctuation-error {
+            text-decoration: blue wavy underline;
+          }
 
           strong {
             font-weight: bold;
@@ -862,20 +861,13 @@ useEffect(() => {
           }
         `}</style>
 
-
-
         <FactCheckModal
           open={showFactModal}
           onClose={() => setShowFactModal(false)}
           result={factCheckResult}
-          onBringUpToSpeed={handleBringUpToSpeed} // ✅ ADD THIS
+          onBringUpToSpeed={handleBringUpToSpeed}
+          isImproving={isImproving}
         />
-
-
-
-
-
-
 
         {showTableModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -883,18 +875,44 @@ useEffect(() => {
               <h3 className="text-lg font-bold mb-4">Insert Table</h3>
               <div className="mb-4 space-y-2">
                 <label className="block text-sm font-medium">Rows:</label>
-                <input type="number" min="1" value={tableRows} onChange={(e) => setTableRows(Number(e.target.value))} className="mt-1 w-full border rounded px-2 py-1" />
+                <input
+                  type="number"
+                  min="1"
+                  value={tableRows}
+                  onChange={(e) => setTableRows(Number(e.target.value))}
+                  className="mt-1 w-full border rounded px-2 py-1"
+                />
                 <label className="block text-sm font-medium">Columns:</label>
-                <input type="number" min="1" value={tableCols} onChange={(e) => setTableCols(Number(e.target.value))} className="mt-1 w-full border rounded px-2 py-1" />
+                <input
+                  type="number"
+                  min="1"
+                  value={tableCols}
+                  onChange={(e) => setTableCols(Number(e.target.value))}
+                  className="mt-1 w-full border rounded px-2 py-1"
+                />
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => { setTableRows(3); setTableCols(3); setShowTableModal(false); }}>Cancel</Button>
-                <Button disabled={tableRows < 1 || tableCols < 1} onClick={() => {
-                  editor?.chain().focus().insertTable({ rows: tableRows, cols: tableCols, withHeaderRow: true }).run();
-                  setTableRows(3);
-                  setTableCols(3);
-                  setShowTableModal(false);
-                }}>Insert Table</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTableRows(3);
+                    setTableCols(3);
+                    setShowTableModal(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={tableRows < 1 || tableCols < 1}
+                  onClick={() => {
+                    editor?.chain().focus().insertTable({ rows: tableRows, cols: tableCols, withHeaderRow: true }).run();
+                    setTableRows(3);
+                    setTableCols(3);
+                    setShowTableModal(false);
+                  }}
+                >
+                  Insert Table
+                </Button>
               </div>
             </div>
           </div>
@@ -923,7 +941,6 @@ useEffect(() => {
             />
           )}
         </div>
-
       </div>
 
       <TableOfContents toc={tableOfContents} />
@@ -931,26 +948,18 @@ useEffect(() => {
         <LessonChunk key={section.sectionId} section={section} />
       ))}
 
-<RightClickFactCheckMenu
-  position={contextMenuPosition}
-  onFactCheck={handleFactCheck}
-  onGrammarCheck={handleGrammarFix}
-  onClose={() => setContextMenuPosition(null)}
-/>
-
-
+      <RightClickFactCheckMenu
+        position={contextMenuPosition}
+        onFactCheck={handleFactCheck}
+        onGrammarCheck={handleGrammarFix}
+        onClose={() => setContextMenuPosition(null)}
+      />
 
       <SaveNoteModal
         open={showSaveModal}
         onClose={() => setShowSaveModal(false)}
-        onSave={({ title, subject_id }) => {
-          setNoteTitle(title);
-          setSubjectId(subject_id);
-        }}
+        onSave={handleSaveFromModal}
       />
-
-
-
     </div>
   );
 };

@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
 const SmartMenuBar = ({
@@ -21,6 +19,11 @@ const SmartMenuBar = ({
 
   if (!editor) return null;
 
+  // ───────────────────────────────────────────────
+  // FIX 1: Use explanationCounter instead of hardcoded "1."
+  // The original had: const explanationText = `1. ${selected}`;
+  // This ignored the counter prop entirely.
+  // ───────────────────────────────────────────────
   const handleAddExplanationItem = () => {
     editor.commands.exitCode();
 
@@ -41,7 +44,8 @@ const SmartMenuBar = ({
     setShowDropdown(true);
 
     const selected = items[0];
-    const explanationText = `1. ${selected}`;
+    // FIX: Use the actual counter value
+    const explanationText = `${explanationCounter}. ${selected}`;
     const endsWithColon = selected.trim().endsWith(":");
 
     editor
@@ -74,11 +78,20 @@ const SmartMenuBar = ({
     setExplanationCounter((prev) => prev + 1);
   };
 
-  // 🎯 Keyboard navigation
+  // ───────────────────────────────────────────────
+  // FIX 2: Scope keyboard navigation to editor only
+  // Original bug: window.addEventListener("keydown", ...) captured
+  // ALL keydowns across the entire app, even when dropdown wasn't visible.
+  // Also caused stale closure issues because handleSelectSuggestion
+  // wasn't in the dependency array.
+  // ───────────────────────────────────────────────
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!showDropdown || suggestions.length === 0) return;
+    if (!showDropdown || suggestions.length === 0) return;
 
+    const editorEl = editor?.view?.dom;
+    if (!editorEl) return;
+
+    const handleKeyDown = (e) => {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSelectedIndex((prev) => (prev + 1) % suggestions.length);
@@ -95,9 +108,58 @@ const SmartMenuBar = ({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showDropdown, suggestions, selectedIndex]);
+    editorEl.addEventListener("keydown", handleKeyDown);
+    return () => editorEl.removeEventListener("keydown", handleKeyDown);
+  }, [showDropdown, suggestions, selectedIndex, editor, handleSelectSuggestion, setSelectedIndex, setShowDropdown]);
+
+  // ───────────────────────────────────────────────
+  // FIX 3: Proper image insertion with DOM cleanup
+  // Original bugs:
+  // 1. window.prompt("Paste image URL or upload") — confusing UX
+  // 2. If user clicks "OK" with empty string, url is "" (falsy), falls through to file input
+  // 3. File input is never removed from DOM (memory leak)
+  // 4. No error handling for FileReader
+  // ───────────────────────────────────────────────
+  const handleImageInsert = useCallback(() => {
+    const url = window.prompt("Paste image URL (or leave empty to upload):");
+
+    if (url === null) return; // User clicked Cancel
+
+    if (url.trim()) {
+      editor.chain().focus().setImage({ src: url.trim() }).run();
+      return;
+    }
+
+    // Upload path
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.style.display = "none";
+    document.body.appendChild(input);
+
+    input.onchange = async () => {
+      try {
+        const file = input.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          editor.chain().focus().setImage({ src: reader.result }).run();
+        };
+        reader.onerror = () => {
+          alert("❌ Failed to read image file.");
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        // FIX: Always clean up the DOM element
+        if (input.parentNode) {
+          document.body.removeChild(input);
+        }
+      }
+    };
+
+    input.click();
+  }, [editor]);
 
   return (
     <div ref={wrapperRef} className="flex flex-wrap gap-2 mb-4">
@@ -135,27 +197,7 @@ const SmartMenuBar = ({
         🧠 Add Explanation Item
       </Button>
 
-      <Button
-        onClick={() => {
-          const url = window.prompt("Paste image URL or upload");
-          if (url) {
-            editor.chain().focus().setImage({ src: url }).run();
-          } else {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = "image/*";
-            input.onchange = async () => {
-              const file = input.files?.[0];
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                editor.chain().focus().setImage({ src: reader.result }).run();
-              };
-              reader.readAsDataURL(file);
-            };
-            input.click();
-          }
-        }}
-      >
+      <Button onClick={handleImageInsert}>
         📷 Insert Picture
       </Button>
 

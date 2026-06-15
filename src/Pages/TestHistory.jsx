@@ -30,7 +30,9 @@ const TeachersTests = () => {
     });
 
   const handleRecordScores = (testId) => {
-    navigate("/dashboard/testRecord", { state: { testId } });
+    // Store testId in localStorage before navigating (matches assignment pattern)
+    localStorage.setItem("record_test_id", testId);
+    navigate("/dashboard/testRecord");
   };
 
   /* ---------------- FETCH CLASS OPTIONS ---------------- */

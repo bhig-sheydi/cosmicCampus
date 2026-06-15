@@ -1,8 +1,8 @@
-import React from 'react';
-import { User, School, GraduationCap, Calendar, CreditCard, ArrowUpCircle, ArrowDownCircle, PlusCircle, Trash2 } from 'lucide-react';
+import React, { memo } from 'react';
+import { User, School, GraduationCap, Calendar, ArrowUpCircle, ArrowDownCircle, PlusCircle, Trash2 } from 'lucide-react';
 import StudentStatusBadge from './StudentStatusBadge';
 
-const StudentsTable = ({ students, onStudentClick, onPromote, onDemote, onAssign }) => (
+const StudentsTable = memo(({ students, onStudentClick, onPromote, onDemote, onAssign }) => (
   <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -24,16 +24,18 @@ const StudentsTable = ({ students, onStudentClick, onPromote, onDemote, onAssign
               onClick={() => onStudentClick(student)}
               onPromote={() => onPromote(student)}
               onDemote={() => onDemote(student)}
-              onAssign={() => onAssign(student)}  // ← CHANGED: Pass full student object, not just id
+              onAssign={() => onAssign(student)}
             />
           ))}
         </tbody>
       </table>
     </div>
   </div>
-);
+));
 
-const StudentRow = ({ student, onClick, onPromote, onDemote, onAssign }) => (
+StudentsTable.displayName = 'StudentsTable';
+
+const StudentRow = memo(({ student, onClick, onPromote, onDemote, onAssign }) => (
   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
     <td className="px-6 py-4">
       <button onClick={onClick} className="flex items-center gap-3 group">
@@ -89,9 +91,11 @@ const StudentRow = ({ student, onClick, onPromote, onDemote, onAssign }) => (
       </div>
     </td>
   </tr>
-);
+));
 
-const ActionButton = ({ onClick, icon: Icon, color, title }) => {
+StudentRow.displayName = 'StudentRow';
+
+const ActionButton = memo(({ onClick, icon: Icon, color, title }) => {
   const colors = {
     green: 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20',
     amber: 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20',
@@ -108,6 +112,8 @@ const ActionButton = ({ onClick, icon: Icon, color, title }) => {
       <Icon className="w-5 h-5" />
     </button>
   );
-};
+});
+
+ActionButton.displayName = 'ActionButton';
 
 export default StudentsTable;

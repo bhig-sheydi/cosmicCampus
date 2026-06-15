@@ -5,21 +5,21 @@ import { useUser } from "@/components/Contexts/userContext";
 const PAGE_SIZE = 12;
 
 const RestockPage = () => {
-  const { userData } = useUser(); // ✅ Always from context
+  const { userData } = useUser();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false); // ← NEW: prevent double save
   const [editingProduct, setEditingProduct] = useState(null);
 
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  const [searchInput, setSearchInput] = useState(""); // raw text
-  const [search, setSearch] = useState(""); // debounced query
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
 
   const [schools, setSchools] = useState([]);
   const [selectedSchool, setSelectedSchool] = useState("");
 
-  // ✅ Stock filter
   const [minStock, setMinStock] = useState("");
   const [maxStock, setMaxStock] = useState("");
 
@@ -30,6 +30,11 @@ const RestockPage = () => {
     }, 300);
     return () => clearTimeout(handler);
   }, [searchInput]);
+
+  // ✅ Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [selectedSchool, search, minStock, maxStock]);
 
   // ✅ Fetch schools for proprietor
   useEffect(() => {
@@ -73,12 +78,12 @@ const RestockPage = () => {
         );
       }
 
-      // ✅ Stock filtering (lean fetch)
+      // ✅ FIXED: stock (not stock_quantity)
       if (minStock !== "") {
-        query = query.gte("stock_quantity", parseInt(minStock));
+        query = query.gte("stock", parseInt(minStock));
       }
       if (maxStock !== "") {
-        query = query.lte("stock_quantity", parseInt(maxStock));
+        query = query.lte("stock", parseInt(maxStock));
       }
 
       const { data, error, count } = await query;
@@ -99,18 +104,20 @@ const RestockPage = () => {
     if (userData?.user_id) {
       fetchProducts();
     }
-  }, [page, selectedSchool, search, minStock, maxStock, userData?.user_id]);
+  }, [fetchProducts]);
 
   // ✅ Save product updates
   const handleSave = async (product) => {
+    setSaving(true); // ← NEW: prevent double submit
+
     const { error } = await supabase
       .from("products")
       .update({
         name: product.name,
         description: product.description,
         price: product.price,
-        stock_quantity: product.stock_quantity,
-        updated_at: new Date(),
+        cost_price: product.cost_price, // ← NEW
+        stock: product.stock, // ← FIXED: stock (not stock_quantity)
       })
       .eq("id", product.id);
 
@@ -122,6 +129,8 @@ const RestockPage = () => {
       setEditingProduct(null);
       fetchProducts();
     }
+
+    setSaving(false); // ← NEW
   };
 
   // ✅ Pagination controls
@@ -157,7 +166,6 @@ const RestockPage = () => {
               ))}
             </select>
 
-            {/* ✅ Stock filter inputs */}
             <input
               type="number"
               placeholder="Min Stock"
@@ -219,6 +227,22 @@ const RestockPage = () => {
                         <input
                           type="number"
                           className="w-full p-2 border mb-2"
+                          placeholder="Cost Price (₦)"
+                          value={product.cost_price || ""}
+                          onChange={(e) =>
+                            setProducts((prev) =>
+                              prev.map((p) =>
+                                p.id === product.id
+                                  ? { ...p, cost_price: parseFloat(e.target.value) || 0 }
+                                  : p
+                              )
+                            )
+                          }
+                        />
+                        <input
+                          type="number"
+                          className="w-full p-2 border mb-2"
+                          placeholder="Selling Price (₦)"
                           value={product.price}
                           onChange={(e) =>
                             setProducts((prev) =>
@@ -233,15 +257,13 @@ const RestockPage = () => {
                         <input
                           type="number"
                           className="w-full p-2 border mb-2"
-                          value={product.stock_quantity}
+                          placeholder="Stock"
+                          value={product.stock}
                           onChange={(e) =>
                             setProducts((prev) =>
                               prev.map((p) =>
                                 p.id === product.id
-                                  ? {
-                                      ...p,
-                                      stock_quantity: parseInt(e.target.value),
-                                    }
+                                  ? { ...p, stock: parseInt(e.target.value) || 0 }
                                   : p
                               )
                             )
@@ -250,9 +272,10 @@ const RestockPage = () => {
                         <div className="flex justify-between">
                           <button
                             onClick={() => handleSave(product)}
-                            className="bg-green-600 text-white px-3 py-1 rounded"
+                            disabled={saving} // ← NEW
+                            className="bg-green-600 text-white px-3 py-1 rounded disabled:opacity-50"
                           >
-                            Save
+                            {saving ? "Saving..." : "Save"}
                           </button>
                           <button
                             onClick={() => setEditingProduct(null)}
@@ -264,18 +287,26 @@ const RestockPage = () => {
                       </>
                     ) : (
                       <>
+                        {/* ✅ FIXED: Image height + empty string fallback */}
                         <img
-                          src={product.product_image || "/placeholder.png"}
+                          src={product.product_image?.trim() ? product.product_image : "/placeholder.png"}
                           alt={product.name}
-                          className="w-full h-32 object-cover rounded mb-2"
+                          className="w-full h-24 object-cover rounded mb-2"
                         />
                         <h3 className="font-semibold text-lg">{product.name}</h3>
                         <p className="text-sm text-gray-600">
                           {product.description}
                         </p>
-                        <p className="mt-1 font-bold">₦{product.price}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <p className="font-bold">₦{parseFloat(product.price).toLocaleString()}</p>
+                          {product.cost_price > 0 && (
+                            <p className="text-xs text-gray-400">
+                              Cost: ₦{parseFloat(product.cost_price).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
                         <p className="text-sm">
-                          Stock: {product.stock_quantity}
+                          Stock: {product.stock}
                         </p>
                         <button
                           onClick={() => setEditingProduct(product.id)}
@@ -289,7 +320,7 @@ const RestockPage = () => {
                 ))}
               </div>
 
-              {/* ✅ Pagination controls */}
+              {/* Pagination controls */}
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button
                   disabled={page === 0}
@@ -299,7 +330,7 @@ const RestockPage = () => {
                   Previous
                 </button>
                 <span>
-                  Page {page + 1} of {totalPages}
+                  Page {page + 1} of {totalPages || 1}
                 </span>
                 <button
                   disabled={page + 1 >= totalPages}

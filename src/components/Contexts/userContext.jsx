@@ -1,6 +1,6 @@
 // src/contexts/UserContext.js
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../../supabaseClient';
+import { supabase, setApiToken } from '../../supabaseClient';
  import { useRef } from 'react';
 
 // Create the UserContext
@@ -57,6 +57,30 @@ const [fetchFlags, setFetchFlags] = useState({
   userData: false,
   guardianStudents: false,
 
+});
+
+
+// In your fetchFlags state, add worker routing
+const [fetchFlags2, setFetchFlag2] = useState({ 
+  students:      { active: false, worker: 'admin',    cache: false },
+  teachers:      { active: false, worker: 'admin',    cache: false },
+  schools:       { active: false, worker: 'catalog',  cache: '5min' },
+  subjects:      { active: false, worker: 'catalog',  cache: '5min' },
+  oneStudent:    { active: false, worker: 'admin',    cache: false },
+  attendance:    { active: false, worker: 'admin',    cache: false },
+  teacherDashboardSubjects: { active: false, worker: 'admin', cache: false },
+  teacherSubjects:     { active: false, worker: 'admin', cache: false },
+  teacherSubjectsFull: { active: false, worker: 'admin', cache: false },
+  roles:         { active: false, worker: 'catalog',  cache: '1hour' },
+  requests:      { active: false, worker: 'admin',    cache: false },
+  classes:       { active: false, worker: 'catalog',  cache: '5min' },
+  classSubject:  { active: false, worker: 'admin',    cache: false },
+  userSchools:   { active: false, worker: 'admin',    cache: false },
+  teacher:       { active: false, worker: 'admin',    cache: false },
+  allStudents:   { active: false, worker: 'admin',    cache: false },
+  userData:      { active: false, worker: 'admin',    cache: false },
+  guardianStudents: { active: false, worker: 'admin', cache: false },
+  notes:         { active: false, worker: 'notes',    cache: false }, // from StudentNotesApp
 });
 
 
@@ -770,6 +794,7 @@ useEffect(() => {
       if (sessionError) throw sessionError;
       setSession(session);
       setUser(session?.user || null);
+      setApiToken(session?.access_token || null);  // ← ADD HERE
       if (session) {
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -804,6 +829,7 @@ useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setSession(session);
       setUser(session?.user || null);
+      setApiToken(session?.access_token || null);  // ← ADD HERE
       if (session) {
         supabase
           .from('profiles')
@@ -871,6 +897,9 @@ useEffect(() => {
         setTeachers,
         allStudents,
         setAllStudents,
+        fetchFlags2, 
+        setFetchFlag2
+        
 
       
         

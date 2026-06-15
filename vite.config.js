@@ -1,3 +1,4 @@
+// vite.config.js
 import path from "path";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
@@ -9,14 +10,26 @@ export default defineConfig({
     svgr({
       svgrOptions: {
         icon: true,
-        // optional: make all SVGs accessible via both ?url and ?react
       },
     }),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      // REMOVE THIS BLOCK:
+      // {
+      //   find: /^.*supabaseClient$/,
+      //   replacement: path.resolve(__dirname, "./src/apiClient.js"),
+      // },
+      
+      // KEEP THIS:
+      {
+        find: "@",
+        replacement: path.resolve(__dirname, "./src"),
+      },
+    ],
   },
   assetsInclude: ["**/*.svg"],
+  optimizeDeps: {
+    include: ["lodash"],
+  },
 });
