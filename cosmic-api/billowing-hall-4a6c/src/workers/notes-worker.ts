@@ -67,24 +67,33 @@ function setMemoryCache(key: string, response: Response): void {
 }
 
 // ==========================================
+// NORMALIZE: Strip PostgREST operators from IDs
+// ==========================================
+function normalizeId(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.replace(/^(eq\.|neq\.|gt\.|gte\.|lt\.|lte\.|like\.|ilike\.|in\.|is\.)/, '');
+}
+
+// ==========================================
 // CACHE PURGE: Write marker to KV
 // ==========================================
 async function writePurgeMarker(env: Env, table: string, schoolId?: string): Promise<void> {
   if (!env.CACHE_KV) return;
-  const purgeKey = `purge:${table}:${schoolId || 'all'}`;
+  const normalizedId = normalizeId(schoolId);
+  const purgeKey = `purge:${table}:${normalizedId || 'all'}`;
   await env.CACHE_KV.put(purgeKey, String(Date.now()), { expirationTtl: 3600 });
 }
 
 // ==========================================
 // CACHE STALE CHECK: Read marker from KV
-// Checks both specific schoolId AND global 'all' purge markers
 // ==========================================
 async function isCacheStale(env: Env, table: string, cachedAt: number, schoolId?: string): Promise<boolean> {
   if (!env.CACHE_KV) return false;
 
+  const normalizedId = normalizeId(schoolId);
   const keysToCheck = [`purge:${table}:all`];
-  if (schoolId && schoolId !== 'all') {
-    keysToCheck.unshift(`purge:${table}:${schoolId}`);
+  if (normalizedId && normalizedId !== 'all') {
+    keysToCheck.unshift(`purge:${table}:${normalizedId}`);
   }
 
   for (const key of keysToCheck) {
@@ -182,6 +191,7 @@ export default {
           headers: {
             'Content-Type': res.headers.get('Content-Type') || 'application/json',
             ...corsHeaders(request.headers.get('Origin')),
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
             'X-Worker-Time': String(Date.now() - startTime),
             'X-AI-RateLimit-Remaining': String(aiResult.remaining),
           },
@@ -219,7 +229,19 @@ export default {
 
     const cache = caches.default;
     const cacheKey = buildCacheKey(url);
-    const isCacheable = request.method === 'GET' && CACHE_CONFIG.cacheableTables.has(table);
+
+    // ==========================================
+    // ONLY CACHE UNFILTERED "LIST ALL" REQUESTS
+    // This prevents cache collisions between class_id/subject_id filters
+    // ==========================================
+    const hasRowFilters = url.searchParams.has('class_id') ||
+                        url.searchParams.has('subject_id') ||
+                        url.searchParams.has('title') ||
+                        url.searchParams.has('ilike');
+    const isCacheable = request.method === 'GET' &&
+                        CACHE_CONFIG.cacheableTables.has(table) &&
+                        !hasRowFilters;
+
     const memCacheKey = `${userId}:${getMemoryCacheKey(url)}`;
 
     // ==========================================
@@ -240,6 +262,7 @@ export default {
             'Content-Range': memCached.headers.get('Content-Range') || '',
             'X-Total-Count': memCached.headers.get('X-Total-Count') || '',
             ...corsHeaders(request.headers.get('Origin')),
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
             'X-Cache': 'MEMORY',
             'X-RateLimit-Remaining': String(rateLimitResult.remaining),
             'X-RateLimit-Reset': String(rateLimitResult.resetTime),
@@ -273,6 +296,7 @@ export default {
             'Content-Range': cachedResponse.headers.get('Content-Range') || '',
             'X-Total-Count': cachedResponse.headers.get('X-Total-Count') || '',
             ...corsHeaders(request.headers.get('Origin')),
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
             'X-Cache': 'HIT',
             'X-RateLimit-Remaining': String(rateLimitResult.remaining),
             'X-RateLimit-Reset': String(rateLimitResult.resetTime),
@@ -376,6 +400,7 @@ export default {
         'content-location': res.headers.get('content-location') || '',
         'content-profile': res.headers.get('content-profile') || '',
         ...corsHeaders(request.headers.get('Origin')),
+        'Cache-Control': 'private, no-cache, no-store, must-revalidate',
         'X-RateLimit-Remaining': String(rateLimitResult.remaining),
         'X-RateLimit-Reset': String(rateLimitResult.resetTime),
         'X-Worker-Time': String(Date.now() - startTime),
@@ -391,10 +416,10 @@ export default {
       }
 
       // ==========================================
-      // CACHE STORE (with purge marker check)
+      // CACHE STORE (only for unfiltered requests)
       // ==========================================
       const shouldCache = request.method === 'GET' && (res.status === 200 || res.status === 404);
-      if (shouldCache && CACHE_CONFIG.cacheableTables.has(table)) {
+      if (shouldCache && isCacheable) {
         const cacheTTL = parseInt(env.CACHE_TTL || String(CACHE_CONFIG.defaultTTL));
         const responseToCache = new Response(responseBody, {
           status: res.status,
@@ -421,10 +446,8 @@ export default {
       // PURGE CACHE ON MUTATIONS
       // ==========================================
       if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method) && CACHE_CONFIG.cacheableTables.has(table)) {
-        // Try to extract school_id from URL first, then fall back to body
         let schoolId = url.searchParams.get('school_id') || undefined;
 
-        // For POST/PATCH/PUT, try to extract school_id from request body
         if (!schoolId && body) {
           try {
             const bodyJson = JSON.parse(body);
@@ -438,11 +461,9 @@ export default {
           }
         }
 
-        // Clear memory cache entries for this table so next requests fetch fresh
         clearMemoryCacheForTable(table);
-
         ctx.waitUntil(writePurgeMarker(env, table, schoolId));
-        console.log('[CACHE] PURGE marker written for', table, 'school:', schoolId || 'all');
+        console.log('[CACHE] PURGE marker written for', table, 'school:', normalizeId(schoolId) || 'all');
       }
 
       return new Response(responseBody, {
@@ -519,6 +540,7 @@ function jsonResponse(body: object, status: number, extraHeaders: Record<string,
     status,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'private, no-cache, no-store, must-revalidate',
       ...corsHeaders(null),
       ...extraHeaders,
     },

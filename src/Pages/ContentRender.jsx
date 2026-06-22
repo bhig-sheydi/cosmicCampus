@@ -978,6 +978,9 @@ const fetchSchoolMetadata = async (schoolId, proprietorId) => {
   return payload;
 };
 
+// ==========================================
+// FIXED: fetchNotesPage - only apply class filter when explicitly selected
+// ==========================================
 const fetchNotesPage = async ({ pageParam = 0, student, selectedClass, selectedSubject, debouncedSearch }) => {
   if (!student?.school_id) return { notes: [], total: 0 };
 
@@ -988,13 +991,13 @@ const fetchNotesPage = async ({ pageParam = 0, student, selectedClass, selectedS
     .order('updated_at', { ascending: false })
     .range(pageParam * NOTES_PER_PAGE, (pageParam + 1) * NOTES_PER_PAGE - 1);
 
-  if (student.class_id && !student.is_admin) {
-    query = query.eq('class_id', student.class_id);
-  } else if (selectedClass) {
+  // Only apply class filter if user explicitly selected a class.
+  // If selectedClass is null (All Classes), show all notes for the school.
+  if (selectedClass !== null && selectedClass !== undefined) {
     query = query.eq('class_id', selectedClass);
   }
 
-  if (selectedSubject) {
+  if (selectedSubject !== null && selectedSubject !== undefined) {
     query = query.eq('subject_id', selectedSubject);
   }
 
@@ -1050,6 +1053,8 @@ export default function StudentNotesApp() {
   const [confirmResetAll, setConfirmResetAll] = useState(false);
   const [confirmClearRecent, setConfirmClearRecent] = useState(false);
   const [showResetSuccess, setShowResetSuccess] = useState(false);
+  // NEW: Track whether we've done the initial class auto-selection
+  const [hasInitializedClass, setHasInitializedClass] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
   const { isOnline, wasOffline, setWasOffline } = useNetworkStatus();
@@ -1081,11 +1086,13 @@ export default function StudentNotesApp() {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
+  // FIXED: Only auto-select the student's class ONCE on initial load
   useEffect(() => {
-    if (student?.class_id && selectedClass === null) {
+    if (student?.class_id && !hasInitializedClass) {
       setSelectedClass(student.class_id);
+      setHasInitializedClass(true);
     }
-  }, [student, selectedClass]);
+  }, [student, hasInitializedClass]);
 
   // ==========================================
   // METADATA QUERY
@@ -1283,8 +1290,9 @@ export default function StudentNotesApp() {
     }
   }, []);
 
+  // FIXED: Allow "All Classes" (null) to actually show all classes
   const handleSelectClass = useCallback((id) => {
-    setSelectedClass(id);
+    setSelectedClass(id); // id is null when "All Classes" is selected
     setSelectedSubject(null);
   }, []);
 
