@@ -248,7 +248,10 @@ const workerDbWrapper = {
     },
 
     insert: (values, { returning = 'representation', count = null } = {}) => {
-      const url = `${API_BASE}/${table}`;
+      let url = `${API_BASE}/${table}`;
+      if (count) {
+        url += `?count=${encodeURIComponent(count)}`;
+      }
       const headers = {
         'Content-Type': 'application/json',
         'Prefer': `return=${returning}`,
@@ -352,7 +355,10 @@ const workerDbWrapper = {
     }),
 
     upsert: (values, { onConflict, returning = 'representation', count = null, ignoreDuplicates = false } = {}) => {
-      const url = `${API_BASE}/${table}`;
+      let url = `${API_BASE}/${table}`;
+      if (onConflict) {
+        url += `?on_conflict=${encodeURIComponent(onConflict)}`;
+      }
       const prefer = [`return=${returning}`];
       if (ignoreDuplicates) prefer.push('resolution=ignore-duplicates');
       else prefer.push('resolution=merge-duplicates');

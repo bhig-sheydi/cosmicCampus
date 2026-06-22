@@ -69,9 +69,10 @@ function setMemoryCache(key: string, response: Response): void {
 // ==========================================
 // NORMALIZE: Strip PostgREST operators from IDs
 // ==========================================
-function normalizeId(value: string | null | undefined): string | undefined {
-  if (!value) return undefined;
-  return value.replace(/^(eq\.|neq\.|gt\.|gte\.|lt\.|lte\.|like\.|ilike\.|in\.|is\.)/, '');
+function normalizeId(value: unknown): string | undefined {
+  if (value == null || value === '') return undefined;
+  const str = String(value);
+  return str.replace(/^(eq\.|neq\.|gt\.|gte\.|lt\.|lte\.|like\.|ilike\.|in\.|is\.)/, '');
 }
 
 // ==========================================
@@ -462,7 +463,7 @@ export default {
         }
 
         clearMemoryCacheForTable(table);
-        ctx.waitUntil(writePurgeMarker(env, table, schoolId));
+        ctx.waitUntil(writePurgeMarker(env, table, normalizeId(schoolId)));
         console.log('[CACHE] PURGE marker written for', table, 'school:', normalizeId(schoolId) || 'all');
       }
 
